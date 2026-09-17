@@ -20,6 +20,7 @@ from .hardening import load_items, render as render_checklist, toggle
 from .history import History
 from .imaging import HAVE_PIL
 from .registry import Site, load_registry
+from .scan import ACTIONABLE as ACTIONABLE_VERDICTS
 from .report import manual_links, markdown, summary_lines, write_reports
 from .scan import run_scan
 from .scrub import audit as audit_image, scrub
@@ -388,16 +389,27 @@ def _cmd_history(cfg: Config, limit: int) -> int:
         print("no scans recorded yet — run `pp-watchdog scan --history`")
         hist.close()
         return 0
-    ages: dict[str, float] = {}
-    for s in scans:
-        for f in hist.findings_for(s["id"]):
-            if f.get("actionable"):
-                ages.setdefault(f["site_id"], s["started"])
+    # Age is measured from the first scan where the site WAS actionable, but only
+    # for sites that ARE actionable in the latest scan: a verdict that has since
+    # been reclassified (e.g. capability-observed, which is not a complaint
+    # target) must not keep a site on the exposure list forever.
+    latest_id = scans[0]["id"]
+    current = {f["site_id"]: f for f in hist.findings_for(latest_id) if f.get("actionable")}
+    prior = {f["site_id"] for f in hist.findings_for(scans[1]["id"]) if f.get("actionable")} \
+        if len(scans) > 1 else set()
     now = time.time()
-    print(f"@{cfg.handle} — {len(scans)} scan(s), exposure age by site\n")
-    for sid, first in sorted(ages.items(), key=lambda kv: kv[1]):
-        print(f"  {sid:<20} exposed {round((now - first) / 86400, 1)}d  (first seen "
-              f"{time.strftime('%Y-%m-%d', time.localtime(first))})")
+    print(f"@{cfg.handle} — {len(scans)} scan(s); exposure age by site "
+          f"(latest scan: {time.strftime('%Y-%m-%d %H:%M', time.localtime(scans[0]['started']))})\n")
+    if not current:
+        print("  nothing actionable in the latest scan")
+    for sid, f in sorted(current.items(), key=lambda kv: -kv[1].get("weight", 0)):
+        first = hist.first_seen(sid, tuple(ACTIONABLE_VERDICTS)) or scans[-1]["started"]
+        days = round((now - first) / 86400, 1)
+        print(f"  {sid:<20} {f.get('verdict',''):<20} {days:>5}d  (first actionable "
+              f"{time.strftime('%Y-%m-%d', time.localtime(first))})  weight {f.get('weight', 0)}")
+    cleared = sorted(prior - set(current))
+    if cleared:
+        print("\n  no longer actionable (reclassified or removed): " + ", ".join(cleared))
     log = dispatch_log(cfg)
     if log:
         print("\nnotices:\n")
