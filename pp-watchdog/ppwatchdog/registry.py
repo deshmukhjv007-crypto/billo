@@ -18,6 +18,7 @@ class Site:
     contact_paths: list[str] = field(default_factory=lambda: ["/contact", "/dmca"])
     confirmed: bool = False
     status_2026_08: str = ""
+    last_verified: str = ""  # what THIS install actually observed, and when
     risk: str = "medium"
     notes: str = ""
     kind: str = "mirror"  # mirror | search
@@ -44,7 +45,8 @@ class Site:
         return {
             "id": self.id, "name": self.name, "base": self.base, "risk": self.risk,
             "confirmed": self.confirmed, "kind": self.kind, "origin": self.origin,
-            "status_2026_08": self.status_2026_08, "notes": self.notes,
+            "status_2026_08": self.status_2026_08, "last_verified": self.last_verified,
+            "notes": self.notes,
             "profile_urls": self.profile_urls, "contact_paths": self.contact_paths,
         }
 

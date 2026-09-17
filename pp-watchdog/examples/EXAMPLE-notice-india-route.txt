@@ -16,16 +16,16 @@ content revealing my identity within 24 hours.
 
 A. THE MATERIAL AND WHERE IT IS
 
-URL I identified as infringing    http://127.0.0.1:38141/dumpor/profile/j.v.d.7
-Unauthorised copy served at       http://127.0.0.1:38141/media/stale.png
+URL I identified as infringing    http://127.0.0.1:40665/dumpor/profile/j.v.d.7
+Unauthorised copy served at       http://127.0.0.1:40665/media/stale.png
 Dimensions served                 320x320 px
 SHA-256 of the served file        dd165632efcc38fadeabd0daf69101478a17297809f9671c3504aa443ad75b62
-What my automated check observed  verdict 'serving-stale' (HTTP 200, 28 ms)
+What my automated check observed  verdict 'serving-stale' (HTTP 200, 28 ms observed)
 Comparison to my original file    dHash distance 42/64: a different photograph — this is an older picture of you
 Captured markup                         <script>var user = {"username":"j.v.d.7","full_name":"Demo User",
-      "profile_pic_url":"http://127.0.0.1:38141/media/stale.png"};</script> <a
-      href="http://127.0.0.1:38141/media/stale.png" download>Download ful
-Observation timestamp             2026-09-17 11:13:11 UTC
+      "profile_pic_url":"http://127.0.0.1:40665/media/stale.png"};</script> <a
+      href="http://127.0.0.1:40665/media/stale.png" download>Download ful
+Observation timestamp             2026-09-17 14:05:51 UTC
 Days exposed (from my history)    0.0
 
 B. WHY IT MUST GO - My photograph is reproduced with no licence from me, and my handle

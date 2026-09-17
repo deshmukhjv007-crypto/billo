@@ -98,6 +98,14 @@ def render_page(cfg: Config, banner: str | None = None) -> str:
                 "<br><span class='pill warn'>file still carries metadata: "
                 f"{html.escape(', '.join(f['meta_markers']))}</span>")
         img = (f"<code>{html.escape(f['image_url'])}</code>" if f.get("image_url") else "—")
+        hints = f.get("asset_hints") or {}
+        if hints.get("source_px"):
+            img += ("<br><span class='pill bad'>source asset "
+                    f"{html.escape(str(hints.get('source_asset', '')))} · displayed "
+                    f"{html.escape(str(hints.get('display', '?')))}</span>")
+        if f.get("site_quotes"):
+            img += ("<br><span style='color:var(--dim);font-size:12.5px'>quotes their own page: "
+                    "&ldquo;" + html.escape(f["site_quotes"][0][:150]) + "&rdquo;</span>")
         rows.append(
             "<tr>"
             f"<td><b>{html.escape(f.get('site_name', f.get('site_id', '')))}</b>"

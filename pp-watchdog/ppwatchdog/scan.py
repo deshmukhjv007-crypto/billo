@@ -37,7 +37,9 @@ VERDICT_WEIGHT = {
     "serving-stale": 26,
     "serving-current": 14,
     "serving-unidentified": 18,
+    "advertising-hd": 30,
     "profile-mirrored": 8,
+    "capability-observed": 2,
     "login-wall": 5,
     "refused": 4,
     "blocked-robots": 3,
@@ -48,7 +50,7 @@ VERDICT_WEIGHT = {
     "not-indexed": 0,
 }
 ACTIONABLE = {"serving-hires", "serving-stale", "serving-current", "serving-unidentified",
-             "profile-mirrored"}
+             "advertising-hd", "profile-mirrored"}
 
 
 @dataclass
@@ -67,6 +69,9 @@ class Finding:
     match_kind: str = ""
     match_detail: str = ""
     meta_markers: list[str] = field(default_factory=list)
+    site_quotes: list[str] = field(default_factory=list)
+    asset_hints: dict = field(default_factory=dict)
+    provenance: str = ""
     evidence_snippet: str = ""
     abuse_contacts: list[str] = field(default_factory=list)
     notes: str = ""
@@ -211,6 +216,7 @@ def _probe_site(cfg: Config, site: Site, policy: Policy, baseline, result: ScanR
             policy.note(url, resp.status, resp.error)
 
         page = resp.text()
+        provenance = _provenance(page) if offline_dir else ""
         status, latency = resp.status, resp.elapsed_ms
         page_state = extract.page_state(page, status, resp.error, resp.location)
         if resp.redirected:
@@ -244,6 +250,20 @@ def _probe_site(cfg: Config, site: Site, policy: Policy, baseline, result: ScanR
     contacts = _discover_contacts(cfg, site, policy, offline_dir) if not offline_dir else []
 
     if not candidates:
+        named = extract.mentions_handle(page, cfg.handle)
+        if not named:
+            # The page proves what the service can do; it says nothing about you.
+            # Claiming otherwise is exactly the kind of invented evidence that gets a
+            # takedown notice ignored, so it is recorded as context, not as exposure.
+            return Finding(site_id=site.id, site_name=site.name, base=site.base, url=tried[-1],
+                           verdict="capability-observed", page_state=page_state, status=status,
+                           latency_ms=latency, evidence_snippet=snippet[:400],
+                           site_quotes=extract.hd_claims(page)[:3], provenance=provenance,
+                           abuse_contacts=contacts,
+                           notes="the operator advertises full-size profile-picture retrieval, but "
+                                 "this page carries no data for your handle — context for the "
+                                 "findings that do, and a reason to change your picture, not a "
+                                 "thing to complain about")
         return Finding(site_id=site.id, site_name=site.name, base=site.base, url=tried[-1],
                        verdict="profile-mirrored", page_state=page_state, status=status,
                        latency_ms=latency, evidence_snippet=snippet[:400],
@@ -252,12 +272,24 @@ def _probe_site(cfg: Config, site: Site, policy: Policy, baseline, result: ScanR
                              "the markup - verify in a browser before asserting it in a notice")
 
     best = candidates[0]
+    hints = extract.instagram_asset_hints(best.url)
+    claims = extract.hd_claims(page)
     img = _fetch_image(cfg, best.url, policy, offline_dir)
     if img is None:
+        # We can see the reference but cannot (or did not) pull the bytes: no file hash, no
+        # pixel comparison. What we CAN still assert is what the page itself offers, and what
+        # Instagram's own CDN parameters say the source asset is.
+        verdict = "advertising-hd" if (claims or hints.get("source_px")) else "profile-mirrored"
+        note = ("image URL present but the file itself was not retrieved, so no byte/perceptual "
+                "comparison was possible" if verdict == "profile-mirrored" else
+                _hd_note(claims, hints) + "; the served file was not retrieved, so this finding "
+                "rests on the page's own words and Instagram's asset tag - quote them, do not "
+                "overstate them")
         return Finding(site_id=site.id, site_name=site.name, base=site.base, url=tried[-1],
-                       verdict="profile-mirrored", page_state=page_state, status=status,
-                       latency_ms=latency, image_url=best.url, evidence_snippet=best.context[:400],
-                       abuse_contacts=contacts, notes="image URL present but not retrievable")
+                       verdict=verdict, page_state=page_state, status=status, latency_ms=latency,
+                       image_url=best.url, evidence_snippet=best.context[:400],
+                       site_quotes=claims[:3], asset_hints=hints, provenance=provenance,
+                       abuse_contacts=contacts, notes=note)
     cmp = imaging.compare(baseline, img)
     if cmp.kind == "exact" or cmp.kind == "same-photo":
         verdict = "serving-hires" if cmp.bigger else "serving-current"
@@ -271,8 +303,29 @@ def _probe_site(cfg: Config, site: Site, policy: Policy, baseline, result: ScanR
         image_sha256=img.sha256, image_size=[img.width, img.height], match_kind=cmp.kind,
         match_detail=cmp.detail, meta_markers=img.meta_markers,
         evidence_snippet=best.context[:400], abuse_contacts=contacts,
-        notes=f"found via '{best.how}'" + (" · looks like a direct Instagram CDN URL" if best.ig_cdn else ""),
+        site_quotes=claims[:3], asset_hints=hints, provenance=provenance,
+        notes=f"found via '{best.how}'"
+              + (" · looks like a direct Instagram CDN URL" if best.ig_cdn else "")
+              + (f" · { _hd_note(claims, hints)}" if hints.get("source_px") or claims else ""),
     )
+
+
+def _hd_note(claims: list[str], hints: dict) -> str:
+    bits = []
+    if hints.get("source_px"):
+        disp = hints.get("display", "unknown display size")
+        bits.append(f"Instagram's own asset tag labels the source {hints['source_asset']} "
+                    f"({hints['source_px']}px) while the mirror displays {disp}")
+    if claims:
+        bits.append('the page advertises this: "' + claims[0][:120] + '"')
+    return "; ".join(bits)
+
+
+def _provenance(page: str) -> str:
+    """Capture-mode provenance: HTML comments a human/agent left with the saved page."""
+    comments = re.findall(r"<!--\s*(.*?)\s*-->", page[:4000], re.S)
+    lines = [re.sub(r"\s+", " ", c).strip() for c in comments if len(c.strip()) > 8]
+    return " | ".join(lines[:4])
 
 
 def _bigger(a: imaging.Fingerprint, b: imaging.Fingerprint | None) -> bool:

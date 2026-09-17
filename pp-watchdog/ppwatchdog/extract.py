@@ -8,6 +8,7 @@ caller decide. A generic extractor keeps the tool useful after the site redesign
 
 from __future__ import annotations
 
+import base64
 import json
 import re
 from dataclasses import dataclass
@@ -28,11 +29,20 @@ _META_OG = re.compile(
     re.IGNORECASE,
 )
 _NOT_FOUND = re.compile(
-    r"""(user\s*(?:not\s*found|does\s*not\s*exist)|profile\s*not\s*found|"""
-    r"""couldn'?t\s*find\s*(?:this|the)\s*(?:user|profile)|no\s+such\s+user|"""
-    r"""isn'?t\s+available|404\s*[-–:]\s*not\s*found|page\s+not\s+found)""",
+    r"""(?:user|profile|page|account|record|result)\s+(?:was\s+)?not\s+found"""
+    r"""|\bnot\s+found\b"""
+    r"""|error\s*404|404\s*(?:error|not\s*found)"""
+    r"""|user\s+does\s+not\s+exist"""
+    r"""|couldn'?t\s+find\s+(?:this|the)\s*(?:user|profile)"""
+    r"""|no\s+such\s+user|no\s+results?\s+(?:found|available)"""
+    r"""|isn'?t\s+available""",
     re.IGNORECASE,
 )
+# 2026 reality: several mirrors answer HTTP 200 with a "Not Found" body, so the page
+# text is authoritative and the status code is not. Short apologies ("We are sorry")
+# are treated as not-found only on small pages, where there is no content to misread.
+_APOLOGY = re.compile(r"\bwe\s+are\s+sorry\b|\bsorry,?\s+nothing\s+found\b", re.IGNORECASE)
+
 _LOGIN_WALL = re.compile(
     r"""(log\s*in\s+to\s+(?:continue|view)|sign\s*in\s+(?:required|to\s+view)|"""
     r"""enter\s+your\s+instagram\s+password|unlock\s+with\s+an\s+account)""",
@@ -146,8 +156,156 @@ def page_state(page: str, status: int, error: str = "", location: str = "") -> s
         return "login-wall"
     if _NOT_FOUND.search(page):
         return "not-indexed"
+    if len(page) < 4000 and _APOLOGY.search(page):
+        return "not-indexed"
     if status and status >= 500:
         return "error"
     if page:
         return "served"
     return "empty"
+
+
+# --------------------------------------------------------------------------- #
+# Mirror-side claims, Instagram's own asset labels, and handle attribution
+# --------------------------------------------------------------------------- #
+_HD_CLAIM_PATTERNS = (
+    r"full[\s-]?size\s+(?:hd\s+)?(?:instagram\s+)?profile\s+picture",
+    r"download[^\n]{0,40}profile\s+picture[^\n]{0,30}(?:hd|full\s+size|original|highest)",
+    r"(?:hd|full[\s-]size)\s+profile\s+(?:picture|pic|dp)",
+    r"\bhd\s+(?:profile|dp|picture)\b",
+    r"download\s+(?:hd\s+picture|all\s+media)",
+    r"original\s+image\s+file[^\n]{0,60}(?:servers|highest)",
+    r"highest\s+available\s+resolution",
+    r"zoom[\s-]in[^\n]{0,40}(?:hd|full\s+size|picture|image)",
+    r"profile\s+picture[^\n]{0,40}even\s+for\s+private\s+accounts",
+    r"(?:never|no)[^\n]{0,30}notification[^\n]{0,60}(?:view|visit|download)",
+)
+_HD_CLAIMS_RE = re.compile("(" + "|".join(_HD_CLAIM_PATTERNS) + ")", re.IGNORECASE)
+_VARIANT_RE = re.compile(r"dst-\w+_s(\d{2,4})x(\d{2,4})", re.I)
+_EFG_RE = re.compile(r"(?:[?&]|%3F|26)(?:_nc_)?efg=([A-Za-z0-9_%+\-]+)")
+_ASSET_TOKEN = re.compile(r"(profile_pic[\w.]*?)\.(\d{3,4})(?:\.(\w{1,4}))?", re.I)
+
+_QUOTES = {"display": "displayed at", "vencode_tag": "source asset tag",
+           "source_asset": "source asset", "source_px": "source pixels"}
+
+
+def hd_claims(page: str, *, limit: int = 4) -> list[str]:
+    """Sentences where a mirror advertises what it can do with a profile picture.
+
+    These are the operator's own words, quoted into the takedown notice: they turn
+    "I think you are hosting my photo" into "your own page says you serve the
+    full-resolution original, including for private accounts, and that the owner
+    never hears about it".
+    """
+    text = re.sub(r"<[^>]+>", " ", page)
+    # markdown links -> anchor text, so "[HD Profile](https://…)" reads as a claim
+    # about HD profiles instead of a URL blob with the word in it
+    text = re.sub(r"\]\([^)]*\)", "", text)
+    text = re.sub(r"\[([^\]]+)\]", r"\1", text)
+    text = re.sub(r"\s+", " ", _unescape(text))
+    out: list[str] = []
+    for m in _HD_CLAIMS_RE.finditer(text):
+        floor = max(0, m.start() - 120)
+        ceil = min(len(text), m.end() + 140)
+        s = text.rfind(". ", 0, m.start())
+        start = floor if s < floor else s + 2
+        e = text.find(". ", m.end())
+        end = ceil if e == -1 or e > ceil else e + 1
+        quote = text[start:end]
+        quote = re.sub(r"[!*`\[\]<>|]+", " ", quote.replace("#", " "))
+        quote = " ".join(quote.split()).strip(" -.\u00b7")
+        if "http" in quote.lower() or quote.count("%") > 3:
+            continue  # URL debris, not a sentence
+        if len(quote.split()) < 4 or len(quote) < 24:
+            continue  # a label, not a sentence
+        if len(quote) > 16 and not any(quote in x for x in out):
+            out.append(quote[:320])
+        if len(out) >= limit:
+            break
+    return out
+
+
+_WRAPPABLE = re.compile(r"[?&]([a-z_]{1,6})=([A-Za-z0-9_%+/\-]{24,})")
+
+
+def _b64_to_text(token: str) -> str:
+    for cand in {token, token.replace("%3D", "=").rstrip("=")}:
+        pad = cand + "=" * (-len(cand) % 4)
+        try:
+            raw = base64.urlsafe_b64decode(pad)
+        except Exception:
+            continue
+        if raw[:4] == b"http":
+            try:
+                return raw.decode("utf-8", "ignore")
+            except Exception:
+                return ""
+    return ""
+
+
+def instagram_asset_hints(url: str, *, _depth: int = 0) -> dict:
+    """Decode Instagram's own CDN parameters that the mirror leaked into the URL.
+
+    ``stp=dst-jpg_s150x150`` is the thumbnail Instagram displays. The base64
+    ``efg`` parameter carries a ``vencode_tag`` naming the *source* asset, e.g.
+    ``profile_pic.www.1080.C3`` - a 1080px original that this service can reach.
+    The gap between display size and source asset is the most useful sentence in
+    any complaint about a profile picture, because it is Instagram's own metadata
+    rather than our inference.
+    """
+    hints: dict = {}
+    url = _unescape(url)
+    disp = _VARIANT_RE.search(url)
+    if disp:
+        hints["display"] = disp.group(1) + "x" + disp.group(2)
+    for m in _EFG_RE.finditer(url):
+        token = m.group(1)
+        for candidate in {token, token.replace("%3D", "=").rstrip("=")}:
+            pad = candidate + "=" * (-len(candidate) % 4)
+            try:
+                decoded = json.loads(base64.urlsafe_b64decode(pad))
+            except Exception:
+                continue
+            tag = ""
+            if isinstance(decoded, dict):
+                tag = str(decoded.get("vencode_tag") or decoded.get("vendor_tag") or "")
+            if tag:
+                hints["vencode_tag"] = tag
+                asset = _ASSET_TOKEN.search(tag)
+                if asset:
+                    hints["source_asset"] = asset.group(0)
+                    hints["source_px"] = int(asset.group(2))
+            break
+        if "vencode_tag" in hints:
+            break
+    # Many proxies do not rewrite the source URL, they base64-wrap it and fetch it
+    # lazily. Decoding it back proves their "copy" is literally your Instagram asset,
+    # which is a far better thing to put in a complaint than an inference.
+    if _depth < 1:
+        for m in _WRAPPABLE.finditer(url):
+            inner = _b64_to_text(m.group(2))
+            if inner.startswith("http") and ("instagram" in inner or "cdninsta" in inner):
+                hints["wrapped_source_url"] = inner.split("?")[0][:160]
+                hints["wrapped_via"] = m.group(1)
+                deeper = instagram_asset_hints(inner, _depth=_depth + 1)
+                for k, v in deeper.items():
+                    hints.setdefault(k, v)
+                break
+    return hints
+
+
+def mentions_handle(page: str, handle: str) -> bool:
+    """Is this handle actually named in the rendered content, not just in our notes?
+
+    Captures carry provenance comments that repeat the source URL, and the URL
+    contains the handle. If that counted, an empty search shell would be reported
+    as a confirmed mirror of someone's profile - so comments and script blobs are
+    stripped before matching.
+    """
+    if not handle:
+        return False
+    body = re.sub(r"<!--.*?-->", " ", page[:200_000], flags=re.S)
+    body = re.sub(r"<script[^>]*>.*?</script>", " ", body, flags=re.S | re.I)
+    if handle in body:
+        return True
+    return ("@" + handle) in body or ("%40" + handle) in body.lower()

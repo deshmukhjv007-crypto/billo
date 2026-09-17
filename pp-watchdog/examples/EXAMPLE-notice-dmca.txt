@@ -15,16 +15,16 @@ in it; no licence, express or implied, was granted to you or to any of your user
 
 2. IDENTIFICATION OF THE INFRINGING MATERIAL
 
-URL I identified as infringing    http://127.0.0.1:38141/instadp/profile/j.v.d.7
-Unauthorised copy served at       http://127.0.0.1:38141/media/hires_1080x1080.png
+URL I identified as infringing    http://127.0.0.1:40665/instadp/profile/j.v.d.7
+Unauthorised copy served at       http://127.0.0.1:40665/media/hires_1080x1080.png
 Dimensions served                 1080x1080 px
 SHA-256 of the served file        969e411a5b032560acaa77be20dfe8a770f65f41d439caddfd8657038bc2bb53
-What my automated check observed  verdict 'serving-hires' (HTTP 200, 28 ms)
+What my automated check observed  verdict 'serving-hires' (HTTP 200, 27 ms observed)
 Comparison to my original file    dHash distance 0/64: the same photograph, re-encoded, served at 1080x1080 vs your 320x320
 Captured markup                         <script>var user = {"username":"j.v.d.7","full_name":"Demo User",
-      "profile_pic_url":"http://127.0.0.1:38141/media/hires_1080x1080.png"};</script>
-      <a href="http://127.0.0.1:38141/media/hires_1080x1080.png" d
-Observation timestamp             2026-09-17 11:13:11 UTC
+      "profile_pic_url":"http://127.0.0.1:40665/media/hires_1080x1080.png"};</script>
+      <a href="http://127.0.0.1:40665/media/hires_1080x1080.png" d
+Observation timestamp             2026-09-17 14:05:51 UTC
 Days exposed (from my history)    0.0
 
 3. CONTACT INFORMATION Name: Demo Owner | Address: 1 Demo Street | Phone: +00-000-0000 |

@@ -15,7 +15,9 @@ VERDICT_LABEL = {
     "serving-stale": "SERVING AN OLD PICTURE OF YOU",
     "serving-current": "SERVING YOUR CURRENT PICTURE",
     "serving-unidentified": "SERVING A COPY THAT CANNOT BE IDENTIFIED (verify by eye)",
+    "advertising-hd": "OFFERS A FULL-SIZE DOWNLOAD OF YOUR PICTURE",
     "profile-mirrored": "PROFILE MIRRORED (image not independently retrieved)",
+    "capability-observed": "SERVICE CAPABILITY OBSERVED (no data of yours on the page)",
     "login-wall": "WANTS YOUR LOGIN — DO NOT COMPLY",
     "refused": "REFUSED OUR REQUEST",
     "blocked-robots": "BLOCKS CRAWLERS — CHECK BY HAND",
@@ -28,8 +30,8 @@ VERDICT_LABEL = {
     "no-fixture": "no offline fixture",
     "empty-response": "empty response",
 }
-BAD_FIRST = ["serving-hires", "serving-stale", "serving-current", "serving-unidentified",
-             "profile-mirrored",
+BAD_FIRST = ["serving-hires", "serving-stale", "advertising-hd", "serving-current",
+             "serving-unidentified", "profile-mirrored", "capability-observed",
              "login-wall", "refused", "blocked-robots", "moved", "unverified", "error",
              "unreachable", "skipped"]
 
@@ -121,6 +123,19 @@ def markdown(result: ScanResult, diff: dict | None, cfg, sites: list[Site]) -> s
                 L.append(f"- served file sha256: `{f.image_sha256}`")
             if f.match_detail:
                 L.append(f"- why it matters: {f.match_detail}")
+            if f.asset_hints:
+                hints = f.asset_hints
+                L.append("- Instagram's own CDN parameters on that URL: " + ", ".join(
+                    f"{k}=`{v}`" for k, v in hints.items()))
+                if hints.get("source_px") and f.image_size and any(f.image_size):
+                    if hints["source_px"] > max(f.image_size):
+                        L.append(f"  → the source asset is {hints['source_px']}px but only "
+                                 f"{f.image_size[0]}x{f.image_size[1]} is displayed: a bigger "
+                                 f"copy of your face exists and this service can reach it")
+            for q in (f.site_quotes or [])[:3]:
+                L.append(f'  - the operator\'s own words: \"{q}\"')
+            if f.provenance:
+                L.append(f"- evidence provenance: {f.provenance}")
             if f.meta_markers:
                 L.append(f"- ⚠️ the mirrored file still carries: {', '.join(f.meta_markers)}")
             L.append(f"- abuse addresses harvested this run: "

@@ -54,12 +54,40 @@ def _evidence_block(f: Finding, grace_days: float | None) -> str:
         rows.append(("Dimensions served", f"{f.image_size[0]}x{f.image_size[1]} px"))
     if f.image_sha256:
         rows.append(("SHA-256 of the served file", f.image_sha256))
-    rows.append(("What my automated check observed",
-                 f"verdict '{f.verdict}' (HTTP {f.status or 'n/a'}, {f.latency_ms} ms)"))
+    observed = f"verdict '{f.verdict}'"
+    if f.provenance:
+        observed += f" (from a saved capture, HTTP {f.status or 'n/a'})"
+    else:
+        observed += f" (HTTP {f.status or 'n/a'}, {f.latency_ms} ms observed)"
+    rows.append(("What my automated check observed", observed))
     if f.match_detail:
         rows.append(("Comparison to my original file", f.match_detail))
     if f.meta_markers:
         rows.append(("Metadata still present in their copy", ", ".join(f.meta_markers)))
+    hints = getattr(f, "asset_hints", None) or {}
+    if hints:
+        rows.append(("Instagram CDN parameters on that image URL",
+                     "\n      " + "\n      ".join(f"{k} = {v}" for k, v in hints.items())))
+        src_px = hints.get("source_px")
+        shown = max(f.image_size or [0]) if f.image_size else None
+        if src_px and (shown is None or shown < int(src_px)):
+            rows.append(("Why that matters",
+                         f"Instagram labels the source asset {hints.get('source_asset', src_px)}, "
+                         f"i.e. a {src_px}px original is reachable, while only "
+                         f"{hints.get('display', 'a thumbnail')} is displayed. A copy of my face is "
+                         f"being distributed at a resolution I never published for display, and the "
+                         f"file your service hands out is not a screenshot of a thumbnail."))
+    if hints.get("wrapped_source_url"):
+        rows.append(("Their copy is a proxy, not a link",
+                     f"Decoding the `{hints.get('wrapped_via', 'o')}` parameter of the image URL "
+                     f"above yields {hints['wrapped_source_url']} — your service fetches and "
+                     f"re-serves the file from its own host (sp1/imginn-style asset paths), which is "
+                     f"reproduction, not a hyperlink. This addresses the defence in advance."))
+    for i, q in enumerate((getattr(f, "site_quotes", None) or [])[:3]):
+        rows.append((f"Your own site states ({i + 1})", f'"{q}"'))
+    prov = getattr(f, "provenance", "")
+    if prov:
+        rows.append(("How this evidence was captured", prov))
     if f.evidence_snippet:
         rows.append(("Captured markup", "\n".join("      " + ln for ln in
                                                    textwrap.wrap(f.evidence_snippet, WIDTH - 8))))

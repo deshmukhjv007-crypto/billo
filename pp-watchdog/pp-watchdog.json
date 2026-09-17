@@ -23,9 +23,25 @@
     "stale_grace_days": 3,
     "takedown_after_stale_days": 5,
     "disabled": [],
-    "extra_sites": []
+    "extra_sites": [
+      {
+        "id": "pixnoy",
+        "name": "Pixnoy (formerly Pixwox)",
+        "base": "https://www.pixnoy.com",
+        "profile_urls": [
+          "/profile/{username}"
+        ],
+        "contact_paths": [
+          "/contact"
+        ],
+        "confirmed": true,
+        "risk": "high",
+        "status_2026_08": "added by you on 2026-09-17"
+      }
+    ]
   },
   "cadence_days": 14,
   "registry_file": "",
+  "source": "/home/user/billo/pp-watchdog/pp-watchdog.json",
   "notes": ""
 }

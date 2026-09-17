@@ -12,6 +12,19 @@ the output before running anything, and so the pipeline stays verifiable offline
 | `EXAMPLE-notice-india-route.txt` | an IT Act §79(2)(b) / IT Rules 2021 Rule 3(2)(b) notice with machine evidence embedded |
 | `EXAMPLE-notice-dmca.txt` | the §512(c)(3) variant for US-hosted infrastructure |
 
+## OBSERVED files are not synthetic
+
+`OBSERVED-2026-09-17-*` are the real result of a capture-mode scan of `@j.v.d.7` against
+`imginn.com` (the profile page was read live; see the provenance block inside the notice).
+They are committed so the evidence survives the sandbox, and so the shape of a finished
+notice is visible next to the toy one. Two notes:
+
+- the Instagram CDN URLs in them carry short-lived signatures (`oh=` / `oe=`), so the image
+  link may expire while the finding stays valid — the page URL is the durable reference;
+- this is *your* personal data. If this repo ever becomes public, delete these two files
+  (the raw capture stays out of git on purpose, in `.pp-watchdog/captures/`, which is
+  git-ignored).
+
 Regenerate at any time:
 
 ```bash

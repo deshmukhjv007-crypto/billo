@@ -73,7 +73,9 @@ report, evidence JSON, and (on request) notices.
 | `serving-stale` | they are still showing a picture you **replaced**. | 26 |
 | `serving-current` | they have your live picture, cached without licence. | 14 |
 | `serving-unidentified` | they have *a* picture of yours but old-vs-current cannot be judged (no baseline file, or no Pillow). Counted, but not asserted. | 18 |
+| `advertising-hd` | the page **offers a full-size download of your picture** (and/or Instagram's own CDN tag proves a bigger source asset is reachable). Actionable, even when the file itself was not retrieved. | 30 |
 | `profile-mirrored` | your name/bio/metadata mirrored, image not independently retrieved → **verify in a browser** before asserting it anywhere. | 8 |
+| `capability-observed` | the service advertises full-size retrieval, but the page contains **no data of yours**. Context, not exposure — deliberately *not* actionable, so you never send a notice that overstates what was seen. | 2 |
 | `login-wall` | they want credentials. Never comply. | 5 |
 | `refused` / `blocked-robots` | they reject crawlers. Needs a manual browser check. | 3–4 |
 | `moved` | 301 to a new domain — brand churn; note the new home, one complaint per operator. | 3 |
@@ -100,13 +102,48 @@ Score = sum of weights, capped at 100. It is a prioritisation aid, not a risk ce
 - **Local storage only:** `.pp-watchdog/` holds the SQLite history, reports, evidence JSON and
   notices. `rm -rf .pp-watchdog` and the tool has no memory of you.
 
+### Capture mode: for sites that need a browser
+
+Some mirrors render the picture only after JavaScript runs, and some networks block
+scripted access while a normal browser works fine. Rather than pretending to be a
+browser, `pp-watchdog` lets you feed it what **you** saw:
+
+```bash
+# in your browser: the mirror's page for your handle -> View Source -> save as imginn.html
+./run.sh ingest --url https://imginn.com/profile/yourhandle/ --file ~/Downloads/imginn.html --scan
+./run.sh captures                 # what is in the evidence folder, with provenance
+./run.sh scan --captures --history   # parses saved pages only: zero requests sent
+```
+
+`ingest` prepends a provenance block — captured URL, local timestamp, method, and the
+SHA-256 of the capture itself — and everything downstream (report, notice) cites it, so
+the finding is attributable to a specific page at a specific moment rather than "the tool
+said so". Two things it then does with the page text that are worth knowing about:
+
+- **`hd_claims`** extracts the operator's own sentences about full-size/HD picture
+  retrieval and quotes them into the notice. Their marketing is your evidence that the
+  capability is real and intended.
+- **`instagram_asset_hints`** decodes the Instagram CDN parameters the mirror leaked in the
+  image URL. `vencode_tag: profile_pic.www.1080.C3` beside `stp=dst-jpg_s150x150` means a
+  1080px original is reachable while a 150px thumbnail is displayed — Instagram's own
+  metadata, not our inference. It also unwraps base64 **proxy** parameters: some mirrors put
+  `?o=<base64 of the Instagram URL>` in their own asset path, and decoding it proves the
+  file is fetched and re-served from their host rather than merely linked. That kills the
+  "we just link to Instagram" reply before it is sent, and the notice says so.
+
+Capture-mode findings score lower confidence than live-fetched ones by design: with no
+bytes, no perceptual comparison is possible, so you get `advertising-hd` or
+`profile-mirrored` with an instruction to look at the page before asserting anything.
+
 ### Why `not-indexed` is not "safe"
 
 The mirror ecosystem churns brutally — in 2026 alone Picuki's original domain went parked on
 a TikTok site, SmiHub and GreatFon merged into Dumpor's domain, InstaNavigation's DNS vanished,
 and AnonyIG came back from a 451 legal block. The registry is therefore **leads to verify on
-this run**, not truth: every entry carries a `confirmed` flag and a status note, and the report
-prints how many entries are unverified. A clean verdict on an unverified domain means *"the
+this run**, not truth: every entry carries a `confirmed` flag, a `status_2026_08` note (what third-party
+reporting claimed) and a `last_verified` note (what *this* install actually observed, with
+the request that produced it). Those two are separated on purpose: the first is hearsay,
+the second is evidence. The report prints how many entries remain unverified. A clean verdict on an unverified domain means *"the
 page we guessed did not show your image"*, nothing stronger. Add what your own manual searches
 turn up:
 
@@ -194,12 +231,14 @@ file rather than silently asserting what a page's markup implied.
 |---|---|
 | `selftest` | runs the real scanner, robots gate, rate limiter, image comparison and notice generator against six local fixture sites — no network, proves the pipeline |
 | `init` | writes your config (validates the handle: no `@`, no leading/trailing or doubled periods, ≤30 chars) |
-| `scan` | probe the registry. `--history` records it, `--dry-run` prints the exact requests, `--offline DIR` replays captured pages with zero network, `--only` filters, `--json` for scripting (exit 1 when actionable) |
+| `scan` | probe the registry. `--history` records it, `--dry-run` prints the exact requests, `--captures [DIR]` scans only saved evidence (default `.pp-watchdog/captures`), `--offline DIR` replays a fixture directory, `--only` filters, `--json` for scripting (exit 1 when actionable) |
 | `takedown` | generate notices from the latest recorded scan |
 | `notice-sent <site> <kind>` | log a filing, start the follow-up clock |
 | `history` / `scans` | exposure age per site, filing log, scan ledger with score trend |
 | `checklist` | hardening posture, weighted so unaddressed criticals dominate |
 | `scrub` | strip EXIF/GPS before a photo becomes your profile picture |
+| `ingest` | save a page you captured in a browser as scanner evidence (adds provenance), `--scan` to run it |
+| `captures` | list saved captures with provenance, or `clear` |
 | `links` | manual searches + report forms for your handle |
 | `registry` | list/add/disable/export mirror entries |
 | `config` / `config-audit` | resolved settings; the audit fails if any credential-shaped value is present in this install |
@@ -209,6 +248,30 @@ Exit codes: `0` nothing actionable · `1` actionable findings · `2` usage/confi
 `3` consent guard tripped.
 
 ---
+
+## What it found on the configured handle (2026-09-17)
+
+Not a fixture — a live check of `@j.v.d.7`, run from the agent sandbox using its own page
+reader because outbound HTTP to those domains was blocked from the shell:
+
+| site | result |
+|---|---|
+| `imginn.com/profile/j.v.d.7/` | **mirrored.** HTTP 200, server-rendered: your name, handle, bio (including the Devanagari line), 153 followers, 255 following, a cached avatar, a **"HD Profile"** link and a "Download all media on this page" block. The page itself says *"You visit a private account"* — privacy did not stop it. Verdict: `advertising-hd`, score 30. Instagram's own `efg` tag on the image URL decodes to `profile_pic.www.1080.C3` while the display variant is `s150x150`. |
+| `imginn.com/instagram-profile-picture/?q=j.v.d.7` | **capability confirmed, no data of yours rendered.** Their FAQ states: *"view and download full-size HD profile pictures even for private accounts"*, *"fetches the original image file directly from Instagram's servers"*, and *"the target user will never receive a notification"*. Verdict: `capability-observed` (not actionable on its own — but it is the quote that goes in the notice for the row above). |
+| `pixnoy.com` (what `pixwox.com/profile/j.v.d.7/` 301s to, branding itself "formerly Pixwox") | **mirrored.** Same profile data, and the avatar URL is `sp1.pixnoy.com/a/<hash>.jpg?o=<base64>` whose decoded payload is your Instagram CDN asset carrying the same `profile_pic.www.1080` tag, plus a dedicated `/dp/j.v.d.7/` downloader page. Verdict: `advertising-hd`. This domain was **not** in the registry — `ingest` noticed and told me to add it, which is the registry-drift warning doing its job. |
+| `dumpor.io/profile/j.v.d.7` | not-indexed. Note the mechanism: HTTP **200** with an `<h1>Not Found</h1>` body, which is why page text, not status codes, decides. |
+| `pictame.com/en/instagram-profile/j.v.d.7` | not-indexed (404). |
+| `mollygram.com/{en/,}profile/j.v.d.7` | 404 on both registry paths — treated as *unverified*, since their current URL shape differs and a wrong template looks identical to a clean result. |
+| `instadp.com/?u=j.v.d.7` | Cloudflare Turnstile challenge; the 200 document is marketing copy. Capability yes, your data not observed. |
+
+Net for you: **two live mirrors confirmed**, it is holding your picture and identity
+metadata despite the account being private, and `.pp-watchdog/notices/{imginn,pixnoy}--{it_act,dmca}.txt`
+are written and ready to send once you add a reply address — four notices, two per operator,
+because they are unrelated owners and each needs its own URLs. The mirror's own "no
+notification" line is the answer to your original question, from the other side: the
+viewing is unattributable **by design**, which is exactly why the useful defensive move is
+shrinking what can be copied (change the picture, scrub it first, stay private) rather than
+trying to watch the watchers.
 
 ## Tests
 

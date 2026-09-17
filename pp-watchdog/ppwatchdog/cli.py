@@ -29,6 +29,7 @@ EPILOG = """\
 examples
   pp-watchdog init --handle j.v.d.7 --baseline ~/Pictures/me.jpg
   pp-watchdog scan --history
+  pp-watchdog ingest --url https://imginn.com/profile/x/ --file saved.html --scan
   pp-watchdog scan --offline out/demo/work     # replay captured pages, zero network
   pp-watchdog takedown                         # write notices into .pp-watchdog/notices
   pp-watchdog links                            # manual searches it refuses to script
@@ -73,12 +74,26 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--only", nargs="*", metavar="SITE_ID", help="restrict to these registry ids")
     scan.add_argument("--skip-search", action="store_true", help="skip search-engine entries")
     scan.add_argument("--offline", metavar="DIR", help="replay captured pages from DIR, no network")
+    scan.add_argument("--captures", nargs="?", const="", metavar="DIR",
+                      help="scan only what you have captured (default .pp-watchdog/captures)")
     scan.add_argument("--dry-run", action="store_true", help="print the requests, send none")
     scan.add_argument("--history", action="store_true", help="record this scan in history.sqlite3")
     scan.add_argument("--no-robots", action="store_true", help="IGNORE robots.txt (not advised)")
     scan.add_argument("--max-requests", type=int)
     scan.add_argument("--min-interval", type=float)
     scan.add_argument("--json", action="store_true", help="machine-readable output")
+
+    ing = sub.add_parser("ingest", help="save a page you captured in a browser as scanner evidence")
+    ing.add_argument("--url", required=True, help="the mirror page you looked at")
+    ing.add_argument("--file", help="saved .html/.txt file, or '-' for stdin")
+    ing.add_argument("--text", help="pasted text content instead of a file")
+    ing.add_argument("--site", help="registry id to attach it to (default: derived from the host)")
+    ing.add_argument("--by", default="manual browser capture",
+                     help="how it was captured, recorded in the provenance header")
+    ing.add_argument("--scan", action="store_true", help="ingest, then scan the capture dir")
+
+    cap = sub.add_parser("captures", help="list saved evidence captures")
+    cap.add_argument("action", nargs="*", default=["list"], help="'list' | 'clear'")
 
     sub.add_parser("links", help="manual search links for your handle")
 
@@ -138,6 +153,10 @@ def _dispatch(args, cfg: Config) -> int:
         return _cmd_init(args, cfg)
     if cmd == "links":
         return _cmd_links(cfg)
+    if cmd == "ingest":
+        return _cmd_ingest(args, cfg)
+    if cmd == "captures":
+        return _cmd_captures(args, cfg)
     if cmd == "scrub":
         return _cmd_scrub(args)
     if cmd == "selftest":
@@ -226,7 +245,26 @@ def _cmd_scan(args, cfg: Config) -> int:
             print(why, file=sys.stderr)
             return 3
     cfg.handle = handle
+    offline = None
+    source = "live"
+    if getattr(args, "offline", None):
+        offline = Path(args.offline).expanduser()
+        source = "offline"
+    elif getattr(args, "captures", None) is not None:
+        offline = Path(args.captures).expanduser() if args.captures else cfg.workdir / "captures"
+        source = "capture"
+        if not any(offline.glob("*.html")):
+            print(f"no captures in {offline} — save a page first, e.g.\n"
+                  f"  pp-watchdog ingest --url https://imginn.com/profile/{handle}/ "
+                  f"--file saved.html", file=sys.stderr)
+            return 2
     sites = _sites_for(cfg, args)
+    if offline is not None and source == "capture":
+        have = {f.stem for f in offline.glob("*.html")}
+        skipped = [x.id for x in sites if x.id not in have]
+        sites = [x for x in sites if x.id in have]
+        print(f"capture mode: {len(sites)} saved page(s) in {offline}; "
+              f"{len(skipped)} registry site(s) not scanned (no capture). Zero requests sent.")
     if not sites:
         print("registry is empty after filtering", file=sys.stderr)
         return 2
@@ -255,12 +293,24 @@ def _cmd_scan(args, cfg: Config) -> int:
               "harder than the caches you are trying to measure", file=sys.stderr)
 
     t0 = time.time()
-    result = run_scan(cfg, sites, policy=policy,
-                      offline_dir=Path(args.offline).expanduser() if args.offline else None)
+    offline = None
+    source = "live"
+    if getattr(args, "offline", None):
+        offline = Path(args.offline).expanduser()
+        source = "offline"
+    elif getattr(args, "captures", None) is not None:
+        offline = Path(args.captures).expanduser() if args.captures else cfg.workdir / "captures"
+        source = "capture"
+        if not any(offline.glob("*.html")):
+            print(f"no captures in {offline} — save a page first, e.g.\n"
+                  f"  pp-watchdog ingest --url https://imginn.com/profile/{handle}/ "
+                  f"--file saved.html", file=sys.stderr)
+            return 2
+    result = run_scan(cfg, sites, policy=policy, offline_dir=offline)
     diff = None
     if args.history:
         hist = History(cfg.db_path)
-        scan_id = hist.save(result, source="offline" if args.offline else "live")
+        scan_id = hist.save(result, source=source)
         diff = hist.diff(scan_id)
         hist.close()
     md_path, evidence = write_reports(result, diff, cfg, sites)
@@ -468,6 +518,139 @@ def _cmd_scrub(args) -> int:
     for r in removed:
         print("    removed:", r)
     print("\nUpload this file as your profile picture; mirrors can only copy what you gave them.")
+    return 0
+
+
+def _cmd_ingest(args, cfg: Config) -> int:
+    """Turn a page you saved yourself into scanner evidence.
+
+    Some mirrors render the profile picture only after JavaScript runs, and many
+    networks block scripted access while a normal browser works fine. Rather than
+    pretending to be a browser, this tool asks you to do the one thing you are
+    already doing - look at the page - and save it. The provenance header it
+    writes (URL, time, method, hash of the capture) is what makes the resulting
+    finding defensible in a complaint, so do not strip it.
+    """
+    import hashlib
+    import re as _re
+    from urllib.parse import urlparse
+
+    if not args.file and not args.text:
+        print("pass --file saved.html (or '-' for stdin) or --text '...'", file=sys.stderr)
+        return 2
+    if args.file == "-":
+        raw = sys.stdin.buffer.read()
+    elif args.file:
+        src = Path(args.file).expanduser()
+        if not src.exists():
+            print(f"not found: {src}", file=sys.stderr)
+            return 2
+        raw = src.read_bytes()
+    else:
+        raw = args.text.encode()
+    body = raw.decode("utf-8", "replace")
+    if len(body.strip()) < 40:
+        print("capture is too short to be evidence (40 chars min) - save the whole page",
+              file=sys.stderr)
+        return 2
+    host = urlparse(args.url).netloc.lower()
+    site_id = args.site or (_re.sub(r"[^a-z0-9]+", "-", host.split(":")[0]).strip("-").split("-")[-1]
+                           if False else _slug(host))
+    cfg.ensure_dirs()
+    out_dir = cfg.workdir / "captures"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    header = (
+        f"<!-- captured-url: {args.url} -->\n"
+        f"<!-- captured-at: {time.strftime('%Y-%m-%dT%H:%M:%S%z')} -->\n"
+        f"<!-- captured-by: {args.by} -->\n"
+        f"<!-- capture-sha256: {hashlib.sha256(raw).hexdigest()} -->\n"
+        f"<!-- site-id: {site_id} -->\n"
+    )
+    # Always add our own header when one is missing, but never duplicate a hash:
+    # a page saved from a browser may already carry provenance comments, and those
+    # stay below this block as part of the record.
+    if "capture-sha256:" not in body[:3000]:
+        body = header + body
+    elif "captured-url:" not in body[:3000]:
+        body = header + body
+    dest = out_dir / f"{site_id}.html"
+    dest.write_text(body, encoding="utf-8")
+    print(f"saved {dest} ({len(body):,} bytes) as site '{site_id}'")
+    from . import extract
+
+    page = body
+    cands = extract.extract_images(page, limit=3)
+    state = extract.page_state(page, 200)
+    print(f"  page state: {state}")
+    if cands:
+        print(f"  image reference found: {cands[0].url[:110]}")
+        hints = extract.instagram_asset_hints(cands[0].url)
+        if hints:
+            print(f"  instagram asset hints: {hints}")
+    claims = extract.hd_claims(page)
+    if claims:
+        print(f"  operator claims captured: {len(claims)}")
+        for c in claims[:2]:
+            print(f"     “{c[:130]}”")
+    else:
+        print("  no HD/download claims detected in this capture")
+    known = {s.id for s in load_registry(cfg.registry_file or None,
+                                          extras=cfg.scan.get("extra_sites"))}
+    if site_id not in known:
+        print(f"  note: '{site_id}' is not in the registry; add it with\n"
+              f"        pp-watchdog registry add {site_id} https://{host} "
+              f"--path /profile/{{username}}")
+    if args.scan:
+        ns = argparse.Namespace(handle=None, acknowledge=False, only=[site_id], skip_search=True,
+                                offline=None, captures=str(out_dir), dry_run=False, no_robots=False,
+                                max_requests=None, min_interval=None, history=True, json=False)
+        cfg.handle = cfg.handle or site_id
+        return _cmd_scan(ns, cfg)
+    return 0
+
+
+def _slug(host: str) -> str:
+    import re as _re
+
+    label = host.split(":")[0]
+    parts = [p for p in _re.split(r"[.-]+", label) if p]
+    for p in reversed(parts):
+        if p not in ("www", "com", "net", "org", "io", "co", "in", "info", "app", "xyz", "site"):
+            return p
+    return parts[-1] if parts else "capture"
+
+
+def _cmd_captures(args, cfg: Config) -> int:
+    import hashlib
+
+    out_dir = cfg.workdir / "captures"
+    if args.action and args.action[0] == "clear":
+        n = 0
+        for f in list(out_dir.glob("*.html")):
+            f.unlink()
+            n += 1
+        print(f"removed {n} capture(s)")
+        return 0
+    files = sorted(out_dir.glob("*.html")) if out_dir.exists() else []
+    if not files:
+        print(f"no captures yet in {out_dir}")
+        print("save one from your browser (Ctrl+S, complete page, or just View Source as .html):")
+        print("  pp-watchdog ingest --url <mirror-page-url> --file saved.html")
+        return 0
+    print(f"{len(files)} capture(s) in {out_dir}\n")
+    for f in files:
+        text = f.read_text(encoding="utf-8", errors="ignore")
+        meta = {}
+        for key in ("captured-url", "captured-at", "captured-by", "site-id"):
+            i = text.find(f"{key}:")
+            if i != -1:
+                meta[key] = text[i + len(key) + 1:].split("-->")[0].strip()
+        digest = hashlib.sha256(text.encode()).hexdigest()[:16]
+        print(f"  {f.name:<24} {len(text):>9,} bytes  sha256 {digest}…")
+        for k in ("captured-url", "captured-at", "captured-by"):
+            if meta.get(k):
+                print(f"      {k:<13} {meta[k]}")
+    print("\nscan them: pp-watchdog scan --captures --history")
     return 0
 
 

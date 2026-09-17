@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -258,6 +259,137 @@ def test_scrub_strips_jpeg_exif_and_gps(tmp_path):
     assert after.size == before.size  # pixels/geometry untouched
     assert any("0xE1" in m for m in removed), removed
     assert removed  # and it reports what it removed
+
+
+CAPTURE = """<!-- captured-url: https://imginn.com/profile/j.v.d.7/ -->
+<!-- captured-at: 2026-09-17T14:00:00+0530 -->
+<!-- captured-by: unit test -->
+<html><body>
+<p><a href="https://imginn.com/j.v.d.7/"><img alt="@j.v.d.7 profile avatar"
+src="https://s2.imginn.com/x.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDgwLkMzIn0%3D"></a>
+<span>HD Profile</span></p>
+<p>You visit a private account. Download all media on this page.</p>
+</body></html>"""
+
+SHELL = """<!-- captured-url: https://imginn.com/instagram-profile-picture/?q=j.v.d.7 -->
+<html><body><h1>Instagram Profile Picture Viewer</h1>
+<p>Download instagram profile picture full size. Imginn fetches the original image file
+directly from Instagram's servers: you get the highest available resolution (HD / 1080p).</p>
+</body></html>"""
+
+
+def test_asset_hints_decode_instagram_cdn_params():
+    url = ("https://s2.imginn.com/x.jpg?stp=dst-jpg_s150x150_tt6"
+           "&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDgwLkMzIn0%3D")
+    hints = extract.instagram_asset_hints(url)
+    assert hints["display"] == "150x150"
+    assert hints["source_px"] == 1080
+    assert "profile_pic" in hints["source_asset"]
+    # a URL with no efg param must yield nothing rather than a guess
+    assert "source_px" not in extract.instagram_asset_hints("https://cdninstagram.com/a/1.jpg")
+
+
+def test_asset_hints_unwrap_base64_proxied_source():
+    import base64
+
+    inner = ("https://scontent.cdninstagram.com/v/t51/x/772449_n.jpg"
+             "?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGlj"
+             "Lnd3dy4xMDgwLkMzIn0=")
+    outer = "https://sp1.pixnoy.com/a/hash.jpg?o=" + base64.urlsafe_b64encode(
+        inner.encode()).decode() + "&h=deadbeef"
+    hints = extract.instagram_asset_hints(outer)
+    assert hints["wrapped_via"] == "o"
+    assert hints["wrapped_source_url"].startswith("https://scontent.cdninstagram.com/")
+    # and it recursed into the wrapped URL for the size tags
+    assert hints["source_px"] == 1080 and hints["display"] == "150x150"
+    # non-URL base64 must not be mistaken for a wrapped source
+    junk = "https://x.test/i.jpg?o=" + base64.urlsafe_b64encode(b"just-some-token").decode()
+    assert "wrapped_source_url" not in extract.instagram_asset_hints(junk)
+
+
+def test_hd_claims_quote_sentences_not_urls():
+    claims = extract.hd_claims(SHELL)
+    assert any("full size" in c.lower() or "1080" in c for c in claims), claims
+    assert not any("http" in c.lower() for c in claims)
+    assert not any("<" in c for c in claims)
+
+
+def test_mentions_handle_ignores_our_own_provenance_comment():
+    assert extract.mentions_handle(CAPTURE, "j.v.d.7")
+    # the shell page mentions the handle only inside the captured-url comment we added
+    assert not extract.mentions_handle(SHELL, "j.v.d.7")
+
+
+def test_capture_scan_produces_advertising_hd_and_capability_verdicts(tmp_path):
+    cap = tmp_path / "captures"
+    cap.mkdir()
+    (cap / "imginn.html").write_text(CAPTURE)
+    (cap / "imginn-hd.html").write_text(SHELL)
+    cfg = Config(handle="j.v.d.7")
+    cfg.paths["workdir"] = str(tmp_path / "work")
+    cfg.ensure_dirs()
+    sites = [
+        Site(id="imginn", name="Imginn", base="https://imginn.com",
+             profile_urls=["/profile/{username}/"], confirmed=True, risk="critical"),
+        Site(id="imginn-hd", name="Imginn DP Downloader", base="https://imginn.com",
+             profile_urls=["/instagram-profile-picture/?q={username}"], confirmed=True,
+             risk="critical"),
+    ]
+    result = run_scan(cfg, sites, offline_dir=cap)
+    got = {f.site_id: f for f in result.findings}
+    assert got["imginn"].verdict == "advertising-hd", got["imginn"].to_dict()
+    assert got["imginn"].asset_hints["source_px"] == 1080
+    assert got["imginn"].provenance.startswith("captured-url:")
+    # zero requests is the point: no network, no policy log
+    assert result.policy_log == []
+    # capability-only page must NOT be actionable
+    assert got["imginn-hd"].verdict == "capability-observed", got["imginn-hd"].to_dict()
+    assert not got["imginn-hd"].actionable
+    assert [f.site_id for f in result.actionable] == ["imginn"]
+
+    text = notice_text(result.actionable[0], cfg.redacted_contact(), "j.v.d.7", "it_act")
+    assert "1080px original is reachable" in text
+    assert "reproduction, not a hyperlink" not in text  # no wrapper on this URL yet
+    assert "profile_pic.www.1080.C3" in text
+    assert "unit test" in text                      # provenance carried through
+    assert "captured-url: https://imginn.com/profile/j.v.d.7/" in text
+
+
+def test_ingest_cli_writes_provenance_and_scan_replays_it(tmp_path, monkeypatch=None):
+    import subprocess
+
+    cfg_path = tmp_path / "pp-watchdog.json"
+    root = Path(__file__).resolve().parents[1]
+    env = dict(os.environ, PYTHONPATH=str(root), HOME=str(tmp_path))
+    run = lambda *a: subprocess.run(
+        [sys.executable, "-m", "ppwatchdog", "-c", str(cfg_path), *a],
+        cwd=tmp_path, capture_output=True, text=True, env=env)
+    init = run("init", "--handle", "j.v.d.7")
+    assert init.returncode == 0, init.stderr
+    src = tmp_path / "saved.html"
+    src.write_text(CAPTURE.replace("unit test", "browser save"))
+    ing = run("ingest", "--url", "https://imginn.com/profile/j.v.d.7/", "--file", str(src),
+              "--by", "browser save")
+    assert ing.returncode == 0, ing.stderr
+    saved = tmp_path / ".pp-watchdog" / "captures" / "imginn.html"
+    assert saved.exists()
+    text = saved.read_text()
+    for needle in ("captured-url:", "captured-at:", "capture-sha256:", "site-id: imginn"):
+        assert needle in text, needle
+    lst = run("captures")
+    assert "1 capture(s)" in lst.stdout, lst.stdout
+    scan = run("scan", "--captures", "--history")
+    assert "advertising-hd" in scan.stdout, scan.stdout + scan.stderr
+    assert "Zero requests sent" in scan.stdout
+
+
+def test_not_found_detection_survives_200_ok_bodies():
+    # dumpor's real behaviour this evening: HTTP 200 + "<h1>Not Found</h1> We are sorry"
+    assert extract.page_state("<h1>Not Found</h1><p>We are sorry</p>", 200) == "not-indexed"
+    # a real profile page must not be mistaken for one
+    assert extract.page_state(
+        "<div class=profile>Jayesh @j.v.d.7 153 followers <img src=https://cdninstagram.com/"
+        "a/b_320x320.jpg></div>", 200) == "served"
 
 
 # --------------------------------------------------------------------------- #
