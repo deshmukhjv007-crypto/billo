@@ -372,17 +372,24 @@ function computeTrip(trip) {
 }
 
 /* ---------- on-device "AI expense inbox" parser ---------- */
+/* Whole-word matching only. Substring matching used to mis-file bills whenever a
+   keyword happened to sit inside a longer word — an OCR'd cafe receipt reading
+   "Koramangala" matched "ola" and became a cab. A trailing "s?" keeps plurals working. */
+const catRe = words => new RegExp('(?:^|[^a-z0-9])(?:' + words.join('|') + ')s?(?![a-z0-9])', 'i');
 const CAT_RULES = [
-  [/(cab|taxi|uber|ola|rapido|auto rick|autobianca|auto|ride|scooty|scooter|bike rental|e-rick)/, 'cab'],
-  [/(hotel|airbnb|stay|room|guest ?house|hostel|resort|leisure|guesthouse|booking\.com|oyo)/, 'hotel'],
-  [/(dinner|lunch|breakfast|food|restaurant|resturant|cafe|café|eat|khana|ziya|snack|snacks|chai|coffee|biriyani|biryani|pizza|burger|thali|momo|juice|bar|meal|booze|beer|wine|liquor|whisky|vodka|champagne|cocktail|zomato|swiggy)/, 'food'],
-  [/(train|flight|bus|indigo|vistara|irctc|air ticket|airticket|ticket|tickets|scoot|spicejet|go first|aeroflight)/, 'travel'],
-  [/(fuel|petrol|diesel|hpcl|ipcl|bpcl|dhaba)/, 'fuel'],
-  [/(shop|shopping|bazaar|market|store|mall|souvenir shop|gift shop|clothes|clothing)/, 'shop'],
-  [/(medicine|medicines|pharmacy|doctor|hospital|dabba|apollo|1mg)/, 'health'],
-  [/(activity|safari|waterfall|zipline|paragliding|caving|trek|trekking|outing|show|movie|cinema|amusement|park|river rafting|rafting|hot air balloon|balloon)/, 'fun'],
-  [/(gift|souvenir|souvenirs|present|diya|puja|flowers)/, 'gift']
+  [catRe(['cab', 'taxi', 'uber', 'ola', 'rapido', 'auto rick', 'auto', 'ride', 'scooty', 'scooter', 'bike rental', 'e-rick']), 'cab'],
+  [catRe(['hotel', 'airbnb', 'stay', 'room', 'guest ?house', 'hostel', 'resort', 'leisure', 'booking\\.com', 'oyo']), 'hotel'],
+  [catRe(['dinner', 'lunch', 'breakfast', 'food', 'restaurant', 'resturant', 'cafe', 'caf\u00e9', 'eat', 'khana', 'ziya', 'snack', 'chai', 'coffee', 'biriyani', 'biryani', 'pizza', 'burger', 'thali', 'momo', 'juice', 'bar', 'meal', 'booze', 'beer', 'wine', 'liquor', 'whisky', 'vodka', 'champagne', 'cocktail', 'zomato', 'swiggy']), 'food'],
+  [catRe(['train', 'flight', 'bus', 'indigo', 'vistara', 'irctc', 'air ?ticket', 'ticket', 'scoot', 'spicejet', 'go first', 'aeroflight']), 'travel'],
+  [catRe(['fuel', 'petrol', 'diesel', 'hpcl', 'ipcl', 'bpcl', 'dhaba']), 'fuel'],
+  [catRe(['shop', 'shopping', 'bazaar', 'market', 'store', 'mall', 'souvenir shop', 'gift shop', 'clothes', 'clothing']), 'shop'],
+  [catRe(['medicine', 'pharmacy', 'doctor', 'hospital', 'dabba', 'apollo', '1mg']), 'health'],
+  [catRe(['activity', 'safari', 'waterfall', 'zipline', 'paragliding', 'caving', 'trek', 'trekking', 'outing', 'show', 'movie', 'cinema', 'amusement', 'park', 'river rafting', 'rafting', 'hot air balloon', 'balloon']), 'fun'],
+  [catRe(['gift', 'souvenir', 'present', 'diya', 'puja', 'flower']), 'gift']
 ];
+
+/* Drop a single leading separator that the "not inside a word" guard consumed. */
+const trimAmtLead = m => /^[^0-9₹a-z]/i.test(m) ? m.slice(1) : m;
 
 function parseExpenseText(text, trip, meName) {
   const t = String(text || '').trim();
@@ -392,13 +399,15 @@ function parseExpenseText(text, trip, meName) {
   if (!t || !trip.members.length) return r;
 
   /* amount */
-  let am = t.match(/(?:₹|rs\.?|inr)\s*([0-9][0-9,]{0,12}(?:\.[0-9]{1,2})?)(\s*(?:k\.?| thousand))?/i)
+  let am = t.match(/(?:^|[^a-z0-9])(?:₹|rs\.?|inr)\s*([0-9][0-9,]{0,12}(?:\.[0-9]{1,2})?)(\s*(?:k\.?| thousand))?/i)
        || t.match(/([0-9][0-9,]{0,12}(?:\.[0-9]{1,2})?)\s*(k\.?| thousand|rupees?|₹|rs\.?|inr)\b/i)
        || t.match(/\b([0-9][0-9,]{0,12}(?:\.[0-9]{1,2})?)\b/);
   if (am) {
     let v = parseFloat(am[1].replace(/,/g, ''));
     if (am[2] && am[2].toLowerCase().indexOf('k') === 0) v *= 1000;
-    r.amount = round2(v); r.amStr = am[0];
+    /* the leading-delimiter guard may have swallowed one separator char — don't
+       report it as part of the amount text (amStr is stripped from the description) */
+    r.amount = round2(v); r.amStr = trimAmtLead(am[0]);
   }
 
   /* who paid (detected first so the participants logic can exclude the payer's name) */
@@ -471,7 +480,7 @@ function parseExpenseText(text, trip, meName) {
   if (payerName) s = s.replace(new RegExp('\\b' + escapeRe(payerName) + '\\b', 'gi'), ' ');
   s = s.replace(/\b(i|me|my|we|us|the|a|an|and|with|for|of|to|on|at|in|it|its|was|is|by|had|has|have|paid|billed|bill|bills|receipt|invoice|upi|screenshot|pic|image|photo|ne|ki|ke|ko|se|liye|liya|di|diya|maine|sab|sabbr|everyone|all|just|only|sirf|myself|google|pay|payment|transaction|transactions|successful|success|reference|ref|id|charged|cashback|fee|date|time|january|february|march|april|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|am|pm)\b/gi, ' ');
   s = s.replace(/[0-9][0-9,]*(?:\.[0-9]{1,2})?/g, ' ');
-  s = s.replace(/₹|rs\.?|inr|\bk\.?\b/gi, ' ');
+  s = s.replace(/₹/g, ' ').replace(/(?:^|[^a-z0-9])(?:rs\.?|inr|k\.?)(?![a-z0-9])/gi, ' ');
   s = s.replace(/\s+/g, ' ').trim();
   if (s.length > 42) s = '';
   r.desc = titleCase(s);
@@ -502,7 +511,7 @@ function cutIndex(t, a, b) {
 function parseExpenseTextAll(text, trip, meName) {
   const t = String(text || '').trim();
   if (!t || !trip.members.length) return [parseExpenseText(t, trip, meName)];
-  const re = /(?:₹|rs\.?|inr)\s*([0-9][0-9,]{0,12}(?:\.[0-9]{1,2})?)(\s*(?:k\.?| thousand))?|\b([0-9][0-9,]{0,12}(?:\.[0-9]{1,2})?)\s*(k\.?| thousand|rupees?|₹|rs\.?|inr)\b|\b([0-9][0-9,]{0,12}(?:\.[0-9]{1,2})?)\b/g;
+  const re = /(?:^|[^a-z0-9])(?:₹|rs\.?|inr)\s*([0-9][0-9,]{0,12}(?:\.[0-9]{1,2})?)(\s*(?:k\.?| thousand))?|\b([0-9][0-9,]{0,12}(?:\.[0-9]{1,2})?)\s*(k\.?| thousand|rupees?|₹|rs\.?|inr)\b|\b([0-9][0-9,]{0,12}(?:\.[0-9]{1,2})?)\b/g;
   const amounts = [];
   let m;
   while ((m = re.exec(t)) !== null && amounts.length < 8) {
@@ -513,7 +522,8 @@ function parseExpenseTextAll(text, trip, meName) {
     let v = parseFloat(String(raw).replace(/,/g, ''));
     const isK = k.toLowerCase().indexOf('k') === 0;
     if (isK) v *= 1000;
-    amounts.push({ start: m.index, end: m.index + m[0].length, value: round2(v), strong: m[1] != null || isK });
+    const lead = m[0].length - trimAmtLead(m[0]).length; /* keep offsets on the amount itself */
+    amounts.push({ start: m.index + lead, end: m.index + m[0].length, value: round2(v), strong: m[1] != null || isK });
   }
   let isMulti = false;
   if (amounts.length >= 2) {
@@ -1285,6 +1295,11 @@ async function handlePhoto(file) {
   const t = curTrip();
   try {
     const dataUrl = await compressImage(file);
+    /* Read from a high-quality rendition, not the small preview JPEG: at 1280px/q0.78
+       the artefacts around small glyphs are enough to turn "₹1,250" into "71,250".
+       The compressed copy is still what we store/preview. */
+    let readUrl = dataUrl;
+    try { readUrl = await compressImage(file, 2200, 0.95); } catch (e) { /* keep the preview copy */ }
     ui.draft.img = dataUrl;
     ui.draft.src = 'photo';
     let filled = false;
@@ -1294,7 +1309,7 @@ async function handlePhoto(file) {
       toast(T('reading'));
       render();
       try {
-        const o = await aiExtract(dataUrl);
+        const o = await aiExtract(readUrl);
         applyAi(o);
         ui.draft.ai = true;
         filled = o.amount > 0;
@@ -1305,7 +1320,7 @@ async function handlePhoto(file) {
       toast(T('ocr_reading'));
       render();
       try {
-        const text = await ocrPhoto(dataUrl);
+        const text = await ocrPhoto(readUrl);
         const r = parseExpenseText(text, t, meName);
         const d = ui.draft;
         if (r.amount > 0 && !(parseFloat(d.amount) > 0)) d.amount = String(r.amount);
@@ -1394,15 +1409,37 @@ async function aiExtract(dataUrl) {
 }
 
 /* ---------- on-device OCR: no key, no network — the photo never leaves the phone ---------- */
+/* NOTE on paths: tesseract.js resolves `corePath` as a DIRECTORY unless it ends in ".js",
+   in which case the file is loaded as-is. Pointing it at the directory made it request
+   "ocr/tesseract-core-simd-lstm.wasm.js", which we do not ship (we ship the plain
+   ".js" loader + the ".wasm" binary beside it) → importScripts 404 → OCR never ran.
+   Likewise `gzip` defaults to true, which made it request "ocr/eng.traineddata.gz"
+   instead of the uncompressed "ocr/eng.traineddata" we bundle. Both are pinned below. */
 let ocrWorkerPromise = null;
+function ocrSimdSupported() {
+  try {
+    /* a tiny module using v128 — validates only where WebAssembly SIMD is available */
+    return WebAssembly.validate(new Uint8Array(
+      [0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11]
+    ));
+  } catch (e) { return false; }
+}
 function loadOcrWorker() {
   if (!ocrWorkerPromise) {
     ocrWorkerPromise = new Promise((res, rej) => {
+      if (!ocrSimdSupported()) { rej(new Error('This browser has no WebAssembly SIMD support')); return; }
       const start = () => {
         Tesseract.createWorker('eng', 1, {
           workerPath: 'ocr/worker.min.js',
-          corePath: 'ocr/',
-          langPath: 'ocr'
+          /* explicit file (ends in .js) → loaded directly; the .wasm is fetched beside it */
+          corePath: 'ocr/tesseract-core-simd-lstm.js',
+          langPath: 'ocr',
+          /* we bundle an uncompressed eng.traineddata, not eng.traineddata.gz */
+          gzip: false,
+          /* load the worker from its real URL, not a blob: — the emscripten core resolves
+             tesseract-core-simd-lstm.wasm relative to the worker script, and a blob: worker
+             has no directory to resolve against ("Failed to parse URL from …wasm") */
+          workerBlobURL: false
         }).then(res, rej);
       };
       if (window.Tesseract) start();
@@ -1410,10 +1447,12 @@ function loadOcrWorker() {
         const s = document.createElement('script');
         s.src = 'ocr/tesseract.min.js';
         s.onload = start;
-        s.onerror = () => rej(new Error('ocr'));
+        s.onerror = () => rej(new Error('could not load ocr/tesseract.min.js'));
         document.head.appendChild(s);
       }
     });
+    /* never cache a rejected promise — otherwise one failure disables OCR for the whole session */
+    ocrWorkerPromise.catch(() => { ocrWorkerPromise = null; });
   }
   return ocrWorkerPromise;
 }
