@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Billo — Privacy Policy</title>
+<style>
+  body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;max-width:760px;margin:40px auto;padding:0 20px;color:#1a202c;line-height:1.65}
+  h1{font-size:28px} h2{font-size:19px;margin-top:34px;border-bottom:2px solid #edf2f7;padding-bottom:6px}
+  .muted{color:#718096} code{background:#edf2f7;padding:2px 6px;border-radius:4px}
+  .card{background:#f7fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;margin:14px 0}
+</style>
+</head>
+<body>
+<h1>Billo — Privacy Policy</h1>
+<p class="muted">Last updated: 16 September 2026<br>Effective date: 16 September 2026</p>
+
+<div class="card">
+<b>Short version:</b> Billo is an on-device bill-splitting app. We do not operate a server, we do not collect your data, and we do not track you. Your trips, bills and balances live only in your phone's local storage.
+</div>
+
+<h2>1. What the app does</h2>
+<p>Billo helps groups split expenses for trips, events and shared living. You create trips, add expenses (manually, from a text description, or from a photo of a bill), see who owes whom, and share a summary card. Everything happens on your device.</p>
+
+<h2>2. Data we collect</h2>
+<p><b>None.</b> Billo v1 has no accounts, no analytics, no advertising SDK, and no crash reporting. We cannot see your trips, expenses, names, or balances — the data never leaves your device.</p>
+
+<h2>3. Bill photo reading</h2>
+<p><b>By default, bill photos are processed entirely on your device.</b> Billo includes an on-device OCR engine; no photo is ever sent to anyone, and this works without an account or any API key.</p>
+<p>Optionally, you can enable cloud AI reading in Settings and enter your own API key (e.g. OpenAI or any OpenAI-compatible provider). Only in that case, and only for the duration of a read:</p>
+<ul>
+  <li>The photo (compressed) and a short extraction prompt are sent directly from your device to <b>the API endpoint you configure</b>.</li>
+  <li>We are not the recipient of that data; the provider's privacy policy (e.g. OpenAI's) governs it. The photo is used only to extract the expense fields and is not stored by Billo.</li>
+  <li>Your API key is stored only in your device's local storage and sent only to the endpoint you configured.</li>
+  <li>You can turn the feature off at any time. Without it, no photo ever leaves your device (free-plan photos are processed and discarded; Pro stores them in your local receipt archive).</li>
+</ul>
+
+<h2>4. Google Play Billing</h2>
+<p>If you purchase Billo Pro, the transaction is processed by Google Play. Google receives standard purchase data (your Google account, product, amount, receipt) under its own privacy policy. The app stores a local "pro_unlocked" flag and can restore it from Google Play's purchase history on launch.</p>
+
+<h2>5. Permissions</h2>
+<ul>
+  <li><b>Internet</b> — only used for the optional AI bill-reading endpoint you configure, and for Google Play Billing. Nothing else is transmitted.</li>
+  <li><b>Camera / media</b> — only when you choose to add a bill photo. There is no background access.</li>
+</ul>
+
+<h2>6. Children's privacy</h2>
+<p>Billo is not directed at children under 13 (or the equivalent age in your country) and does not knowingly collect any data from children. In fact, it collects none at all.</p>
+
+<h2>7. Data deletion</h2>
+<p>Delete your data anytime in-app (Settings → Data → Erase everything) or by uninstalling the app. Because there is no server, there is nothing for us to delete — it simply doesn't exist outside your device.</p>
+
+<h2>8. Sharing / selling data</h2>
+<p>Never. We don't have any.</p>
+
+<h2>9. Changes to this policy</h2>
+<p>If we ever add cloud features, we will update this page, bump the app's privacy-policy date, and disclose the changes in the Play Store listing before they reach you.</p>
+
+<h2>10. Contact</h2>
+<p>Questions, concerns, or data requests: <b>hello@billo.app</b> (replace with your real address before submitting).<br>
+Grievance / data-protection officer (as required by India's DPDP Act, 2023): <b>hello@billo.app</b>, Pune, Maharashtra, India.</p>
+</body>
+</html>

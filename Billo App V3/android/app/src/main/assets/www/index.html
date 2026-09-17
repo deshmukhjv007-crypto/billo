@@ -1,0 +1,2012 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0A0E17">
+<meta name="description" content="Just send the bills. Billo reads your receipts, keeps the group ledger right, and tells you exactly who pays whom.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Billo">
+<title>Billo — Just send the bills</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+:root{
+  --bg:#0A0E17; --bg2:#0E1424; --card:#131A2B; --card2:#182136; --line:rgba(255,255,255,.08);
+  --text:#F2F5FA; --dim:#8A94A8; --faint:#5A6478;
+  --brand:#8B7CFF; --brand2:#5E5CE6; --mint:#34D399; --red:#FB7185; --amber:#FBBF24;
+  --grad:linear-gradient(135deg,#8B7CFF 0%,#5E5CE6 100%);
+  --r:18px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans","Noto Sans Devanagari",sans-serif;
+  font-size:16px; line-height:1.45; overflow-x:hidden;
+}
+body::before{
+  content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background:
+    radial-gradient(600px 400px at 12% -5%, rgba(124,92,255,.20), transparent 60%),
+    radial-gradient(700px 500px at 105% 108%, rgba(52,211,153,.13), transparent 60%);
+}
+.wrap{max-width:464px;margin:0 auto;min-height:100dvh;position:relative;z-index:1;padding:0 18px 110px}
+#screen{padding-top:calc(10px + env(safe-area-inset-top))}
+#screen.anim{animation:fadeup .28s ease both}
+@keyframes fadeup{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes pop{0%{transform:scale(.3);opacity:0}60%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------- header ---------- */
+.top{display:flex;align-items:center;gap:10px;padding:10px 0 14px;position:sticky;top:0;background:linear-gradient(var(--bg) 78%,transparent);z-index:5}
+.brand{display:flex;align-items:center;gap:9px;flex:1}
+.logo{width:34px;height:34px;border-radius:10px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:19px;color:#fff;box-shadow:0 4px 14px rgba(124,92,255,.4)}
+.wordmark{font-size:22px;font-weight:800;letter-spacing:-.5px}
+.wordmark .dot{color:var(--mint)}
+.top-actions{display:flex;gap:8px}
+.iconbtn{width:40px;height:40px;border-radius:13px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.iconbtn:active{transform:scale(.94)}
+.iconbtn.small{width:34px;height:34px;font-size:15px;border-radius:11px}
+.ttit{flex:1;display:flex;align-items:center;gap:10px;min-width:0}
+.temoji{font-size:26px}
+.tname{font-weight:700;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sm{font-size:12.5px}
+
+/* ---------- generic ---------- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:12px}
+.muted{color:var(--dim)}
+.grow{flex:1}
+.row{display:flex;align-items:center;gap:10px}
+.right{text-align:right}
+.btn{border:none;border-radius:14px;padding:13px 18px;font-size:15.5px;font-weight:700;cursor:pointer;font-family:inherit;transition:transform .08s}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--grad);color:#fff;box-shadow:0 6px 18px rgba(124,92,255,.35)}
+.btn-ghost{background:var(--card2);color:var(--text);border:1px solid var(--line)}
+.btn-danger{background:rgba(251,113,133,.12);color:var(--red);border:1px solid rgba(251,113,133,.35)}
+.btn.mini{padding:7px 12px;font-size:13px;border-radius:10px}
+.btn.big{width:100%;padding:16px;font-size:16.5px;border-radius:16px}
+.btnrow{display:flex;gap:10px;margin-top:14px}
+.input{width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:14px;color:var(--text);font-size:16px;padding:13px 14px;font-family:inherit;outline:none}
+.input:focus{border-color:var(--brand)}
+.input::placeholder{color:var(--faint)}
+select.input{appearance:none}
+textarea.input{resize:none;line-height:1.5}
+.fld{margin-bottom:16px}
+.fld label{display:block;font-size:13px;font-weight:600;color:var(--dim);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--line);background:var(--card2);color:var(--dim);border-radius:999px;padding:8px 14px;font-size:14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.chip.on{background:rgba(139,124,255,.18);border-color:var(--brand);color:var(--text)}
+.chip:active{transform:scale(.95)}
+.chip.cat-on{background:rgba(52,211,153,.15);border-color:var(--mint)}
+.badge{font-size:11px;font-weight:800;border-radius:999px;padding:3px 9px;letter-spacing:.4px}
+.badge.pro{background:linear-gradient(135deg,#FBBF24,#F59E0B);color:#3A2A00}
+.badge.ok{background:rgba(52,211,153,.15);color:var(--mint)}
+
+/* avatars */
+.av{width:38px;height:38px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:#fff;flex:none;background:var(--c,#8B7CFF)}
+.av.sm{width:28px;height:28px;font-size:12px}
+.av.xs{width:24px;height:24px;font-size:11px}
+.avs{display:flex}
+.avs .av{margin-left:-8px;border:2px solid var(--card)}
+.avs .av:first-child{margin-left:0}
+
+/* home */
+.greet{font-size:26px;font-weight:800;margin:8px 0 2px;letter-spacing:-.5px}
+.tagline{color:var(--dim);font-size:15px;margin-bottom:18px}
+.home-cta{display:flex;gap:10px;margin:18px 0 26px}
+.home-cta .btn{flex:1}
+.tripc{display:flex;align-items:center;gap:13px;cursor:pointer;transition:transform .08s}
+.tripc:active{transform:scale(.98)}
+.etile{width:52px;height:52px;border-radius:15px;background:var(--card2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:26px;flex:none}
+.etile.sm{width:44px;height:44px;font-size:22px;border-radius:13px}
+.etile.xs{width:36px;height:36px;font-size:18px;border-radius:10px}
+.tinfo{flex:1;min-width:0}
+.tsub{color:var(--dim);font-size:13.5px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tbad{font-weight:800;font-size:15px;color:var(--red);white-space:nowrap}
+.tbad.ok{color:var(--mint)}
+
+/* stats */
+.stats{display:flex;gap:10px;margin-bottom:12px}
+.stat{flex:1;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:13px 12px}
+.stat .v{font-size:18px;font-weight:800;letter-spacing:-.3px}
+.stat .k{font-size:11.5px;color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-top:3px}
+
+/* trip sections */
+.sec-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.sec-h b{font-size:15.5px}
+.mini-link{background:none;border:none;color:var(--brand);font-weight:700;font-size:13.5px;cursor:pointer;font-family:inherit;padding:4px}
+.brow{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid var(--line)}
+.brow:last-child{border-bottom:none}
+.binfo b{font-size:15px}
+.bamt{font-weight:800;font-size:16px;white-space:nowrap}
+.bamt.pos{color:var(--mint)}
+.bamt.neg{color:var(--red)}
+.bamt.zero{color:var(--faint);font-size:14px}
+.frow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.frow:last-child{border-bottom:none}
+.finfo{flex:1;font-size:14.5px;min-width:0}
+.finfo .arr{color:var(--faint);margin:0 4px}
+.famt{font-weight:800;font-size:15px;white-space:nowrap}
+.prow{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:14px;border-bottom:1px solid var(--line)}
+.prow:last-child{border-bottom:none}
+.erow{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.erow:last-child{border-bottom:none}
+.ename{font-weight:700;font-size:15px}
+.eamt{font-weight:800;font-size:15.5px;white-space:nowrap}
+.settled-badge{color:var(--mint);font-size:12px;font-weight:800;margin-left:6px}
+.mrow{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.mrow:last-child{border-bottom:none}
+.mrow.off{opacity:.4}
+.tick{width:27px;height:27px;border-radius:50%;border:2px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:transparent;flex:none}
+.tick.on{background:var(--grad);border-color:transparent;color:#fff}
+.sec-h.plain{margin:20px 0 4px}
+.empty{text-align:center;color:var(--faint);padding:26px 10px;font-size:14.5px}
+
+/* fab */
+.fab{position:fixed;bottom:calc(26px + env(safe-area-inset-bottom));left:50%;transform:translateX(calc(min(464px,100vw)/2 - 105px));width:60px;height:60px;border-radius:20px;background:var(--grad);color:#fff;font-size:30px;border:none;box-shadow:0 10px 26px rgba(124,92,255,.5);cursor:pointer;z-index:9;display:flex;align-items:center;justify-content:center}
+.fab:active{transform:translateX(calc(min(464px,100vw)/2 - 105px)) scale(.93)}
+
+/* add expense */
+.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:15px;padding:5px;gap:5px;margin-bottom:16px}
+.seg-b{flex:1;border:none;background:transparent;color:var(--dim);font-weight:700;font-size:13.5px;padding:10px 4px;border-radius:11px;cursor:pointer;font-family:inherit;white-space:nowrap}
+.seg-b.on{background:var(--grad);color:#fff;box-shadow:0 4px 12px rgba(124,92,255,.35)}
+.tile{border:2px dashed rgba(139,124,255,.45);border-radius:var(--r);padding:30px 16px;text-align:center;cursor:pointer;background:rgba(139,124,255,.05);margin-bottom:14px}
+.tile .big{font-size:34px;display:block;margin-bottom:8px}
+.tile b{display:block;font-size:16px}
+.tile .muted{font-size:13px}
+.photo-prev{width:100%;max-height:240px;object-fit:cover;border-radius:16px;border:1px solid var(--line);margin-bottom:14px;display:block}
+.amt-wrap{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--line);border-radius:16px;padding:8px 16px;margin-bottom:16px}
+.amt-wrap .cur{font-size:26px;font-weight:800;color:var(--dim)}
+.amt-in{flex:1;background:none;border:none;outline:none;color:var(--text);font-size:34px;font-weight:800;font-family:inherit;padding:6px 0}
+.amt-in::placeholder{color:var(--faint)}
+.quote{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:12px;padding:10px 13px;font-size:13.5px;color:var(--dim);margin-bottom:14px;font-style:italic}
+.ai-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--mint);background:rgba(52,211,153,.12);border-radius:999px;padding:5px 11px;margin-bottom:12px}
+.hint-learn{font-size:12.5px;color:var(--amber);margin-top:8px;font-weight:600}
+.custom-box{background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:12px;margin-top:10px}
+.crow{display:flex;align-items:center;gap:9px;padding:6px 0}
+.crow .nm{flex:1;font-size:14px;font-weight:600}
+.camt{width:96px;background:var(--card);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:8px 10px;font-size:14px;font-weight:700;font-family:inherit;outline:none;text-align:right}
+.camt:focus{border-color:var(--brand)}
+.sw{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer;margin-top:10px;color:var(--dim)}
+.sw input{width:18px;height:18px;accent-color:var(--brand)}
+.sayhint{margin:8px 2px 12px;font-size:13px}
+.tpl{font-size:13px;padding:7px 12px}
+
+/* confirm / done */
+.check{width:92px;height:92px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:46px;font-weight:900;color:#fff;margin:34px auto 18px;box-shadow:0 14px 40px rgba(124,92,255,.5);animation:pop .5s cubic-bezier(.2,1.4,.4,1) both}
+.done-wrap{text-align:center;padding-top:8px}
+.done-amt{font-size:34px;font-weight:800;letter-spacing:-.5px}
+.done-desc{font-size:17px;color:var(--dim);margin:4px 0 20px}
+.done-flows{display:flex;flex-direction:column;gap:8px;margin:0 auto 24px;max-width:320px}
+.dflow{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:10px 14px;font-size:14px;font-weight:600;display:flex;justify-content:space-between;gap:10px}
+.dflow .a{color:var(--mint);font-weight:800}
+
+/* share */
+.sharecard{width:100%;border-radius:18px;border:1px solid var(--line);display:block;margin-bottom:16px}
+.share-note{font-size:13px;color:var(--faint);text-align:center;margin-top:12px}
+
+/* settings */
+.set-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.set-row:last-child{border-bottom:none}
+.set-row .k{font-weight:600;font-size:15px}
+.set-row .v{color:var(--dim);font-size:13.5px;text-align:right}
+.lang-seg{display:flex;gap:8px}
+.lang-seg .chip{padding:7px 16px}
+.note{font-size:12.5px;color:var(--faint);margin-top:10px;line-height:1.5}
+
+/* pro */
+.pro-hero{background:linear-gradient(135deg,rgba(251,191,36,.14),rgba(139,124,255,.14));border:1px solid rgba(251,191,36,.35);border-radius:20px;padding:22px;text-align:center;margin-bottom:14px}
+.pro-hero .star{font-size:40px}
+.pro-hero h2{font-size:24px;margin:8px 0 4px}
+.pro-feat{display:flex;gap:11px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line)}
+.pro-feat:last-child{border-bottom:none}
+.pro-feat .ic{font-size:19px;flex:none;margin-top:1px}
+.pro-feat b{font-size:14.5px}
+.price{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px}
+.price .p b{font-size:16px}
+.price .p .muted{font-size:13px}
+.best{font-size:11px;font-weight:800;color:var(--mint);background:rgba(52,211,153,.14);border-radius:999px;padding:3px 9px;margin-left:8px}
+
+/* new trip */
+.emo-row{display:flex;flex-wrap:wrap;gap:8px}
+.emo{width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card2);font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.emo.on{border-color:var(--brand);background:rgba(139,124,255,.18);transform:scale(1.06)}
+
+/* modal + toast */
+.mback{position:fixed;inset:0;background:rgba(4,7,14,.72);backdrop-filter:blur(3px);z-index:40;display:flex;align-items:flex-end;justify-content:center;animation:fadein .15s ease both}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.mcard{width:100%;max-width:464px;background:var(--card);border:1px solid var(--line);border-bottom:none;border-radius:22px 22px 0 0;padding:22px 18px calc(22px + env(safe-area-inset-bottom));animation:slideup .22s ease both;max-height:86dvh;overflow-y:auto}
+@keyframes slideup{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
+.mtitle{font-size:18px;font-weight:800;margin-bottom:8px}
+.mbody{color:var(--dim);font-size:14.5px;margin-bottom:18px;word-break:break-word}
+.mactions{display:flex;gap:10px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom));background:#1E2740;border:1px solid var(--line);color:var(--text);font-size:14px;font-weight:600;border-radius:999px;padding:11px 20px;z-index:60;box-shadow:0 10px 30px rgba(0,0,0,.5);animation:fadeup .2s ease both;max-width:88vw;text-align:center}
+.welcome{padding-top:12vh;text-align:center}
+.welcome .logo{width:74px;height:74px;font-size:38px;border-radius:22px;margin:0 auto 18px}
+.welcome h1{font-size:27px;letter-spacing:-.6px;line-height:1.25;margin-bottom:10px}
+.welcome .sub{color:var(--dim);margin-bottom:26px;font-size:15.5px}
+.steps{text-align:left;margin:0 auto 28px;max-width:340px;display:flex;flex-direction:column;gap:13px}
+.step{display:flex;gap:12px;align-items:center}
+.step .n{width:34px;height:34px;border-radius:50%;background:var(--card2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:16px;flex:none}
+.step p{font-size:14.5px;color:var(--dim)}
+.step p b{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div id="screen"></div>
+  <div id="modalRoot"></div>
+  <div id="toastRoot"></div>
+</div>
+
+<script>
+/* =====================================================
+   BILLO — just send the bills
+   Pure logic first (unit-testable, no DOM), UI below.
+   ===================================================== */
+'use strict';
+
+const APP = {
+  name: 'Billo',
+  pkg: 'com.billo.app',
+  tagline: "Just send the bills. We'll do the math.",
+  storeUrl: 'https://play.google.com/store/apps/details?id=com.billo.app',
+  webUrl: 'billo.app',
+  version: '1.1.0'
+};
+
+const CATS = {
+  food:   { label: 'Food',     emoji: '🍽️' },
+  cab:    { label: 'Cab',      emoji: '🚕' },
+  hotel:  { label: 'Hotel',    emoji: '🏨' },
+  travel: { label: 'Travel',   emoji: '✈️' },
+  fuel:   { label: 'Fuel',     emoji: '⛽' },
+  shop:   { label: 'Shopping', emoji: '🛍️' },
+  health: { label: 'Health',   emoji: '💊' },
+  fun:    { label: 'Activity', emoji: '🎟️' },
+  gift:   { label: 'Gift',     emoji: '🎁' },
+  other:  { label: 'Other',    emoji: '📎' }
+};
+
+const EMOJIS = ['🏖️','🏔️','🏙️','🎉','✈️','🏍️','🎳','🏠','🌊','⛰️','🛕','🎬','🚂','🏕️','🎮','📿'];
+
+const CURRENCIES = ['INR','USD','EUR','GBP','AED','SGD','JPY','AUD','CAD','CHF','KWD','QAR'];
+
+const round2 = n => Math.round(n * 100) / 100;
+const uid = p => (p || 'x') + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const escapeRe = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeHtml = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const titleCase = s => String(s).replace(/\b\w/g, c => c.toUpperCase());
+
+function fmtMoney(n, cur) {
+  cur = cur || 'INR';
+  n = round2(Number(n) || 0);
+  try {
+    return new Intl.NumberFormat(cur === 'INR' ? 'en-IN' : undefined, {
+      style: 'currency', currency: cur, minimumFractionDigits: 0, maximumFractionDigits: 2
+    }).format(n);
+  } catch (e) { return '₹' + n.toFixed(2); }
+}
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function dayLabel(dateStr, lang) {
+  if (!dateStr) return '';
+  const today = todayStr();
+  const y = new Date(); y.setDate(y.getDate() - 1);
+  const yest = y.getFullYear() + '-' + String(y.getMonth() + 1).padStart(2, '0') + '-' + String(y.getDate()).padStart(2, '0');
+  if (dateStr === today) return lang === 'hi' ? 'आज' : 'Today';
+  if (dateStr === yest) return lang === 'hi' ? 'कल' : 'Yesterday';
+  try {
+    return new Date(dateStr + 'T00:00:00').toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short' });
+  } catch (e) { return dateStr; }
+}
+
+function meIdOf(trip) {
+  const m = (trip.members || []).find(m => m.self) || (trip.members || [])[0];
+  return m ? m.id : null;
+}
+function memberById(trip, id) { return (trip.members || []).find(m => m.id === id) || null; }
+function displayName(trip, m, meName) { return m ? (m.self ? ((meName || m.name) || 'You') : (m.name || '?')) : '?'; }
+
+/* Split an amount into exact paise across ids. */
+function splitEqual(amount, ids) {
+  const paise = Math.round((Number(amount) || 0) * 100);
+  const n = (ids || []).length;
+  const out = {};
+  if (!n) return out;
+  const base = Math.floor(paise / n), rem = paise % n;
+  ids.forEach((id, i) => { out[id] = Math.round(base + (i < rem ? 1 : 0)) / 100; });
+  return out;
+}
+
+/* Core ledger: net per person ( + = to collect, - = to pay ) + minimal set of settlement flows. */
+function computeTrip(trip) {
+  const net = {}, spent = {};
+  trip.members.forEach(m => { net[m.id] = 0; spent[m.id] = 0; });
+  let total = 0, openCount = 0, receipts = 0;
+  for (const e of trip.expenses || []) {
+    if (e.img || e.src === 'photo') receipts++;
+    if (e.settled) continue;
+    openCount++; total = round2(total + e.amount);
+    net[e.payerId] = round2((net[e.payerId] || 0) + e.amount);
+    const sh = (e.custom && e.customAmts) ? e.customAmts : splitEqual(e.amount, e.parts);
+    for (const pid in sh) {
+      if (!(pid in net)) net[pid] = 0;
+      net[pid] = round2(net[pid] - sh[pid]);
+      spent[pid] = round2(spent[pid] + sh[pid]);
+    }
+  }
+  for (const p of trip.payments || []) {
+    if (!(p.from in net)) net[p.from] = 0;
+    if (!(p.to in net)) net[p.to] = 0;
+    net[p.from] = round2(net[p.from] + p.amount);
+    net[p.to] = round2(net[p.to] - p.amount);
+  }
+  const debtors = [], creditors = [];
+  trip.members.forEach(m => {
+    if (net[m.id] < -0.004) debtors.push({ id: m.id, left: -net[m.id] });
+    else if (net[m.id] > 0.004) creditors.push({ id: m.id, left: net[m.id] });
+  });
+  debtors.sort((a, b) => b.left - a.left);
+  creditors.sort((a, b) => b.left - a.left);
+  const flows = [];
+  let i = 0, j = 0;
+  while (i < debtors.length && j < creditors.length) {
+    const d = debtors[i], c = creditors[j], amt = Math.min(d.left, c.left);
+    if (amt > 0.004) flows.push({ from: d.id, to: c.id, amount: round2(amt) });
+    d.left = round2(d.left - amt); c.left = round2(c.left - amt);
+    if (d.left <= 0.004) i++;
+    if (c.left <= 0.004) j++;
+  }
+  let outstanding = 0;
+  trip.members.forEach(m => { if (net[m.id] < 0) outstanding += -net[m.id]; });
+  return { net, flows, total, openCount, receipts, spent, outstanding: round2(outstanding) };
+}
+
+/* ---------- on-device "AI expense inbox" parser ---------- */
+const CAT_RULES = [
+  [/(cab|taxi|uber|ola|rapido|auto rick|autobianca|auto|ride|scooty|scooter|bike rental|e-rick)/, 'cab'],
+  [/(hotel|airbnb|stay|room|guest ?house|hostel|resort|leisure|guesthouse|booking\.com|oyo)/, 'hotel'],
+  [/(dinner|lunch|breakfast|food|restaurant|resturant|cafe|café|eat|khana|ziya|snack|snacks|chai|coffee|biriyani|biryani|pizza|burger|thali|momo|juice|bar|meal|booze|beer|wine|liquor|whisky|vodka|champagne|cocktail|zomato|swiggy)/, 'food'],
+  [/(train|flight|bus|indigo|vistara|irctc|air ticket|airticket|ticket|tickets|scoot|spicejet|go first|aeroflight)/, 'travel'],
+  [/(fuel|petrol|diesel|hpcl|ipcl|bpcl|dhaba)/, 'fuel'],
+  [/(shop|shopping|bazaar|market|store|mall|souvenir shop|gift shop|clothes|clothing)/, 'shop'],
+  [/(medicine|medicines|pharmacy|doctor|hospital|dabba|apollo|1mg)/, 'health'],
+  [/(activity|safari|waterfall|zipline|paragliding|caving|trek|trekking|outing|show|movie|cinema|amusement|park|river rafting|rafting|hot air balloon|balloon)/, 'fun'],
+  [/(gift|souvenir|souvenirs|present|diya|puja|flowers)/, 'gift']
+];
+
+function parseExpenseText(text, trip, meName) {
+  const t = String(text || '').trim();
+  const low = t.toLowerCase();
+  const me = meIdOf(trip) || (trip.members[0] && trip.members[0].id);
+  const r = { amount: 0, amStr: '', desc: '', cat: null, payerId: null, payerFound: false, parts: [], partsFound: false, everyone: false, onlyMe: false, conf: 0, raw: t, date: null };
+  if (!t || !trip.members.length) return r;
+
+  /* amount */
+  let am = t.match(/(?:₹|rs\.?|inr)\s*([0-9][0-9,]{0,12}(?:\.[0-9]{1,2})?)(\s*(?:k\.?| thousand))?/i)
+       || t.match(/([0-9][0-9,]{0,12}(?:\.[0-9]{1,2})?)\s*(k\.?| thousand|rupees?|₹|rs\.?|inr)\b/i)
+       || t.match(/\b([0-9][0-9,]{0,12}(?:\.[0-9]{1,2})?)\b/);
+  if (am) {
+    let v = parseFloat(am[1].replace(/,/g, ''));
+    if (am[2] && am[2].toLowerCase().indexOf('k') === 0) v *= 1000;
+    r.amount = round2(v); r.amStr = am[0];
+  }
+
+  /* who paid (detected first so the participants logic can exclude the payer's name) */
+  const names = trip.members.map(m => ({ id: m.id, re: new RegExp('\\b' + escapeRe(displayName(trip, m, meName)) + '\\b', 'i') }));
+  const findMember = nm => {
+    if (!nm) return null;
+    const dn0 = String(nm).toLowerCase();
+    return trip.members.find(m => {
+      const dn = displayName(trip, m, meName).toLowerCase();
+      return dn === dn0 || dn.indexOf(dn0) === 0 || dn0.indexOf(dn) === 0 || dn.indexOf(dn0) > 0;
+    }) || null;
+  };
+  {
+    const kwm = low.search(/\b(paid|diya|bharaya|di)\b/);
+    if (kwm >= 0) {
+      const before = low.slice(0, kwm).trim().split(/\s+/).filter(Boolean)
+        .filter(w => !/^(had|has|have|just|only|please|₹|\d[\d,.]*)$/.test(w));
+      const cand1 = before.length ? before[before.length - 1] : '';
+      const cand2 = before.length >= 2 ? before[before.length - 2] + ' ' + before[before.length - 1] : '';
+      if (/^(i|me|my|maine|humne|hum)$/.test(cand1)) { r.payerId = me; r.payerFound = true; }
+      else {
+        const f1 = findMember(cand1);
+        const f2 = f1 ? null : findMember(cand2);
+        if (f1) { r.payerId = f1.id; r.payerFound = true; }
+        else if (f2) { r.payerId = f2.id; r.payerFound = true; }
+      }
+    }
+  }
+  if (!r.payerId) {
+    if (/\b(?:i|me)\s+(?:had\s+|has\s+)?paid\b/.test(low) || /maine/.test(low)) { r.payerId = me; r.payerFound = true; }
+    else r.payerId = me;
+  }
+
+  /* who is involved */
+  if (/\b(only|just|sirf)\s+(for\s+|mere\s+)?(me|myself)\b/.test(low) || /\bpersonal\b/.test(low) || /sirf mere/.test(low)) {
+    r.onlyMe = true; r.parts = [me]; r.partsFound = true;
+  } else if (/\bfor\s+(everyone|all of you|all of us|all|us|the group|whole group|group)\b/.test(low) || /\bsab\b/.test(low) || /sab\s*(ke|ko)?\s*liye/.test(low) || /\bpoora group\b/.test(low)) {
+    r.everyone = true; r.parts = trip.members.map(m => m.id); r.partsFound = true;
+  } else {
+    const found = [];
+    const scope = low.match(/\b(?:for|with|between|to|me and)\s+([a-z0-9][a-z0-9 ,&]*(?:\b[a-z]{2,}))?\s*(?:\s+(?:on|at|in|for|paid|bill|receipt|the)\b|$)/);
+    const scopeTxt = scope && scope[1] ? scope[1] : '';
+    const hasMe = scopeTxt ? /\b(me|i)\b/.test(scopeTxt) : false;
+    let usedScope = false;
+    if (scopeTxt) {
+      names.forEach(n => { if (n.re.test(scopeTxt) && found.indexOf(n.id) === -1) found.push(n.id); });
+      if (hasMe && found.indexOf(me) === -1) found.push(me);
+      if (found.length) usedScope = true;
+    }
+    if (!usedScope) {
+      names.forEach(n => {
+        if (n.id === r.payerId) return; /* the payer's name is usually the "X paid" role */
+        if (n.re.test(low) && found.indexOf(n.id) === -1) found.push(n.id);
+      });
+    }
+    if (found.length) { r.parts = found; r.partsFound = true; }
+    else { r.parts = trip.members.map(m => m.id); r.everyone = true; }
+  }
+  if (!r.parts.includes(r.payerId) && !r.onlyMe) r.parts.unshift(r.payerId);
+  if (r.partsFound && r.payerId === me && r.parts.indexOf(me) === -1) r.parts.unshift(me);
+
+  /* category */
+  for (const rule of CAT_RULES) { if (rule[0].test(low)) { r.cat = rule[1]; break; } }
+  if (!r.cat) r.cat = 'other';
+
+  /* description: strip amount, keywords, names, numbers */
+  let s = ' ' + t + ' ';
+  if (r.amStr) s = s.split(r.amStr).join(' ');
+  const payerName = displayName(trip, memberById(trip, r.payerId), meName);
+  if (payerName) s = s.replace(new RegExp('\\b' + escapeRe(payerName) + '\\b', 'gi'), ' ');
+  s = s.replace(/\b(i|me|my|we|us|the|a|an|and|with|for|of|to|on|at|in|it|its|was|is|by|had|has|have|paid|billed|bill|bills|receipt|invoice|upi|screenshot|pic|image|photo|ne|ki|ke|ko|se|liye|liya|di|diya|maine|sab|sabbr|everyone|all|just|only|sirf|myself|google|pay|payment|transaction|transactions|successful|success|reference|ref|id|charged|cashback|fee|date|time|january|february|march|april|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|am|pm)\b/gi, ' ');
+  s = s.replace(/[0-9][0-9,]*(?:\.[0-9]{1,2})?/g, ' ');
+  s = s.replace(/₹|rs\.?|inr|\bk\.?\b/gi, ' ');
+  s = s.replace(/\s+/g, ' ').trim();
+  if (s.length > 42) s = '';
+  r.desc = titleCase(s);
+
+  r.conf = (r.amount ? 1 : 0) + (r.payerFound ? 1 : 0) + (r.partsFound ? 1 : 0);
+  return r;
+}
+
+/* ---------- multiple expenses in one message ---------- */
+function cutIndex(t, a, b) {
+  const region = t.slice(a, b);
+  const conn = region.match(/\s(?:and|&|plus|aur)\s+|\s[,;]\s/);
+  if (conn) {
+    const at = region.indexOf(conn[0]);
+    return a + at + conn[0].length;
+  }
+  const mid = (a + b) / 2;
+  let best = -1, bestD = Infinity;
+  for (let i = a + 1; i < b; i++) {
+    if (t[i] !== ' ') continue;
+    const d = Math.abs(i - mid);
+    if (d < bestD || (d === bestD && i > best)) { bestD = d; best = i; }
+  }
+  return best === -1 ? Math.floor(mid) : best;
+}
+
+/* Parse one or many expenses from a message ("I paid 2200 for booze and 1388 for food"). */
+function parseExpenseTextAll(text, trip, meName) {
+  const t = String(text || '').trim();
+  if (!t || !trip.members.length) return [parseExpenseText(t, trip, meName)];
+  const re = /(?:₹|rs\.?|inr)\s*([0-9][0-9,]{0,12}(?:\.[0-9]{1,2})?)(\s*(?:k\.?| thousand))?|\b([0-9][0-9,]{0,12}(?:\.[0-9]{1,2})?)\s*(k\.?| thousand|rupees?|₹|rs\.?|inr)\b|\b([0-9][0-9,]{0,12}(?:\.[0-9]{1,2})?)\b/g;
+  const amounts = [];
+  let m;
+  while ((m = re.exec(t)) !== null && amounts.length < 8) {
+    let raw, k = '';
+    if (m[1] != null) { raw = m[1]; k = m[2] || ''; }
+    else if (m[3] != null) { raw = m[3]; k = m[4] || ''; }
+    else { raw = m[5]; }
+    let v = parseFloat(String(raw).replace(/,/g, ''));
+    const isK = k.toLowerCase().indexOf('k') === 0;
+    if (isK) v *= 1000;
+    amounts.push({ start: m.index, end: m.index + m[0].length, value: round2(v), strong: m[1] != null || isK });
+  }
+  let isMulti = false;
+  if (amounts.length >= 2) {
+    if (amounts.filter(a => a.strong).length >= 2) isMulti = true;
+    else {
+      for (let i = 0; i + 1 < amounts.length && !isMulti; i++) {
+        const between = t.slice(amounts[i].end, amounts[i + 1].start);
+        if (/(?:^|\s)(?:and|&|plus|aur)(?:\s|$)/i.test(between) || /\s[,;]\s/.test(between) || between.trim() === '+') isMulti = true;
+      }
+    }
+  }
+  if (!isMulti) return [parseExpenseText(t, trip, meName)];
+  const cuts = [0];
+  for (let i = 1; i < amounts.length; i++) cuts.push(cutIndex(t, amounts[i - 1].end, amounts[i].start));
+  const results = [];
+  for (let i = 0; i < amounts.length; i++) {
+    const s = cuts[i];
+    const e = i + 1 < amounts.length ? cuts[i + 1] : t.length;
+    let seg = t.slice(s, e);
+    seg = seg.replace(/\s+(?:and|&|plus|aur|[,;])\s*$/i, '').trim();
+    const r = parseExpenseText(seg, trip, meName);
+    r.amount = amounts[i].value;
+    results.push(r);
+  }
+  for (let i = 1; i < results.length; i++) {
+    if (!results[i].payerFound) {
+      for (let j = i - 1; j >= 0; j--) {
+        if (results[j].payerFound) { results[i].payerId = results[j].payerId; break; }
+      }
+    }
+  }
+  return results;
+}
+
+/* ---------- pattern learning (Level 2 of the spec) ---------- */
+const partsKey = ids => (ids || []).slice().sort().join('+');
+function learnRecord(trip, e) {
+  trip.learn = trip.learn || {};
+  const k = e.payerId + '|' + e.cat;
+  const pk = partsKey(e.parts);
+  trip.learn[k] = trip.learn[k] || {};
+  trip.learn[k][pk] = (trip.learn[k][pk] || 0) + 1;
+}
+function learnSuggest(trip, payerId, cat) {
+  const m = (trip.learn || {})[payerId + '|' + cat];
+  if (!m) return null;
+  let total = 0, top = null, topC = 0;
+  for (const pk in m) { total += m[pk]; if (m[pk] > topC) { topC = m[pk]; top = pk; } }
+  if (total >= 3 && topC / total >= 0.6 && top) {
+    const ids = top.split('+').filter(id => memberById(trip, id));
+    if (ids.length) return { ids, hint: 'learned' };
+  }
+  return null;
+}
+
+/* ---------- shareable summary ---------- */
+function buildShareText(trip, calc) {
+  const nm = id => { const m = memberById(trip, id); return m ? displayName(trip, m, meName) : '?'; };
+  const L = [];
+  L.push(trip.emoji + ' ' + trip.name + ' — ' + fmtMoney(calc.total, trip.currency));
+  L.push('');
+  L.push(trip.members.length + ' ' + (trip.members.length === 1 ? 'person' : 'people') + ' · ' + (trip.expenses.length) + ' bills · ' + calc.receipts + ' receipts');
+  if (trip.members.length) L.push(fmtMoney(calc.total / trip.members.length, trip.currency) + '/person');
+  L.push('');
+  if (calc.flows.length) {
+    L.push('Settlements:');
+    calc.flows.forEach(f => L.push('• ' + nm(f.from) + ' → ' + nm(f.to) + ' ' + fmtMoney(f.amount, trip.currency)));
+  } else {
+    L.push("🎉 Everyone's settled up");
+  }
+  L.push('');
+  L.push(APP.tagline);
+  L.push('Get ' + APP.name + ' on the Play Store → ' + APP.storeUrl);
+  return L.join('\n');
+}
+let meName = ''; // set by UI layer
+
+/* ===== UI ===== */
+
+const LS_KEY = 'billo.v1';
+let S = null;           // persisted state
+let ui = null;          // transient UI state
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+
+function freshState() {
+  return {
+    v: 1, me: { name: '' }, pro: false,
+    settings: {
+      lang: 'en', currency: 'INR',
+      ai: { enabled: false, baseUrl: 'https://api.openai.com/v1', key: '', model: 'gpt-4o-mini' }
+    },
+    trips: []
+  };
+}
+function save() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(S)); }
+  catch (e) { toast('⚠️ Storage full or unavailable — export a backup'); }
+}
+function loadState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) {
+      const d = JSON.parse(raw);
+      if (d && d.v === 1) {
+        const f = freshState();
+        S = Object.assign(f, d);
+        S.settings = Object.assign(freshState().settings, d.settings || {});
+        S.settings.ai = Object.assign(freshState().settings.ai, (d.settings || {}).ai || {});
+        return;
+      }
+    }
+  } catch (e) {}
+  S = freshState();
+}
+function freshUi() {
+  return {
+    screen: 'home', _screen: '', tripId: null,
+    addTab: 'say', addStep: 'say0', draft: null, editExp: null, multi: null, doneMulti: null,
+    stack: null, shareImg: null, doneTrip: null,
+    modal: null, ntEmoji: '🏖️', ntMembers: []
+  };
+}
+
+/* ---------- i18n ---------- */
+const STR = {
+  en: {
+    tagline: "Just send the bills. We'll do the math.",
+    welcome_title: 'Stop splitting bills.<br>Just send them.',
+    get_started: 'Get started', your_name: 'What should we call you?', name_ph: 'Your name',
+    hi_name: 'Hi {name} 👋',
+    new_trip: 'New trip', join_trip: 'Join a trip',
+    trip_name_ph: 'e.g. Manali Trip', who_members: "Who's going?", add_member_ph: "Add a friend's name",
+    create: 'Create trip', people: 'people', person: 'person', bills: 'bills', receipt: 'receipt', receipts: 'receipts',
+    total: 'Total', per_person: 'per person', to_settle: 'to settle', settled_up: 'Settled up ✓',
+    to_collect: 'to collect', to_pay: 'to pay', settled: 'settled', balances: 'Balances',
+    settle_up: 'Settle up', suggested: 'Suggested payments', mark_paid: 'Paid', payments: 'Payments', undo: 'Undo',
+    no_flows: "Everyone's settled up 🎉", bills_title: 'Bills', no_expenses: 'No bills yet. Send the first one! 📷',
+    add_expense: 'Add expense', say_it: 'Say it', snap_it: 'Snap it', quick: 'Quick',
+    say_ph: 'e.g. Paid ₹800 cab for me and Rahul',
+    say_hint: 'Write it like a WhatsApp message — Billo gets it. Try: “Rahul paid 2,000 for the Airbnb”.',
+    parse_btn: 'Understand ✨', pick_photo: 'Add a bill photo', pick_camera: 'Take photo', pick_library: 'From gallery',
+    photo_hint: 'Restaurant bill, hotel invoice, UPI/GPay screenshot, cab receipt…',
+    reading: 'Reading your bill…', ai_off_note: 'Tip: turn on AI bill-reading in Settings for automatic photo extraction. Until then, say it or use Quick.',
+    what_for: 'What was it for?', what_ph: 'Dinner, fuel, hotel…', amount: 'Amount', paid_by: 'Paid by', who_involved: 'Who was involved?',
+    everyone: 'Everyone', just_me: 'Just me', custom_split: 'Custom split', remaining: 'remaining', over_by: 'over',
+    fill_rest: 'Fill rest', confirm: 'Confirm', edit: 'Edit', cancel: 'Cancel', save: 'Save', delete: 'Delete',
+    confirm_del: 'Delete this bill? Balances will update.', del_trip_q: 'Delete this trip and all its bills?',
+    added: 'added', done_title: 'Done.', now_flows: 'Where things stand', add_another: 'Add another', back_to_trip: 'Back to trip',
+    share: 'Share', share_title: 'Share the wrap-up', wa_btn: 'Share to WhatsApp', download: 'Download card', copy_text: 'Copy text',
+    copied: 'Copied!', share_down: 'Card saved to Downloads',
+    settings: 'Settings', you: 'You', language: 'Language', currency: 'Currency', currency_locked: 'More currencies with Pro',
+    ai_title: 'AI bill reading', ai_note: 'Photos are sent only to the AI endpoint you configure, then discarded. Your key never leaves this device. Works with any OpenAI-compatible API.',
+    ai_key: 'API key', ai_model: 'Model', ai_base: 'API base URL', ai_test: 'Test', ai_ok: 'AI is working ✓', ai_fail: 'AI test failed — check key / URL',
+    backup: 'Backup', export: 'Export backup', import: 'Import backup', import_warn: 'Import replaces your current trips. Continue?',
+    imported: 'Backup imported ✓', export_err: 'Export failed', bad_import: 'That file is not a Billo backup',
+    data: 'Data', erase: 'Erase everything', erase_warn: 'This deletes all trips on this device. Export a backup first?',
+    erased: 'All data erased', pro: 'Billo Pro', pro_tag: 'More power, same magic',
+    pro_f1: 'Receipt archive — photos saved inside your trips', pro_f2: '12 currencies, per trip',
+    pro_f3: 'Any AI endpoint & model', pro_f4: 'Clean share cards (no watermark)',
+    unlock: 'Unlock', pro_month: '₹79 / month', pro_year: '₹399 / year', pro_life: '₹699 · once',
+    pro_play: 'Billo Pro is available on Google Play. Install the app there to unlock.',
+    open_play: 'Open Play Store', pro_thanks: 'Pro unlocked — enjoy! ⭐',
+    about: 'About', privacy: 'Privacy policy', version: 'Version', ondevice: 'Your data stays on this device. No accounts, no cloud, no tracking.',
+    members: 'Members', add_member: 'Add member', remove_block: 'Settle or delete their bills first.',
+    mark_settled: 'Mark settled', unmark_settled: 'Unmark settled', you_said: 'You said', ai_read: 'AI read the bill',
+    manual: 'Manual', learned_hint: '💡 Based on past bills',
+    join_code_ph: 'Trip code · e.g. GOA-2F9K', join_btn: 'Join',
+    join_note: 'This creates the trip on this device. For live group sync, ask the trip leader to send their backup file (Settings → Export backup) and import it here.',
+    invite: 'Invite friends', members_btn: 'people', enter_amount: 'Enter an amount first', who_q: 'Select who was involved',
+    split_err: 'Custom split must equal the total', name_first: 'Add your name first',
+    need_name: 'Give the trip a name', need_member: 'Add at least one friend',
+    created: 'Trip created — now send the bills! 🎉', joined: 'Trip created on this device',
+    photo_err: 'Could not read that image', enter_something: 'Type the expense first',
+    pro_needed: 'This is a Pro feature', key_required: 'Add your API key in Settings first',
+    amt_miss: "Couldn't read the amount — type it below",
+    ocr_reading: 'Reading the bill on your phone…', ocr_err: 'On-device reading failed — type the amount', ocr_read: 'Read on device',
+    multi_found: 'Found {n} expenses in that message — tap a row to uncheck, ✏️ to edit',
+    multi_total: 'Total: {a}', add_one: 'Add bill', add_n: 'Add {n} bills',
+    back_list: 'All bills', added_n: '{n} bills added'
+  },
+  hi: {
+    tagline: 'बस बिल भेज दीजिए। गणित हम करेंगे।',
+    welcome_title: 'बिल बाँटने का झंझट बंद.<br>बस भेज दीजिए।',
+    get_started: 'शुरू करें', your_name: 'आपको क्या बुलाएँ?', name_ph: 'आपका नाम',
+    hi_name: 'नमस्ते {name} 👋',
+    new_trip: 'नया ट्रिप', join_trip: 'ट्रिप ज्वाइन करें',
+    trip_name_ph: 'जैसे: मनाली ट्रिप', who_members: 'कौन जा रहा है?', add_member_ph: 'दोस्त का नाम जोड़ें',
+    create: 'ट्रिप बनाएँ', people: 'लोग', person: 'लोग', bills: 'बिल', receipt: 'रसीद', receipts: 'रसीदें',
+    total: 'कुल', per_person: 'प्रति व्यक्ति', to_settle: 'बाकी', settled_up: 'सब सेटल ✓',
+    to_collect: 'पाना है', to_pay: 'देना है', settled: 'सेटल', balances: 'बैलेंस',
+    settle_up: 'सेटल करें', suggested: 'सुझाए गए भुगतान', mark_paid: 'हो गया', payments: 'भुगतान', undo: 'हटाएँ',
+    no_flows: 'सब सेटल हो गया 🎉', bills_title: 'बिल', no_expenses: 'अभी कोई बिल नहीं। पहला भेजिए! 📷',
+    add_expense: 'खर्च जोड़ें', say_it: 'बोलकर', snap_it: 'फोटो', quick: 'तेज़',
+    say_ph: 'जैसे: Paid ₹800 cab me aur Rahul',
+    say_hint: 'WhatsApp मैसेज की तरह लिखिए — Billo समझ जाएगा। आज़माइए: “Rahul paid 2000 for the Airbnb”।',
+    parse_btn: 'समझें ✨', pick_photo: 'बिल की फोटो डालें', pick_camera: 'फोटो खींचें', pick_library: 'गैलरी से',
+    photo_hint: 'रेस्टोरेंट बिल, होटल इनवॉइस, UPI/GPay स्क्रीनशॉट, कैब रसीद…',
+    reading: 'बिल पढ़ रहे हैं…', ai_off_note: 'टिप: Settings में AI बिल-रीडिंग चालू करें — फोटो से अपने-आप डेटा निकलेगा। तब तक बोलकर या तेज़ इस्तेमाल करें।',
+    what_for: 'क्या खर्च था?', what_ph: 'खाना, पेट्रोल, होटल…', amount: 'राशि', paid_by: 'किसने भुगतान किया', who_involved: 'कौन शामिल था?',
+    everyone: 'सभी', just_me: 'सिर्फ मैं', custom_split: 'अपनी बँटौनी', remaining: 'बाकी', over_by: 'ज़्यादा',
+    fill_rest: 'बाकी भरें', confirm: 'पक्का करें', edit: 'बदलें', cancel: 'रद्द', save: 'सेव करें', delete: 'हटाएँ',
+    confirm_del: 'यह बिल हटाएँ? बैलेंस अपडेट होंगे।', del_trip_q: 'यह ट्रिप और उसके सारे बिल हटाएँ?',
+    added: 'जोड़ दिया', done_title: 'हो गया।', now_flows: 'अभी की स्थिति', add_another: 'एक और जोड़ें', back_to_trip: 'ट्रिप पर वापस',
+    share: 'शेयर', share_title: 'सारांश शेयर करें', wa_btn: 'WhatsApp पर शेयर करें', download: 'कार्ड डाउनलोड करें', copy_text: 'टेक्स्ट कॉपी करें',
+    copied: 'कॉपी हो गया!', share_down: 'कार्ड Downloads में सेव',
+    settings: 'सेटिंग्स', you: 'आप', language: 'भाषा', currency: 'मुद्रा', currency_locked: 'और मुद्राएँ Pro के साथ',
+    ai_title: 'AI बिल-रीडिंग', ai_note: 'फोटो सिर्फ आपके चुने AI एंडपॉइंट पर जाती हैं, फिर मिट जाती हैं। आपकी की इसी डिवाइस पर रहती है। कोई भी OpenAI-समान API चलेगा।',
+    ai_key: 'API की', ai_model: 'मॉडल', ai_base: 'API बेस URL', ai_test: 'टेस्ट', ai_ok: 'AI चल रहा है ✓', ai_fail: 'AI टेस्ट फेल — की / URL चेक करें',
+    backup: 'बैकअप', export: 'बैकअप निर्यात', import: 'बैकअप आयात', import_warn: 'आयात आपके मौजूदा ट्रिप बदल देगा। जारी रखें?',
+    imported: 'बैकअप आयात हुआ ✓', export_err: 'निर्यात नहीं हो सका', bad_import: 'यह फाइल Billo बैकअप नहीं है',
+    data: 'डेटा', erase: 'सब मिटाएँ', erase_warn: 'यह इस डिवाइस के सारे ट्रिप हटा देगा। पहले बैकअप लें?',
+    erased: 'सारा डेटा मिट गया', pro: 'Billo Pro', pro_tag: 'ज़्यादा पावर, वही जादू',
+    pro_f1: 'रसीद आर्काइव — फोटो आपके ट्रिप में सेव', pro_f2: '12 मुद्राएँ, हर ट्रिप के लिए',
+    pro_f3: 'कोई भी AI एंडपॉइंट और मॉडल', pro_f4: 'साफ़ शेयर कार्ड (बिना वॉटरमार्क)',
+    unlock: 'लॉक खोलें', pro_month: '₹79 / माह', pro_year: '₹399 / साल', pro_life: '₹699 · एक बार',
+    pro_play: 'Billo Pro Google Play पर उपलब्ध है। अनलॉक के लिए ऐप वहाँ से लगाएँ।',
+    open_play: 'प्ले स्टोर खोलें', pro_thanks: 'Pro अनलॉक हो गया — मज़ा लीजिए! ⭐',
+    about: 'बारे में', privacy: 'गोपनीयता नीति', version: 'वर्सन', ondevice: 'आपका डेटा इसी डिवाइस पर रहता है। न अकाउंट, न क्लाउड, न ट्रैकिंग।',
+    members: 'सदस्य', add_member: 'सदस्य जोड़ें', remove_block: 'पहले उनके बिल सेटल या हटाएँ।',
+    mark_settled: 'सेटल चिह्नित करें', unmark_settled: 'हटायें', you_said: 'आपने कहा', ai_read: 'AI ने बिल पढ़ा',
+    manual: 'मैनुअल', learned_hint: '💡 पिछले बिलों के हिसाब से',
+    join_code_ph: 'ट्रिप कोड · जैसे GOA-2F9K', join_btn: 'ज्वाइन करें',
+    join_note: 'यह ट्रिप इस डिवाइस पर बनेगा। लाइव सिंक के लिए लीडर से बैकअप फाइल (Settings → Export) माँगकर यहाँ इम्पोर्ट करें।',
+    invite: 'दोस्तों को बुलाएँ', members_btn: 'लोग', enter_amount: 'पहले राशि डालें', who_q: 'चुनिए कि कौन शामिल था',
+    split_err: 'बँटौनी कुल राशि के बराबर होनी चाहिए', name_first: 'पहले अपना नाम डालें',
+    need_name: 'ट्रिप का नाम डालें', need_member: 'कम से कम एक दोस्त जोड़ें',
+    created: 'ट्रिप बन गया — अब बिल भेजिए! 🎉', joined: 'ट्रिप इस डिवाइस पर बन गया',
+    photo_err: 'यह इमेज नहीं पढ़ पाए', enter_something: 'पहले खर्च लिखें',
+    pro_needed: 'यह Pro फीचर है', key_required: 'पहले Settings में API की डालें',
+    amt_miss: 'राशि नहीं पढ़ पाए — नीचे टाइप करें',
+    ocr_reading: 'बिल आपकी फ़ोन पर पढ़ रहे हैं…', ocr_err: 'फ़ोन पर पढ़ना नहीं हो पाया — राशि टाइप करें', ocr_read: 'फ़ोन पर पढ़ा',
+    multi_found: 'इसमें {n} खर्च मिले — टैप करके चुनें, ✏️ से बदलें',
+    multi_total: 'कुल: {a}', add_one: 'बिल जोड़ें', add_n: '{n} बिल जोड़ें',
+    back_list: 'सारे बिल', added_n: '{n} बिल जुड़े'
+  }
+};
+const T = (k, vars) => {
+  let s = (STR[S.settings.lang] || STR.en)[k] || STR.en[k] || k;
+  if (vars) for (const v in vars) s = s.replace('{' + v + '}', vars[v]);
+  return s;
+};
+const AV_COLORS = ['#8B7CFF', '#34D399', '#FBBF24', '#FB7185', '#60A5FA', '#F472B6', '#4ADE80', '#F97316', '#2DD4BF', '#C084FC', '#FACC15', '#38BDF8'];
+function colorFor(name) {
+  let h = 0; for (const c of String(name)) h = (h * 31 + c.charCodeAt(0)) % 997;
+  return AV_COLORS[h % AV_COLORS.length];
+}
+function avHtml(member, cls, size) {
+  const nm = displayName(curTrip(), member, S.me.name);
+  return '<span class="av ' + (cls || '') + '" style="--c:' + colorFor(nm) + '">' + escapeHtml(nm.charAt(0).toUpperCase()) + '</span>';
+}
+function curTrip() { return (S.trips || []).find(t => t.id === ui.tripId) || S.trips[0] || null; }
+
+/* ---------- rendering ---------- */
+/* ---------- navigation with a working back button ---------- */
+/* screen "depth": pressing back goes to the nearest shallower screen (mirrors the on-screen ← buttons) */
+const DEPTH = { welcome: 0, home: 0, trip: 1, add: 2, done: 2, share: 2, settings: 1, pro: 2, newtrip: 1, join: 1 };
+function go(screen, p) {
+  Object.assign(ui, p || {});
+  const cur = ui.screen;
+  ui.screen = screen;
+  if (ui.stack === null || !ui.stack.length) ui.stack = [cur];
+  const dCur = DEPTH[cur] != null ? DEPTH[cur] : 0;
+  const dNew = DEPTH[screen] != null ? DEPTH[screen] : 0;
+  try {
+    if (dNew > dCur) { ui.stack.push(screen); history.pushState({ s: screen }, ''); }
+    else { ui.stack[ui.stack.length - 1] = screen; history.replaceState({ s: screen }, ''); }
+  } catch (e) { /* file:// or sandboxed iframe: history tokens unavailable, stack still works */ }
+  render();
+}
+function popAndRender() {
+  if (ui.modal) { ui.modal = null; render(); return; }
+  if (ui.stack && ui.stack.length > 1) {
+    ui.stack.pop();
+    ui.screen = ui.stack[ui.stack.length - 1];
+    if (ui.screen === 'trip') { ui.shareImg = null; ui.multi = null; }
+    render();
+  }
+}
+window.addEventListener('popstate', function () { popAndRender(); });
+/* called by the native Android shell (window.Billo back button) — returns 1 if consumed */
+window.__billoBack = function () {
+  if (ui.modal) { ui.modal = null; render(); return 1; }
+  if (ui.stack && ui.stack.length > 1) { popAndRender(); return 1; }
+  return 0;
+};
+function render() {
+  const root = $('#screen');
+  const anim = ui._screen !== ui.screen;
+  ui._screen = ui.screen;
+  document.documentElement.lang = S.settings.lang;
+  const fns = {
+    welcome: scrWelcome, home: scrHome, trip: scrTrip, add: scrAdd, done: scrDone,
+    share: scrShare, settings: scrSettings, pro: scrPro, newtrip: scrNewTrip, join: scrJoin
+  };
+  root.className = anim ? 'anim' : '';
+  root.innerHTML = (fns[ui.screen] || scrHome)();
+  if (ui.modal) renderModal();
+}
+function renderModal() {
+  $('#modalRoot').innerHTML = '<div class="mback" data-act="modal-cancel"><div class="mcard" data-act="noop"><div class="mtitle">' +
+    escapeHtml(ui.modal.title) + '</div><div class="mbody">' + ui.modal.body + '</div><div class="mactions">' +
+    '<button class="btn btn-ghost grow" data-act="modal-cancel">' + T('cancel') + '</button>' +
+    (ui.modal.okLabel ? '<button class="btn ' + (ui.modal.danger ? 'btn-danger' : 'btn-primary') + ' grow" data-act="modal-ok">' + escapeHtml(ui.modal.okLabel) + '</button>' : '') +
+    '</div></div></div>';
+}
+function modal(title, body, okLabel, danger, onOk) {
+  ui.modal = { title, body, okLabel, danger, onOk };
+  renderModal();
+}
+function closeModal() { ui.modal = null; $('#modalRoot').innerHTML = ''; }
+function toast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  $('#toastRoot').appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 320); }, 2300);
+}
+function nativeShare(text) {
+  if (window.Billo && window.Billo.shareText) { window.Billo.shareText(text); return true; }
+  return false;
+}
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); return true; }
+  catch (e) {
+    try {
+      const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); ta.remove(); return true;
+    } catch (e2) { return false; }
+  }
+}
+
+/* ---------- screens ---------- */
+function topBar(left, titleHtml, rightHtml) {
+  return '<div class="top">' + left + '<div class="ttit">' + titleHtml + '</div>' + (rightHtml || '') + '</div>';
+}
+function scrWelcome() {
+  return topBar(
+    '<div class="brand"><div class="logo">₹</div><span class="wordmark">billo<span class="dot">.</span></span></div>', '', ''
+  ) +
+  '<div class="welcome"><div class="logo">₹</div>' +
+  '<h1>' + T('welcome_title') + '</h1>' +
+  '<div class="sub">' + T('tagline') + '</div>' +
+  '<div class="steps">' +
+  '<div class="step"><div class="n">📷</div><p><b>Snap a bill</b> — UPI screenshot, restaurant bill, hotel invoice, cab receipt.</p></div>' +
+  '<div class="step"><div class="n">💬</div><p>Or just say: <b>“Paid ₹800 cab for me and Rahul”</b> — Billo parses it.</p></div>' +
+  '<div class="step"><div class="n">⚡</div><p>One tap to confirm. Balances stay right. <b>Who pays whom — settled.</b></p></div>' +
+  '</div>' +
+  '<div class="fld"><label>' + T('your_name') + '</label>' +
+  '<input class="input" id="w_name" placeholder="' + T('name_ph') + '" autocomplete="off"></div>' +
+  '<button class="btn btn-primary big" data-act="welcome-go">' + T('get_started') + ' →</button>' +
+  '<div class="note" style="margin-top:18px">' + T('ondevice') + '</div></div>';
+}
+
+function scrHome() {
+  const me = S.me.name;
+  let list = '';
+  if (!S.trips.length) {
+    list = '<div class="card"><div class="empty">🧾<br><br>' + T('no_expenses') + '</div></div>';
+  } else {
+    list = S.trips.map(t => {
+      const c = computeTrip(t);
+      const bad = c.outstanding > 0 ? '<div class="tbad">' + fmtMoney(c.outstanding, t.currency) + '</div>' : '<div class="tbad ok">✓</div>';
+      return '<div class="card tripc" data-act="open-trip" data-arg="' + t.id + '">' +
+        '<div class="etile">' + t.emoji + '</div>' +
+        '<div class="tinfo"><div class="tname">' + escapeHtml(t.name) + '</div>' +
+        '<div class="tsub">' + t.members.length + ' ' + T('people') + ' · ' + t.expenses.length + ' ' + T('bills') + (c.outstanding > 0 ? ' · ' + T('to_settle') : ' · ' + T('settled_up')) + '</div></div>' + bad +
+        '</div>';
+    }).join('');
+  }
+  return topBar(
+    '<div class="brand"><div class="logo">₹</div><span class="wordmark">billo<span class="dot">.</span></span></div>', '',
+    '<div class="top-actions">' + (S.pro ? '<span class="badge pro">⭐ PRO</span>' : '') +
+    '<button class="iconbtn" data-act="open-pro">★</button>' +
+    '<button class="iconbtn" data-act="go-settings">⚙️</button></div>'
+  ) +
+  '<div class="greet">' + (me ? T('hi_name', { name: escapeHtml(me.split(' ')[0]) }) : APP.name) + '</div>' +
+  '<div class="tagline">' + T('tagline') + '</div>' +
+  '<div class="home-cta"><button class="btn btn-primary" data-act="new-trip">＋ ' + T('new_trip') + '</button>' +
+  '<button class="btn btn-ghost" data-act="join">⤵ ' + T('join_trip') + '</button></div>' + list;
+}
+
+function tripHeader(t) {
+  return topBar(
+    '<button class="iconbtn" data-act="trip-back">←</button>',
+    '<span class="temoji">' + t.emoji + '</span><div style="min-width:0"><div class="tname">' + escapeHtml(t.name) + '</div><div class="muted sm">' + t.code + '</div></div>',
+    '<div class="top-actions"><button class="iconbtn" data-act="trip-invite" title="' + T('invite') + '">👥</button>' +
+    '<button class="iconbtn" data-act="trip-share" title="' + T('share') + '">📤</button></div>'
+  );
+}
+
+function scrTrip() {
+  const t = curTrip();
+  if (!t) return scrHome();
+  const c = computeTrip(t);
+  const stat = (v, k) => '<div class="stat"><div class="v">' + v + '</div><div class="k">' + k + '</div></div>';
+  let bal = '';
+  const sorted = t.members.slice().sort((a, b) => Math.abs(c.net[b.id] || 0) - Math.abs(c.net[a.id] || 0));
+  bal = sorted.map(m => {
+    const v = c.net[m.id] || 0;
+    let amt, lab;
+    if (v > 0.004) { amt = '<div class="bamt pos">+' + fmtMoney(v, t.currency) + '</div>'; lab = T('to_collect'); }
+    else if (v < -0.004) { amt = '<div class="bamt neg">−' + fmtMoney(-v, t.currency) + '</div>'; lab = T('to_pay'); }
+    else { amt = '<div class="bamt zero">✓</div>'; lab = T('settled'); }
+    return '<div class="brow">' + avHtml(m) + '<div class="binfo" style="flex:1"><b>' + escapeHtml(displayName(t, m, S.me.name)) + (m.self ? ' <span class="muted sm">(' + T('you') + ')</span>' : '') + '</b><div class="muted sm">' + lab + '</div></div>' + amt + '</div>';
+  }).join('');
+  let flows = '';
+  if (c.flows.length) {
+    flows = c.flows.map((f, i) =>
+      '<div class="frow">' + avHtml(memberById(t, f.from), 'sm') +
+      '<div class="finfo"><b>' + escapeHtml(displayName(t, memberById(t, f.from), S.me.name)) + '</b><span class="arr">→</span><b>' + escapeHtml(displayName(t, memberById(t, f.to), S.me.name)) + '</b></div>' +
+      '<div class="famt">' + fmtMoney(f.amount, t.currency) + '</div>' +
+      '<button class="btn btn-ghost mini" data-act="mark-paid" data-arg="' + i + '">✓</button></div>'
+    ).join('');
+  } else {
+    flows = '<div class="empty" style="padding:14px 0">' + T('no_flows') + '</div>';
+  }
+  let pays = (t.payments || []).slice().reverse().map(p =>
+    '<div class="prow">' + avHtml(memberById(t, p.from), 'xs') +
+    '<span style="flex:1">' + escapeHtml(displayName(t, memberById(t, p.from), S.me.name)) + ' → ' + escapeHtml(displayName(t, memberById(t, p.to), S.me.name)) + ' · ' + fmtMoney(p.amount, t.currency) + '</span>' +
+    '<button class="mini-link" data-act="unmark-pay" data-arg="' + p.id + '">' + T('undo') + '</button></div>'
+  ).join('');
+  const payCard = (t.payments || []).length ? '<div class="card"><div class="sec-h"><b>✅ ' + T('payments') + '</b></div>' + pays + '</div>' : '';
+
+  let exps = '';
+  if (!t.expenses.length) exps = '<div class="empty">' + T('no_expenses') + '</div>';
+  else exps = t.expenses.map(e => {
+    const payM = memberById(t, e.payerId);
+    let who;
+    if (e.parts.length === t.members.length) who = T('everyone');
+    else who = e.parts.slice(0, 2).map(id => escapeHtml(displayName(t, memberById(t, id), S.me.name))).join(', ') + (e.parts.length > 2 ? ' +' + (e.parts.length - 2) : '');
+    return '<div class="erow" data-act="open-expense" data-arg="' + e.id + '">' +
+      '<div class="etile xs">' + (CATS[e.cat] || CATS.other).emoji + '</div>' +
+      '<div class="einfo" style="flex:1;min-width:0"><div class="ename">' + escapeHtml(e.desc || (CATS[e.cat] || CATS.other).label) + (e.settled ? '<span class="settled-badge">✓</span>' : '') + (e.img ? ' 📎' : '') + '</div>' +
+      '<div class="muted sm">' + escapeHtml(displayName(t, payM, S.me.name)) + ' · ' + who + ' · ' + dayLabel(e.date, S.settings.lang) + '</div></div>' +
+      '<div class="eamt">' + fmtMoney(e.amount, t.currency) + '</div></div>';
+  }).join('');
+
+  return tripHeader(t) +
+    '<div class="stats">' +
+    stat(fmtMoney(c.total, t.currency), T('total')) +
+    stat(fmtMoney(t.members.length ? c.total / t.members.length : 0, t.currency), T('per_person')) +
+    stat(c.outstanding > 0 ? fmtMoney(c.outstanding, t.currency) : '✓', T('to_settle')) +
+    '</div>' +
+    '<div class="card"><div class="sec-h"><b>💰 ' + T('balances') + '</b>' +
+    '<button class="mini-link" data-act="trip-members">' + t.members.length + ' ' + T('members_btn') + ' 👥</button></div>' + bal + '</div>' +
+    '<div class="card"><div class="sec-h"><b>⚡ ' + T('settle_up') + '</b><span class="muted sm">' + T('suggested') + '</span></div>' + flows + '</div>' +
+    payCard +
+    '<div class="sec-h plain"><b>🧾 ' + T('bills_title') + ' (' + t.expenses.length + ')</b></div>' +
+    '<div class="card" style="padding:6px 16px">' + exps + '</div>' +
+    '<button class="fab" data-act="trip-add">＋</button>';
+}
+
+/* ---------- add expense ---------- */
+function defaultDraft(t, pre) {
+  const d = {
+    amount: '', desc: '', cat: 'other', payerId: meIdOf(t), parts: t.members.map(m => m.id),
+    custom: false, customAmts: {}, img: null, src: 'form', raw: '', ai: false, hint: '', date: todayStr()
+  };
+  if (pre) Object.assign(d, pre);
+  if (!d.parts.length) d.parts = t.members.map(m => m.id);
+  return d;
+}
+function catChips(d) {
+  return '<div class="chips" style="margin-top:9px">' + Object.keys(CATS).filter(k => k !== 'other').map(k =>
+    '<button class="chip tpl' + (d.cat === k ? ' cat-on' : '') + '" data-act="catpick" data-arg="' + k + '">' + CATS[k].emoji + ' ' + CATS[k].label + '</button>'
+  ).join('') + '</div>';
+}
+function formHtml() {
+  const t = curTrip(), d = ui.draft;
+  const cur = t.currency === 'INR' ? '₹' : t.currency;
+  let payer = t.members.map(m =>
+    '<button class="chip' + (d.payerId === m.id ? ' on' : '') + '" data-act="pay" data-arg="' + m.id + '">' +
+    avHtml(m, 'xs') + ' ' + escapeHtml(displayName(t, m, S.me.name)) + (m.self ? ' (you)' : '') + '</button>'
+  ).join('');
+  let parts = t.members.map(m =>
+    '<button class="chip' + (d.parts.includes(m.id) ? ' on' : '') + '" data-act="part" data-arg="' + m.id + '">' +
+    escapeHtml(displayName(t, m, S.me.name)) + '</button>'
+  ).join('');
+  let custom = '';
+  if (d.custom) {
+    const rows = d.parts.map(id => {
+      const m = memberById(t, id);
+      return '<div class="crow">' + avHtml(m, 'xs') + '<span class="nm">' + escapeHtml(displayName(t, m, S.me.name)) + '</span>' +
+        '<input class="camt" data-camt="' + id + '" inputmode="decimal" placeholder="0" value="' + (d.customAmts[id] != null ? d.customAmts[id] : '') + '"></div>';
+    }).join('');
+    custom = '<label class="sw"><input type="checkbox" id="f_custom" checked> ' + T('custom_split') + '</label>' +
+      '<div class="custom-box">' + rows + '<div id="customStatus" class="muted sm" style="margin:8px 2px 4px">' + customStatusHtml() + '</div>' +
+      '<button class="btn btn-ghost mini" data-act="autofill">' + T('fill_rest') + '</button></div>';
+  } else {
+    custom = '<label class="sw"><input type="checkbox" id="f_custom"> ' + T('custom_split') + '</label>';
+  }
+  return '' +
+    '<div class="amt-wrap"><span class="cur">' + cur + '</span><input class="amt-in" id="f_amount" inputmode="decimal" placeholder="0" value="' + (d.amount || '') + '"></div>' +
+    '<div class="fld"><label>' + T('what_for') + '</label><input class="input" id="f_desc" placeholder="' + T('what_ph') + '" value="' + escapeHtml(d.desc || '') + '">' + catChips(d) + '</div>' +
+    '<div class="fld"><label>' + T('paid_by') + '</label><div class="chips">' + payer + '</div></div>' +
+    '<div class="fld"><label>' + T('who_involved') + '</label><div class="chips">' +
+    '<button class="chip tpl' + (d.parts.length === t.members.length ? ' on' : '') + '" data-act="part-every">👥 ' + T('everyone') + '</button>' +
+    '<button class="chip tpl' + (d.parts.length === 1 && d.parts[0] === meIdOf(t) ? ' on' : '') + '" data-act="part-me">🙋 ' + T('just_me') + '</button>' +
+    parts + '</div>' + custom +
+    (d.hint === 'learned' ? '<div class="hint-learn">' + T('learned_hint') + '</div>' : '') + '</div>';
+}
+function customStatusHtml() {
+  const d = ui.draft, amt = parseFloat(d.amount) || 0;
+  const sum = round2(Object.values(d.customAmts).reduce((s, v) => s + (parseFloat(v) || 0), 0));
+  const diff = round2(amt - sum);
+  if (amt <= 0) return '—';
+  if (Math.abs(diff) < 0.005) return '<span style="color:var(--mint)">✓ ' + fmtMoney(amt, curTrip().currency) + '</span>';
+  if (diff > 0) return fmtMoney(diff, curTrip().currency) + ' ' + T('remaining');
+  return fmtMoney(-diff, curTrip().currency) + ' ' + T('over_by') + ' ⚠️';
+}
+function multiListHtml() {
+  const t = curTrip();
+  const rows = ui.multi.results.map((r, i) => {
+    const sel = ui.multi.selected[i];
+    const payer = memberById(t, r.payerId);
+    const parts = r.parts.length === t.members.length ? T('everyone') :
+      r.parts.slice(0, 3).map(id => escapeHtml(displayName(t, memberById(t, id), S.me.name))).join(', ') + (r.parts.length > 3 ? ' +' + (r.parts.length - 3) : '');
+    return '<div class="mrow' + (sel ? '' : ' off') + '" data-act="multi-toggle" data-arg="' + i + '">' +
+      '<span class="tick' + (sel ? ' on' : '') + '">✓</span>' +
+      '<div class="etile xs">' + (CATS[r.cat] || CATS.other).emoji + '</div>' +
+      '<div class="einfo" style="flex:1;min-width:0"><div class="ename">' + escapeHtml(r.desc || (CATS[r.cat] || CATS.other).label) + '</div>' +
+      '<div class="muted sm">' + escapeHtml(displayName(t, payer, S.me.name)) + ' · ' + parts + '</div></div>' +
+      '<div class="eamt">' + fmtMoney(r.amount, t.currency) + '</div>' +
+      '<button class="iconbtn small" data-act="multi-edit" data-arg="' + i + '">✏️</button></div>';
+  }).join('');
+  const n = ui.multi.selected.filter(Boolean).length;
+  const total = ui.multi.results.reduce((s, r, i) => s + (ui.multi.selected[i] ? r.amount : 0), 0);
+  return '<div class="muted sm" style="margin:2px 2px 10px">' + T('multi_found', { n: ui.multi.results.length }) + '</div>' +
+    '<div class="card" style="padding:6px 16px">' + rows + '</div>' +
+    '<div class="muted sm" style="margin:10px 2px 0">' + T('multi_total', { a: fmtMoney(total, t.currency) }) + '</div>';
+}
+
+function scrAdd() {
+  const t = curTrip();
+  if (!t) return scrHome();
+  const d = ui.draft || defaultDraft(t);
+  const inMulti = !!(ui.multi && ui.multi.index == null);
+  const inMultiEdit = !!(ui.multi && ui.multi.index != null);
+  const seg = (act, ic, lab) => '<button class="seg-b' + (ui.addTab === act ? ' on' : '') + '" data-act="tab-' + act + '">' + ic + ' ' + lab + '</button>';
+  let body = '';
+  if (inMulti) {
+    body = multiListHtml();
+  } else if (ui.addTab === 'say' && ui.addStep === 'say0' && !ui.editExp && !inMultiEdit) {
+    body = '<textarea class="input" id="sayText" rows="3" placeholder="' + T('say_ph') + '">' + escapeHtml(d.raw || '') + '</textarea>' +
+      '<div class="sayhint muted">' + T('say_hint') + '</div>' +
+      '<div class="chips" style="margin-bottom:14px">' +
+      ['cab', 'food', 'hotel', 'fuel'].map(k => '<button class="chip tpl" data-act="tpl" data-arg="' + k + '">' + CATS[k].emoji + ' ' + CATS[k].label + '</button>').join('') +
+      '</div>' +
+      '<button class="btn btn-primary big" data-act="parse-say">' + T('parse_btn') + '</button>';
+  } else {
+    let head = '';
+    if (d.src === 'text' && d.raw) head += '<div class="quote">“' + escapeHtml(d.raw) + '” · ' + T('you_said') + '</div>';
+    if (d.ai) head += '<div class="ai-badge">✨ ' + T('ai_read') + '</div>';
+    else if (d.ocr) head += '<div class="ai-badge">📷 ' + T('ocr_read') + '</div>';
+    if (d.img && S.pro) head += '<img class="photo-prev" src="' + d.img + '" alt="bill">';
+    if (ui.addTab === 'snap' && !d.img && !inMultiEdit) {
+      head = '<div class="card" style="margin-bottom:14px"><div class="muted sm" style="margin-bottom:10px">' + T('photo_hint') + '</div>' +
+        '<div class="btnrow" style="margin-top:0;margin-bottom:0">' +
+        '<button class="btn btn-ghost grow" data-act="pick-photo">📷 ' + T('pick_camera') + '</button>' +
+        '<button class="btn btn-ghost grow" data-act="pick-library">🖼 ' + T('pick_library') + '</button></div></div>' + head;
+    }
+    if (ui.editExp) head += '<div class="ai-badge">✏️ ' + T('edit') + '</div>';
+    body = head + formHtml();
+  }
+  let cta;
+  if (inMulti) {
+    const n = ui.multi.selected.filter(Boolean).length;
+    cta = '<button class="btn btn-primary big" style="margin-top:14px" data-act="multi-add">✓ ' + (n === 1 ? T('add_one') : T('add_n', { n })) + '</button>';
+  } else if (inMultiEdit) {
+    cta = '<div class="btnrow"><button class="btn btn-ghost" data-act="multi-back">← ' + T('back_list') + '</button><button class="btn btn-primary grow" data-act="multi-save">✓ ' + T('save') + '</button></div>';
+  } else if (ui.addTab === 'say' && ui.addStep === 'say0' && !ui.editExp) {
+    cta = '';
+  } else {
+    cta = '<div class="btnrow">' +
+    (ui.editExp ? '<button class="btn btn-danger" data-act="exp-del-edit">' + T('delete') + '</button>' : '<button class="btn btn-ghost" data-act="cancel-draft">' + T('cancel') + '</button>') +
+    '<button class="btn btn-primary grow" data-act="confirm-draft">✓ ' + (ui.editExp ? T('save') : T('confirm')) + '</button></div>';
+  }
+  const segHtml = (ui.editExp || inMulti || inMultiEdit) ? '' :
+    '<div class="seg">' + seg('say', '💬', T('say_it')) + seg('snap', '📷', T('snap_it')) + seg('quick', '⚡', T('quick')) + '</div>';
+  return topBar(
+    '<button class="iconbtn" data-act="add-back">←</button>',
+    '<b style="font-size:17px">' + T('add_expense') + '</b>', ''
+  ) + segHtml + body + cta;
+}
+
+function scrDone() {
+  const t = S.trips.find(x => x.id === ui.doneTrip) || curTrip();
+  if (!t) return scrHome();
+  const c = computeTrip(t);
+  const e = (t.expenses || []).find(x => x.id === ui.doneExpId);
+  const flows = c.flows.slice(0, 3).map(f =>
+    '<div class="dflow"><span>' + escapeHtml(displayName(t, memberById(t, f.from), S.me.name)) + ' → ' + escapeHtml(displayName(t, memberById(t, f.to), S.me.name)) + '</span><span class="a">' + fmtMoney(f.amount, t.currency) + '</span></div>'
+  ).join('');
+  const amtLine = ui.doneMulti ? fmtMoney(ui.doneMulti.total, t.currency) : (e ? fmtMoney(e.amount, t.currency) : '');
+  const descLine = ui.doneMulti ? '🧾 ' + T('added_n', { n: ui.doneMulti.count })
+    : (e ? (CATS[e.cat] || CATS.other).emoji + ' ' + escapeHtml(e.desc || (CATS[e.cat] || CATS.other).label) + ' · ' + T('added') : '');
+  return '<div class="done-wrap"><div class="check">✓</div>' +
+    '<div class="done-amt">' + amtLine + '</div>' +
+    '<div class="done-desc">' + descLine + '</div>' +
+    '<div class="muted" style="margin-bottom:10px">' + T('now_flows') + '</div>' +
+    (c.flows.length ? '<div class="done-flows">' + flows + '</div>' : '<div class="empty" style="margin-bottom:24px">' + T('no_flows') + '</div>') +
+    '<button class="btn btn-primary big" data-act="done-trip">' + T('back_to_trip') + '</button>' +
+    '<button class="btn btn-ghost big" style="margin-top:10px" data-act="done-another">＋ ' + T('add_another') + '</button></div>';
+}
+
+/* ---------- share ---------- */
+function drawShareCard(t, c) {
+  const W = 1080, H = 1350, P = 72;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const x = cv.getContext('2d');
+  const F = (px, w) => (w || '400') + ' ' + px + 'px -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif';
+  x.fillStyle = '#0A0E17'; x.fillRect(0, 0, W, H);
+  let g = x.createRadialGradient(W * 0.12, H * 0.05, 0, W * 0.12, H * 0.05, W * 0.78);
+  g.addColorStop(0, 'rgba(124,92,255,0.34)'); g.addColorStop(1, 'rgba(124,92,255,0)');
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  g = x.createRadialGradient(W * 0.92, H * 0.99, 0, W * 0.92, H * 0.99, W * 0.72);
+  g.addColorStop(0, 'rgba(52,211,153,0.24)'); g.addColorStop(1, 'rgba(52,211,153,0)');
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  x.textBaseline = 'alphabetic'; x.textAlign = 'left';
+  x.fillStyle = '#F2F5FA'; x.font = F(46, '800');
+  const bw = x.measureText('billo').width;
+  x.fillText('billo', P, P + 44);
+  x.fillStyle = '#34D399'; x.fillText('.', P + bw, P + 44);
+  x.textAlign = 'right'; x.fillStyle = 'rgba(138,148,168,.9)'; x.font = F(30);
+  x.fillText(new Date().toLocaleDateString(S.settings.lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' }), W - P, P + 40);
+  x.textAlign = 'left';
+  x.font = '104px serif'; x.fillText(t.emoji, P - 8, P + 218);
+  x.fillStyle = '#F2F5FA'; x.font = F(82, '800'); x.fillText(t.name, P, P + 322);
+  x.fillStyle = '#8A94A8'; x.font = F(38);
+  x.fillText(t.members.length + ' ' + (t.members.length === 1 ? 'person' : 'people') + '  ·  ' + t.expenses.length + ' bills  ·  ' + c.receipts + ' receipts', P, P + 388);
+  x.fillStyle = '#FFFFFF'; x.font = F(118, '800'); x.fillText(fmtMoney(c.total, t.currency), P, P + 540);
+  x.fillStyle = '#8A94A8'; x.font = F(38);
+  x.fillText(fmtMoney(t.members.length ? c.total / t.members.length : 0, t.currency) + ' per person', P, P + 602);
+  x.fillStyle = 'rgba(255,255,255,.14)'; x.fillRect(P, P + 668, W - 2 * P, 3);
+  x.fillStyle = 'rgba(138,148,168,.95)'; x.font = F(32, '700');
+  x.fillText('S E T T L E M E N T S', P, P + 742);
+  let y = P + 836;
+  if (c.flows.length) {
+    const max = 7;
+    c.flows.slice(0, max).forEach(f => {
+      const from = displayName(t, memberById(t, f.from), S.me.name);
+      const to = displayName(t, memberById(t, f.to), S.me.name);
+      x.fillStyle = '#F2F5FA'; x.font = F(46, '600');
+      x.fillText(from + '  →  ' + to, P, y);
+      x.textAlign = 'right'; x.fillStyle = '#34D399'; x.font = F(46, '800');
+      x.fillText(fmtMoney(f.amount, t.currency), W - P, y);
+      x.textAlign = 'left'; y += 92;
+    });
+    if (c.flows.length > max) { x.fillStyle = '#5A6478'; x.font = F(36); x.fillText('+' + (c.flows.length - max) + ' more…', P, y); }
+  } else {
+    x.fillStyle = '#F2F5FA'; x.font = F(54, '700'); x.fillText("🎉 Everyone's settled up", P, P + 850);
+  }
+  x.fillStyle = 'rgba(138,148,168,.9)'; x.font = F(34);
+  x.fillText(APP.tagline, P, H - 118);
+  x.fillStyle = 'rgba(138,148,168,.65)'; x.font = F(32, '700');
+  x.fillText(S.pro ? APP.webUrl + '  ·  ' + (S.me.name || '') : APP.webUrl + '  ·  made with billo', P, H - 66);
+  return cv;
+}
+function scrShare() {
+  const t = curTrip();
+  if (!t) return scrHome();
+  if (!ui.shareImg) {
+    try { ui.shareImg = drawShareCard(t, computeTrip(t)).toDataURL('image/png'); }
+    catch (e) { ui.shareImg = ''; }
+  }
+  return topBar(
+    '<button class="iconbtn" data-act="share-back">←</button>',
+    '<b style="font-size:17px">' + T('share_title') + '</b>', ''
+  ) +
+  (ui.shareImg ? '<img class="sharecard" src="' + ui.shareImg + '" alt="summary card">' : '') +
+  '<button class="btn btn-primary big" data-act="share-wa">💬 ' + T('wa_btn') + '</button>' +
+  '<button class="btn btn-ghost big" style="margin-top:10px" data-act="share-dl">⬇ ' + T('download') + '</button>' +
+  '<button class="btn btn-ghost big" style="margin-top:10px" data-act="share-copy">⧉ ' + T('copy_text') + '</button>' +
+  '<div class="share-note">' + T('tagline') + '</div>';
+}
+
+/* ---------- settings / pro / new trip / join ---------- */
+function scrSettings() {
+  const a = S.settings.ai;
+  return topBar(
+    '<button class="iconbtn" data-act="settings-back">←</button>',
+    '<b style="font-size:17px">' + T('settings') + '</b>', ''
+  ) +
+  '<div class="card"><div class="fld" style="margin-bottom:0"><label>' + T('you') + '</label>' +
+  '<input class="input" id="set_me" value="' + escapeHtml(S.me.name) + '" autocomplete="off"></div></div>' +
+  '<div class="card"><div class="set-row"><span class="k">' + T('language') + '</span>' +
+  '<span class="lang-seg"><button class="chip' + (S.settings.lang === 'en' ? ' on' : '') + '" data-act="set-lang" data-arg="en">English</button>' +
+  '<button class="chip' + (S.settings.lang === 'hi' ? ' on' : '') + '" data-act="set-lang" data-arg="hi">हिंदी</button></span></div>' +
+  '<div class="set-row"><span class="k">' + T('currency') + '</span>' +
+  (S.pro
+    ? '<select class="input" id="set_currency" style="width:130px;padding:9px 12px">' + CURRENCIES.map(c2 => '<option' + (S.settings.currency === c2 ? ' selected' : '') + '>' + c2 + '</option>').join('') + '</select>'
+    : '<span class="badge pro">🔒 ' + T('currency_locked') + '</span></div></div>') +
+  '<div class="card"><div class="set-row"><span class="k">✨ ' + T('ai_title') + '</span>' +
+  '<input type="checkbox" id="ai_enabled"' + (a.enabled ? ' checked' : '') + ' style="width:22px;height:22px;accent-color:var(--brand)"></div>' +
+  (a.enabled ? '<div style="padding-top:6px"><div class="fld"><label>' + T('ai_base') + '</label><input class="input" id="ai_base" value="' + escapeHtml(a.baseUrl) + '"></div>' +
+  '<div class="fld"><label>' + T('ai_key') + '</label><input class="input" id="ai_key" type="password" placeholder="sk-…" value="' + escapeHtml(a.key) + '"></div>' +
+  '<div class="fld" style="display:flex;gap:10px;align-items:flex-end"><div style="flex:1"><label>' + T('ai_model') + '</label><input class="input" id="ai_model" value="' + escapeHtml(a.model) + '"></div>' +
+  '<button class="btn btn-ghost" data-act="ai-test" style="margin-bottom:1px">' + T('ai_test') + '</button></div></div>' : '') +
+  '<div class="note">' + T('ai_note') + '</div></div>' +
+  '<div class="card"><div class="set-row"><span class="k">💾 ' + T('backup') + '</span>' +
+  '<span style="display:flex;gap:8px"><button class="btn btn-ghost mini" data-act="set-export">⬇</button>' +
+  '<button class="btn btn-ghost mini" data-act="set-import">⬆</button></span></div></div>' +
+  (S.pro
+    ? '<div class="card"><div class="set-row"><span class="k">⭐ ' + T('pro') + '</span><span class="badge ok">ACTIVE</span></div></div>'
+    : '<div class="card"><div class="set-row"><span class="k">⭐ ' + T('pro') + '</span><button class="btn btn-ghost mini" data-act="open-pro">' + T('unlock') + '</button></div></div>') +
+  '<div class="card"><div class="set-row" style="border:none"><button class="btn btn-danger mini" data-act="set-erase" style="border:none">' + T('erase') + '</button></div></div>' +
+  '<div class="card"><div class="set-row" style="border:none"><span class="k">' + T('about') + '</span>' +
+  '<span class="v">' + T('version') + ' ' + APP.version + ' · <a href="#" data-act="open-privacy" style="color:var(--brand);text-decoration:none">' + T('privacy') + '</a></span></div>' +
+  '<div class="note">' + T('ondevice') + '</div></div>';
+}
+function scrPro() {
+  if (S.pro) {
+    return topBar('<button class="iconbtn" data-act="pro-back">←</button>', '<b>⭐ ' + T('pro') + '</b>', '') +
+      '<div class="pro-hero"><div class="star">⭐</div><h2>' + T('pro') + '</h2><div class="muted">ACTIVE</div></div>';
+  }
+  const f = (ic, txt) => '<div class="pro-feat"><span class="ic">' + ic + '</span><b>' + txt + '</b></div>';
+  return topBar('<button class="iconbtn" data-act="pro-back">←</button>', '<b>⭐ ' + T('pro') + '</b>', '') +
+    '<div class="pro-hero"><div class="star">⭐</div><h2>' + T('pro') + '</h2><div class="muted">' + T('pro_tag') + '</div></div>' +
+    '<div class="card">' + f('📎', T('pro_f1')) + f('💱', T('pro_f2')) + f('🤖', T('pro_f3')) + f('🖼️', T('pro_f4')) + '</div>' +
+    '<div class="price"><div class="p"><b>' + T('pro_month') + '</b></div><button class="btn btn-ghost" data-act="pro-buy" data-arg="pro_monthly">' + T('unlock') + '</button></div>' +
+    '<div class="price"><div class="p"><b>' + T('pro_year') + '</b><span class="best">BEST</span></div><button class="btn btn-primary" data-act="pro-buy" data-arg="pro_annual">' + T('unlock') + '</button></div>' +
+    '<div class="price"><div class="p"><b>' + T('pro_life') + '</b></div><button class="btn btn-ghost" data-act="pro-buy" data-arg="pro_lifetime">' + T('unlock') + '</button></div>' +
+    '<div class="note">' + T('pro_play') + '</div>';
+}
+function scrNewTrip() {
+  const emojis = EMOJIS.map(e => '<button class="emo' + (ui.ntEmoji === e ? ' on' : '') + '" data-act="nt-emoji" data-arg="' + e + '">' + e + '</button>').join('');
+  const members = (S.me.name ? ['__me__'] : []).concat(ui.ntMembers).map(m =>
+    m === '__me__'
+      ? '<span class="chip on">🙋 ' + escapeHtml(S.me.name || T('you')) + ' (you)</span>'
+      : '<span class="chip">' + escapeHtml(m) + '</span>'
+  ).join('');
+  return topBar('<button class="iconbtn" data-act="nt-back">←</button>', '<b style="font-size:17px">' + T('new_trip') + '</b>', '') +
+    '<div class="fld"><label>' + T('new_trip') + '</label><input class="input" id="nt_name" placeholder="' + T('trip_name_ph') + '" autocomplete="off"></div>' +
+    '<div class="fld"><label>Emoji</label><div class="emo-row">' + emojis + '</div></div>' +
+    '<div class="fld"><label>' + T('who_members') + '</label><div class="chips" style="margin-bottom:10px">' + members + '</div>' +
+    '<div class="row"><input class="input grow" id="nt_member" placeholder="' + T('add_member_ph') + '" autocomplete="off">' +
+    '<button class="btn btn-ghost" data-act="nt-add-member">＋</button></div></div>' +
+    '<button class="btn btn-primary big" data-act="nt-create">' + T('create') + ' →</button>';
+}
+function scrJoin() {
+  return topBar('<button class="iconbtn" data-act="join-back">←</button>', '<b style="font-size:17px">' + T('join_trip') + '</b>', '') +
+    '<div class="fld"><label>' + T('join_trip') + '</label><input class="input" id="join_code" placeholder="' + T('join_code_ph') + '" autocomplete="off" style="text-transform:uppercase"></div>' +
+    '<button class="btn btn-primary big" data-act="join-go">' + T('join_btn') + '</button>' +
+    '<div class="card" style="margin-top:16px"><div class="muted sm">' + T('join_note') + '</div>' +
+    '<button class="btn btn-ghost big" style="margin-top:12px" data-act="join-import">⬆ ' + T('import') + '</button></div>';
+}
+
+/* ---------- photo / AI ---------- */
+function compressImage(file, maxDim, q) {
+  maxDim = maxDim || 1280; q = q || 0.78;
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const s = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(img.width * s)); c.height = Math.max(1, Math.round(img.height * s));
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        res(c.toDataURL('image/jpeg', q));
+      };
+      img.onerror = rej; img.src = fr.result;
+    };
+    fr.onerror = rej; fr.readAsDataURL(file);
+  });
+}
+async function handlePhoto(file) {
+  if (!file) return;
+  const t = curTrip();
+  try {
+    const dataUrl = await compressImage(file);
+    ui.draft.img = dataUrl;
+    ui.draft.src = 'photo';
+    let filled = false;
+    const a = S.settings.ai;
+    /* 1) cloud AI — only if the user has configured a key (most accurate) */
+    if (a.enabled && a.key) {
+      toast(T('reading'));
+      render();
+      try {
+        const o = await aiExtract(dataUrl);
+        applyAi(o);
+        ui.draft.ai = true;
+        filled = o.amount > 0;
+      } catch (e) { /* fall through to on-device OCR */ }
+    }
+    /* 2) on-device OCR — no key, no network, always available */
+    if (!filled) {
+      toast(T('ocr_reading'));
+      render();
+      try {
+        const text = await ocrPhoto(dataUrl);
+        const r = parseExpenseText(text, t, meName);
+        const d = ui.draft;
+        if (r.amount > 0 && !(parseFloat(d.amount) > 0)) d.amount = String(r.amount);
+        if (r.cat !== 'other' && d.cat === 'other') d.cat = r.cat;
+        if (!d.desc && r.desc) d.desc = r.desc;
+        if (r.partsFound) d.parts = r.parts.slice();
+        if (!d.ai) d.ocr = true;
+        filled = parseFloat(d.amount) > 0;
+      } catch (e) { toast(T('ocr_err')); }
+    }
+    if (!filled) toast(T('amt_miss'));
+    const sg = learnSuggest(t, ui.draft.payerId, ui.draft.cat);
+    if (sg && sg.ids.length && !ui.draft.parts.length) { ui.draft.parts = sg.ids.slice(); ui.draft.hint = 'learned'; }
+  } catch (e) { toast(T('photo_err')); }
+  render();
+}
+function applyAi(o) {
+  const d = ui.draft;
+  if (o.amount > 0) d.amount = String(o.amount);
+  const cat = String(o.category || '').toLowerCase();
+  if (CATS[cat]) d.cat = cat;
+  if (!d.desc && (o.desc || o.merchant)) d.desc = String(o.desc || o.merchant).slice(0, 40);
+  /* if the payer name visible on the receipt matches a member, use it */
+  if (o.payer_hint) {
+    const t = curTrip();
+    const hint = String(o.payer_hint).toLowerCase();
+    const hit = (t && t.members) ? t.members.find(m => {
+      const dn = displayName(t, m, meName).toLowerCase();
+      return dn && (dn.indexOf(hint) === 0 || hint.indexOf(dn) === 0);
+    }) : null;
+    if (hit) d.payerId = hit.id;
+  }
+}
+async function aiExtract(dataUrl) {
+  const a = S.settings.ai;
+  const body = {
+    model: a.model, max_tokens: 300,
+    messages: [
+      { role: 'system', content: 'You extract ONE expense from a photo of a receipt, bill, invoice, or a UPI/payment screenshot (Google Pay, PhonePe, Paytm, bank app, card swipe). ' +
+        'Rules: "amount" MUST be the amount PAID (the big total on the screen) — never a balance, never "amount added", never a fee. ' +
+        '"merchant" = payee/shop/restaurant name (on UPI screens, the person/business you paid). ' +
+        '"desc" = short human description (e.g. "Dinner at Blue Tokai", "GPay to Rahul"). ' +
+        '"category" = one of food|cab|hotel|travel|fuel|shop|health|fun|gift|other (food payments = food). ' +
+        '"currency" = 3-letter code (default INR). "date" = transaction date YYYY-MM-DD (null if not visible). ' +
+        '"payer_hint" = name of the person who paid if visible, else null. ' +
+        'Reply with ONLY minified JSON — no markdown, no code fences, no extra text: {"merchant":"","desc":"","category":"other","amount":0,"currency":"INR","date":null,"payer_hint":null}' },
+      { role: 'user', content: [
+        { type: 'text', text: 'Extract the expense from this bill / payment screenshot. If several numbers appear (balances, old transactions, fees), use ONLY the amount paid for this transaction. Return pure JSON.' },
+        { type: 'image_url', image_url: { url: dataUrl } }
+      ] }
+    ]
+  };
+  const r = await fetch(a.baseUrl.replace(/\/+$/, '') + '/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + a.key },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const j = await r.json();
+  const txt = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
+  /* extract the first balanced {...} block — tolerant of markdown fences / chatter */
+  let o = null;
+  const start = txt.indexOf('{');
+  if (start >= 0) {
+    let depth = 0, end = -1;
+    for (let i = start; i < txt.length; i++) {
+      if (txt[i] === '{') depth++;
+      else if (txt[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (end > start) { try { o = JSON.parse(txt.slice(start, end + 1)); } catch (e) { o = null; } }
+  }
+  if (!o || typeof o !== 'object') throw new Error('no JSON');
+  /* coerce types so a sloppy model reply still works */
+  let amt = o.amount;
+  if (typeof amt === 'string') amt = amt.replace(/[^0-9.]/g, '');
+  amt = parseFloat(amt);
+  return {
+    merchant: String(o.merchant || '').slice(0, 60),
+    desc: String(o.desc || o.merchant || '').slice(0, 40),
+    category: CATS[o.category] ? o.category : 'other',
+    amount: (isFinite(amt) && amt > 0) ? round2(amt) : 0,
+    currency: String(o.currency || 'INR').toUpperCase(),
+    date: /^\d{4}-\d{2}-\d{2}$/.test(String(o.date || '')) ? o.date : null,
+    payer_hint: String(o.payer_hint || '').slice(0, 40)
+  };
+}
+
+/* ---------- on-device OCR: no key, no network — the photo never leaves the phone ---------- */
+let ocrWorkerPromise = null;
+function loadOcrWorker() {
+  if (!ocrWorkerPromise) {
+    ocrWorkerPromise = new Promise((res, rej) => {
+      const start = () => {
+        Tesseract.createWorker('eng', 1, {
+          workerPath: 'ocr/worker.min.js',
+          corePath: 'ocr/',
+          langPath: 'ocr'
+        }).then(res, rej);
+      };
+      if (window.Tesseract) start();
+      else {
+        const s = document.createElement('script');
+        s.src = 'ocr/tesseract.min.js';
+        s.onload = start;
+        s.onerror = () => rej(new Error('ocr'));
+        document.head.appendChild(s);
+      }
+    });
+  }
+  return ocrWorkerPromise;
+}
+async function ocrPhoto(dataUrl) {
+  const w = await loadOcrWorker();
+  const out = await w.recognize(dataUrl);
+  return (out && out.data && out.data.text) || '';
+}
+async function aiTest() {
+  const a = S.settings.ai;
+  try {
+    const r = await fetch(a.baseUrl.replace(/\/+$/, '') + '/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + a.key },
+      body: JSON.stringify({ model: a.model, max_tokens: 5, messages: [{ role: 'user', content: 'Reply with the single word OK.' }] })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    toast(T('ai_ok'));
+  } catch (e) { toast(T('ai_fail') + ' (' + e.message + ')'); }
+}
+
+/* ---------- actions ---------- */
+const ACT = {
+  noop() {},
+  'welcome-go'() {
+    const n = ($('#w_name') || {}).value || '';
+    if (n.trim()) { S.me.name = n.trim(); save(); go('home'); }
+    else toast(T('name_first'));
+  },
+  'new-trip'() { ui.ntEmoji = '🏖️'; ui.ntMembers = []; go('newtrip'); },
+  join() { go('join'); },
+  'open-trip'(id) { ui.tripId = id; ui.shareImg = null; go('trip'); },
+  'go-settings'() { go('settings'); },
+  'settings-back'() { go(S.trips.length ? 'home' : 'welcome'); },
+  'open-pro'() { go('pro'); },
+  'pro-back'() { go('settings'); },
+  'pro-buy'(pid) {
+    if (window.Billo && window.Billo.buyPro) { window.Billo.buyPro(pid); return; }
+    modal(T('pro'), T('pro_play'), T('open_play'), false, () => {
+      if (window.Billo && window.Billo.openExternal) window.Billo.openExternal(APP.storeUrl);
+      else window.open(APP.storeUrl, '_blank');
+    });
+  },
+  'trip-back'() { go('home'); },
+  'trip-add'() {
+    const t = curTrip();
+    ui.editExp = null; ui.addTab = 'say'; ui.addStep = 'say0'; ui.multi = null; ui.doneMulti = null;
+    ui.draft = defaultDraft(t);
+    go('add');
+  },
+  'trip-share'() { ui.shareImg = null; go('share'); },
+  'trip-invite'() {
+    const t = curTrip();
+    const txt = '🧾 Join my "' + t.name + '" trip on ' + APP.name + '! Code: ' + t.code + '\n\n' + APP.tagline + ' — just send the receipts, it does the math.\nGet it: ' + APP.storeUrl;
+    if (!nativeShare(txt)) { if (copyText(txt)) toast(T('copied')); }
+  },
+  'trip-members'() {
+    const t = curTrip();
+    const rows = t.members.map(m =>
+      '<div class="row" style="padding:8px 0;border-bottom:1px solid var(--line)">' + avHtml(m, 'sm') +
+      '<b style="flex:1">' + escapeHtml(displayName(t, m, S.me.name)) + (m.self ? ' <span class="muted sm">(' + T('you') + ')</span>' : '') + '</b>' +
+      (!m.self ? '<button class="mini-link" data-act="member-del" data-arg="' + m.id + '">✕</button>' : '') + '</div>'
+    ).join('');
+    modal(T('members'), rows + '<div class="row" style="margin-top:14px"><input class="input grow" id="mm_name" placeholder="' + T('add_member_ph') + '"><button class="btn btn-ghost mini" data-act="members-add">＋</button></div>' +
+      (t.expenses.length ? '' : '<button class="btn btn-danger big" style="margin-top:14px" data-act="trip-delete">' + T('delete') + '</button>'),
+      T('save'), false, () => {});
+  },
+  'members-add'() {
+    const t = curTrip();
+    const el = $('#mm_name');
+    const n = (el && el.value || '').trim();
+    if (!n) return;
+    if (t.members.some(m => m.name.toLowerCase() === n.toLowerCase())) return;
+    t.members.push({ id: uid('m'), name: n });
+    save();
+    ui.draft = null; ACT['trip-members']();
+  },
+  'member-del'(id) {
+    const t = curTrip();
+    if ((t.expenses || []).some(e => e.payerId === id || (e.parts || []).includes(id))) { toast(T('remove_block')); return; }
+    t.members = t.members.filter(m => m.id !== id);
+    (t.payments || []).forEach(p => { if (p.from === id || p.to === id) {} });
+    t.payments = (t.payments || []).filter(p => p.from !== id && p.to !== id);
+    save(); ACT['trip-members']();
+  },
+  'trip-delete'() {
+    const t = curTrip();
+    ui.modal.keepOpen = true;
+    modal(T('delete'), T('del_trip_q'), T('delete'), true, () => {
+      S.trips = S.trips.filter(x => x.id !== t.id);
+      save(); closeModal(); go('home');
+    });
+  },
+  'mark-paid'(idx) {
+    const t = curTrip();
+    const c = computeTrip(t);
+    const f = c.flows[Number(idx)];
+    if (!f) return;
+    t.payments = t.payments || [];
+    t.payments.push({ id: uid('p'), from: f.from, to: f.to, amount: f.amount, ts: Date.now() });
+    save(); go('trip');
+  },
+  'unmark-pay'(pid) {
+    const t = curTrip();
+    t.payments = (t.payments || []).filter(p => p.id !== pid);
+    save(); go('trip');
+  },
+  'open-expense'(id) {
+    const t = curTrip();
+    const e = (t.expenses || []).find(x => x.id === id);
+    if (!e) return;
+    const payM = memberById(t, e.payerId);
+    const srcLabel = e.ai ? T('ai_read') : e.src === 'text' ? T('you_said') : e.src === 'photo' ? T('receipt') : T('manual');
+    let splitRows = '';
+    const sh = (e.custom && e.customAmts) ? e.customAmts : splitEqual(e.amount, e.parts);
+    for (const pid in sh) {
+      const m = memberById(t, pid);
+      splitRows += '<div class="row" style="justify-content:space-between;padding:4px 0;font-size:14px"><span>' + escapeHtml(displayName(t, m, S.me.name)) + '</span><b>' + fmtMoney(sh[pid], t.currency) + '</b></div>';
+    }
+    modal((CATS[e.cat] || CATS.other).emoji + ' ' + (e.desc || (CATS[e.cat] || CATS.other).label),
+      '<b style="font-size:26px;color:var(--text)">' + fmtMoney(e.amount, t.currency) + '</b>' +
+      '<div class="muted sm" style="margin:6px 0 10px">' + escapeHtml(displayName(t, payM, S.me.name)) + ' · ' + dayLabel(e.date, S.settings.lang) + ' · ' + srcLabel + '</div>' +
+      (e.raw ? '<div class="quote" style="margin-bottom:10px">“' + escapeHtml(e.raw) + '”</div>' : '') +
+      (e.img && S.pro ? '<img class="photo-prev" style="max-height:160px" src="' + e.img + '">' : '') +
+      '<div style="border-top:1px solid var(--line);margin-top:10px;padding-top:8px">' + splitRows + '</div>',
+      e.settled ? T('unmark_settled') : T('mark_settled'), false, () => {
+        e.settled = !e.settled; save(); go('trip');
+      });
+    /* attach edit + delete as a second modal layer via a small inline hack: */
+    const mr = $('#modalRoot .mcard');
+    if (mr) {
+      const extra = document.createElement('div');
+      extra.innerHTML = '<div class="mactions" style="margin-top:10px"><button class="btn btn-ghost mini" data-act="exp-edit" data-arg="' + e.id + '">✏️ ' + T('edit') + '</button>' +
+        '<button class="btn btn-danger mini" data-act="exp-delete" data-arg="' + e.id + '">🗑 ' + T('delete') + '</button></div>';
+      mr.appendChild(extra);
+    }
+  },
+  'exp-edit'(id) {
+    const t = curTrip();
+    const e = (t.expenses || []).find(x => x.id === id);
+    if (!e) return;
+    closeModal();
+    ui.editExp = e; ui.addTab = 'say'; ui.addStep = 'form';
+    ui.draft = defaultDraft(t, {
+      amount: String(e.amount), desc: e.desc, cat: e.cat, payerId: e.payerId,
+      parts: e.parts.slice(), custom: !!e.custom, customAmts: Object.assign({}, e.customAmts || {}),
+      img: e.img || null, src: e.src, raw: e.raw || '', ai: false, date: e.date
+    });
+    go('add');
+  },
+  'exp-delete'(id) {
+    const t = curTrip();
+    closeModal();
+    modal(T('delete'), T('confirm_del'), T('delete'), true, () => {
+      t.expenses = (t.expenses || []).filter(x => x.id !== id);
+      save(); go('trip');
+    });
+  },
+  'exp-del-edit'() {
+    const t = curTrip();
+    const e = ui.editExp;
+    if (!e) return;
+    modal(T('delete'), T('confirm_del'), T('delete'), true, () => {
+      t.expenses = (t.expenses || []).filter(x => x.id !== e.id);
+      save(); go('trip');
+    });
+  },
+  'add-back'() { ui.multi = null; go('trip'); },
+  'share-back'() { ui.shareImg = null; go('trip'); },
+  'cancel-draft'() { ui.multi = null; go('trip'); },
+  'tab-say'() { ui.multi = null; ui.addTab = 'say'; ui.addStep = ui.editExp ? 'form' : 'say0'; render(); },
+  'tab-snap'() { ui.multi = null; ui.addTab = 'snap'; ui.addStep = 'form'; render(); },
+  'tab-quick'() { ui.multi = null; ui.addTab = 'quick'; ui.addStep = 'form'; render(); },
+  tpl(cat) {
+    const el = $('#sayText');
+    if (!el) return;
+    const cur = el.value.trim();
+    const fill = { cab: 'cab', food: 'dinner', hotel: 'hotel stay', fuel: 'petrol' }[cat] || cat;
+    if (!cur) {
+      el.value = 'Paid ₹ ' + fill + ' for ';
+    } else {
+      /* never wipe the user's text — just make sure the category keyword is in there */
+      const kw = { cab: 'cab', food: 'food', hotel: 'hotel', fuel: 'fuel' }[cat] || cat;
+      const syn = cat === 'food' ? /\b(food|dinner|lunch|breakfast|eat|khana|booze|beer|wine)\b/i : new RegExp('\\b' + escapeRe(kw) + '\\b', 'i');
+      if (!syn.test(cur)) el.value = cur + ' ' + kw;
+    }
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  },
+  'parse-say'() {
+    const t = curTrip();
+    const el = $('#sayText');
+    const txt = (el && el.value || '').trim();
+    if (!txt) { toast(T('enter_something')); return; }
+    const results = parseExpenseTextAll(txt, t, S.me.name);
+    if (results.length <= 1) {
+      const r = results[0];
+      ui.draft = defaultDraft(t, {
+        amount: r.amount ? String(r.amount) : '', desc: r.desc, cat: r.cat, payerId: r.payerId,
+        parts: r.parts.slice(), src: 'text', raw: txt
+      });
+      const sg = learnSuggest(t, ui.draft.payerId, ui.draft.cat);
+      if (sg && sg.ids.length && !r.partsFound) { ui.draft.parts = sg.ids.slice(); ui.draft.hint = 'learned'; }
+      ui.addStep = 'form';
+    } else {
+      ui.multi = { results, selected: results.map(() => true), index: null };
+      ui.draft = defaultDraft(t);
+      ui.addStep = 'multi';
+    }
+    render();
+  },
+  'multi-toggle'(i) {
+    if (!ui.multi) return;
+    i = Number(i);
+    ui.multi.selected[i] = !ui.multi.selected[i];
+    render();
+  },
+  'multi-edit'(i) {
+    if (!ui.multi) return;
+    const idx = Number(i);
+    const r = ui.multi.results[idx];
+    ui.multi.index = idx;
+    ui.draft = defaultDraft(curTrip(), {
+      amount: String(r.amount), desc: r.desc, cat: r.cat, payerId: r.payerId,
+      parts: r.parts.slice(), src: 'text', raw: r.raw
+    });
+    ui.addStep = 'form';
+    render();
+  },
+  'multi-back'() {
+    if (!ui.multi) return;
+    ui.multi.index = null;
+    ui.addStep = 'multi';
+    render();
+  },
+  'multi-save'() {
+    if (!ui.multi || ui.multi.index == null) return;
+    const d = ui.draft;
+    const amt = round2(parseFloat(d.amount) || 0);
+    if (amt <= 0) { toast(T('enter_amount')); return; }
+    if (!d.parts.length) { toast(T('who_q')); return; }
+    const parts = d.parts.slice();
+    if (!parts.includes(d.payerId)) parts.unshift(d.payerId);
+    ui.multi.results[ui.multi.index] = {
+      amount: amt, desc: (d.desc || '').trim() || (CATS[d.cat] || CATS.other).label, cat: d.cat || 'other',
+      payerId: d.payerId, parts: [...new Set(parts)], raw: d.raw || ''
+    };
+    ui.multi.index = null;
+    ui.addStep = 'multi';
+    render();
+  },
+  'multi-add'() {
+    if (!ui.multi) return;
+    const t = curTrip();
+    const idxs = ui.multi.results.map((r, i) => i).filter(i => ui.multi.selected[i]);
+    if (!idxs.length) { toast(T('who_q')); return; }
+    const newOnes = idxs.map(i => {
+      const r = ui.multi.results[i];
+      const parts = r.parts.slice();
+      if (!parts.includes(r.payerId)) parts.unshift(r.payerId);
+      return {
+        id: uid('e'), ts: Date.now(),
+        desc: r.desc || (CATS[r.cat] || CATS.other).label, cat: r.cat || 'other',
+        amount: r.amount, currency: t.currency, date: todayStr(),
+        payerId: r.payerId, parts: [...new Set(parts)],
+        custom: false, customAmts: null, settled: false, src: 'text', raw: r.raw || '', ai: false, img: ''
+      };
+    });
+    t.expenses = t.expenses || [];
+    t.expenses = newOnes.concat(t.expenses);
+    newOnes.forEach(e => learnRecord(t, e));
+    save();
+    ui.doneMulti = { count: newOnes.length, total: round2(newOnes.reduce((s, e) => s + e.amount, 0)) };
+    ui.doneTrip = t.id; ui.doneExpId = null;
+    go('done');
+  },
+  'pick-photo'() {
+    let inp = document.getElementById('photoInput');
+    if (!inp) {
+      inp = document.createElement('input');
+      inp.type = 'file'; inp.id = 'photoInput'; inp.accept = 'image/*'; inp.capture = 'environment';
+      inp.style.display = 'none';
+      inp.addEventListener('change', ev => { if (ev.target.files && ev.target.files[0]) handlePhoto(ev.target.files[0]); });
+      document.body.appendChild(inp);
+    }
+    inp.value = '';
+    inp.click();
+  },
+  'pick-library'() {
+    let inp = document.getElementById('libInput');
+    if (!inp) {
+      inp = document.createElement('input');
+      inp.type = 'file'; inp.id = 'libInput'; inp.accept = 'image/*';
+      /* no capture attribute → the OS offers the photo library / files */
+      inp.style.display = 'none';
+      inp.addEventListener('change', ev => { if (ev.target.files && ev.target.files[0]) handlePhoto(ev.target.files[0]); });
+      document.body.appendChild(inp);
+    }
+    inp.value = '';
+    inp.click();
+  },
+  'catpick'(cat) {
+    const d = ui.draft;
+    d.cat = cat;
+    if (!d.desc || d.desc === (CATS[d.descCat || ''] || {}).label) d.desc = CATS[cat].label;
+    render();
+  },
+  pay(mid) { ui.draft.payerId = mid; const t = curTrip(); if (!ui.draft.parts.includes(mid)) ui.draft.parts.push(mid); render(); },
+  part(mid) {
+    const d = ui.draft;
+    const i = d.parts.indexOf(mid);
+    if (i >= 0) { if (d.parts.length > 1) d.parts.splice(i, 1); }
+    else d.parts.push(mid);
+    render();
+  },
+  'part-every'() { ui.draft.parts = curTrip().members.map(m => m.id); render(); },
+  'part-me'() { ui.draft.parts = [meIdOf(curTrip())]; render(); },
+  autofill() {
+    const d = ui.draft, t = curTrip();
+    const amt = parseFloat(d.amount) || 0;
+    if (amt <= 0) { toast(T('enter_amount')); return; }
+    const given = {}; let sum = 0;
+    d.parts.forEach(id => { const v = parseFloat((d.customAmts || {})[id]) || 0; given[id] = v; sum = round2(sum + v); });
+    const diff = round2(amt - sum);
+    const empty = d.parts.filter(id => !given[id]);
+    if (empty.length && Math.abs(diff) >= 0.005) {
+      const per = Math.floor(diff * 100 / empty.length) / 100;
+      let rem = round2(diff - per * empty.length);
+      empty.forEach(id => { given[id] = per; });
+      if (Math.abs(rem) >= 0.005 && empty[0] != null) given[empty[empty.length - 1]] = round2(given[empty[empty.length - 1]] + rem);
+    } else if (!empty.length && Math.abs(diff) >= 0.005) {
+      toast(T('split_err')); return;
+    }
+    d.customAmts = given;
+    const st = $('#customStatus'); if (st) st.innerHTML = customStatusHtml();
+  },
+  'confirm-draft'() {
+    const t = curTrip();
+    const d = ui.draft;
+    const amt = round2(parseFloat(d.amount) || 0);
+    if (amt <= 0) { toast(T('enter_amount')); return; }
+    if (!d.parts.length) { toast(T('who_q')); return; }
+    if (d.custom) {
+      const sum = round2(Object.values(d.customAmts).reduce((s, v) => s + (parseFloat(v) || 0), 0));
+      if (Math.abs(sum - amt) > 0.005) { toast(T('split_err')); return; }
+    }
+    const parts = d.parts.slice();
+    if (!parts.includes(d.payerId) && !(parts.length === 1 && d.parts[0] === meIdOf(t))) parts.unshift(d.payerId);
+    const cleanParts = [...new Set(parts)];
+    const base = {
+      desc: (d.desc || '').trim() || CATS[d.cat || 'other'].label,
+      cat: d.cat || 'other', amount: amt, currency: t.currency, date: d.date || todayStr(),
+      payerId: d.payerId, parts: cleanParts,
+      custom: d.custom, customAmts: d.custom ? Object.assign({}, d.customAmts) : null,
+      settled: false, src: d.src, raw: d.raw || '', ai: !!d.ai,
+      img: (d.img && S.pro) ? d.img : ''
+    };
+    let e;
+    if (ui.editExp) {
+      Object.assign(ui.editExp, base);
+      e = ui.editExp;
+    } else {
+      e = Object.assign({ id: uid('e'), ts: Date.now() }, base);
+      t.expenses = t.expenses || [];
+      t.expenses.unshift(e);
+    }
+    learnRecord(t, e);
+    save();
+    ui.doneTrip = t.id; ui.doneExpId = e.id;
+    go('done');
+  },
+  'done-trip'() { go('trip'); },
+  'done-another'() { ACT['trip-add'](); },
+  'share-wa'() {
+    const t = curTrip();
+    const c = computeTrip(t);
+    const txt = buildShareText(t, c, S.me.name);
+    if (window.Billo && window.Billo.shareText) {
+      window.Billo.shareText(txt);
+      ACT['share-dl']();
+      return;
+    }
+    (async () => {
+      try {
+        if (ui.shareImg) {
+          const blob = await (await fetch(ui.shareImg)).blob();
+          const file = new File([blob], APP.name.toLowerCase() + '-' + t.code + '.png', { type: 'image/png' });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], text: txt });
+            return;
+          }
+        }
+      } catch (e) {}
+      if (navigator.share) { try { await navigator.share({ text: txt }); } catch (e) {} }
+      else if (copyText(txt)) toast(T('copied'));
+    })();
+  },
+  'share-dl'() {
+    if (!ui.shareImg) return;
+    const a = document.createElement('a');
+    a.href = ui.shareImg;
+    a.download = APP.name.toLowerCase() + '-' + (curTrip() ? curTrip().code : 'trip') + '.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    toast(T('share_down'));
+  },
+  'share-copy'() {
+    const t = curTrip();
+    if (copyText(buildShareText(t, computeTrip(t), S.me.name))) toast(T('copied'));
+  },
+  'set-export'() {
+    try {
+      const data = JSON.stringify({ app: 'billo', v: 1, exported: new Date().toISOString(), me: S.me, pro: S.pro, settings: S.settings, trips: S.trips });
+      const blob = new Blob([data], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'billo-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    } catch (e) { toast(T('export_err')); }
+  },
+  'set-import'() {
+    let inp = document.getElementById('importInput');
+    if (!inp) {
+      inp = document.createElement('input');
+      inp.type = 'file'; inp.id = 'importInput'; inp.accept = 'application/json,.json'; inp.style.display = 'none';
+      inp.addEventListener('change', ev => {
+        const f = ev.target.files && ev.target.files[0];
+        if (!f) return;
+        const fr = new FileReader();
+        fr.onload = () => {
+          try {
+            const d = JSON.parse(fr.result);
+            if (!d || d.app !== 'billo' || !Array.isArray(d.trips)) throw new Error('bad');
+            modal(T('import'), T('import_warn'), T('import'), false, () => {
+              S.trips = d.trips;
+              if (d.pro) S.pro = true;
+              save(); closeModal(); toast(T('imported')); go('home');
+            });
+          } catch (e) { toast(T('bad_import')); }
+        };
+        fr.readAsText(f);
+        inp.value = '';
+      });
+      document.body.appendChild(inp);
+    }
+    inp.click();
+  },
+  'join-import'() { ACT['set-import'](); },
+  'set-erase'() {
+    modal(T('erase'), T('erase_warn'), T('erase'), true, () => {
+      try { localStorage.removeItem(LS_KEY); } catch (e) {}
+      S = freshState(); ui = freshUi();
+      if (!S.me.name) ui.screen = 'welcome';
+      render();
+      toast(T('erased'));
+    });
+  },
+  'set-lang'(l) { S.settings.lang = l; save(); meName = S.me.name; render(); },
+  'open-privacy'() {
+    const url = 'https://' + APP.webUrl + '/privacy';
+    if (window.Billo && window.Billo.openExternal) window.Billo.openExternal(url);
+    else window.open(url, '_blank');
+  },
+  'nt-back'() { go('home'); },
+  'nt-emoji'(e) { ui.ntEmoji = e; render(); },
+  'nt-add-member'() {
+    const el = $('#nt_member');
+    const n = (el && el.value || '').trim();
+    if (!n) return;
+    if (ui.ntMembers.some(m => m.toLowerCase() === n.toLowerCase())) return;
+    if (ui.ntMembers.length >= 12) return;
+    ui.ntMembers.push(n);
+    render();
+    const el2 = $('#nt_member'); if (el2) el2.focus();
+  },
+  'nt-create'() {
+    const nameEl = $('#nt_name');
+    const name = (nameEl && nameEl.value || '').trim();
+    if (!name) { toast(T('need_name')); return; }
+    if (!S.me.name) { S.me.name = 'Me'; }
+    const members = [{ id: uid('m'), name: S.me.name, self: true }];
+    ui.ntMembers.forEach(n => members.push({ id: uid('m'), name: n }));
+    const code = (name.replace(/[^a-zA-Z]/g, '').slice(0, 3).toUpperCase() || 'TRP') + '-' + Math.floor(1000 + Math.random() * 9000);
+    const t = {
+      id: uid('t'), name, emoji: ui.ntEmoji, code, members,
+      expenses: [], payments: [], learn: {}, currency: S.settings.currency, createdAt: Date.now()
+    };
+    S.trips.unshift(t);
+    save();
+    toast(T('created'));
+    ui.tripId = t.id; ui.shareImg = null;
+    go('trip');
+  },
+  'join-back'() { go('home'); },
+  'join-go'() {
+    const el = $('#join_code');
+    const code = (el && el.value || '').trim().toUpperCase();
+    if (code.length < 4) { toast(T('join_code_ph')); return; }
+    const members = [{ id: uid('m'), name: S.me.name || 'Me', self: true }];
+    const t = {
+      id: uid('t'), name: 'Trip ' + code, emoji: '🧳', code, members,
+      expenses: [], payments: [], learn: {}, currency: S.settings.currency, createdAt: Date.now()
+    };
+    S.trips.unshift(t);
+    save();
+    toast(T('joined'));
+    ui.tripId = t.id;
+    go('trip');
+  },
+  'modal-ok'() {
+    const m = ui.modal;
+    const fn = m && m.onOk;
+    closeModal();
+    if (fn) fn();
+  },
+  'modal-cancel'() { closeModal(); }
+};
+
+/* ---------- native bridge hooks ---------- */
+window.__billoPro = function () {
+  S.pro = true; save();
+  toast(T('pro_thanks'));
+  render();
+};
+
+/* ---------- wiring ---------- */
+function wire() {
+  document.addEventListener('click', e => {
+    const el = e.target.closest('[data-act]');
+    if (!el) return;
+    const act = el.getAttribute('data-act');
+    const arg = el.getAttribute('data-arg');
+    if (ACT[act]) { e.preventDefault(); ACT[act](arg, el); }
+  });
+  document.addEventListener('input', e => {
+    const el = e.target;
+    if (!el.dataset) return;
+    if (el.id === 'f_amount' && ui.draft) ui.draft.amount = el.value;
+    if (el.id === 'f_desc' && ui.draft) ui.draft.desc = el.value;
+    if (el.dataset.camt && ui.draft) {
+      ui.draft.customAmts = ui.draft.customAmts || {};
+      ui.draft.customAmts[el.dataset.camt] = el.value;
+      const st = $('#customStatus');
+      if (st) st.innerHTML = customStatusHtml();
+    }
+  });
+  document.addEventListener('change', e => {
+    const el = e.target;
+    if (el.id === 'f_custom' && ui.draft) {
+      ui.draft.custom = el.checked;
+      if (el.checked) {
+        const t = curTrip();
+        ui.draft.customAmts = splitEqual(parseFloat(ui.draft.amount) || 0, ui.draft.parts);
+        ui.draft.customAmts = Object.fromEntries(Object.entries(ui.draft.customAmts).map(([k, v]) => [k, String(v)]));
+      }
+      render();
+    }
+    if (el.id === 'set_me') { S.me.name = el.value.trim(); meName = S.me.name; save(); render(); }
+    if (el.id === 'ai_enabled') { S.settings.ai.enabled = el.checked; save(); render(); }
+    if (el.id === 'ai_base') { S.settings.ai.baseUrl = el.value.trim(); save(); }
+    if (el.id === 'ai_key') { S.settings.ai.key = el.value.trim(); save(); }
+    if (el.id === 'ai_model') { S.settings.ai.model = el.value.trim(); save(); }
+    if (el.id === 'set_currency') {
+      if (!S.pro) { toast(T('pro_needed')); return; }
+      S.settings.currency = el.value; save();
+      S.trips.forEach(t => { t.currency = el.value; });
+      save(); render();
+    }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    if (e.target.id === 'nt_member') { e.preventDefault(); ACT['nt-add-member'](); }
+    if (e.target.id === 'w_name') { e.preventDefault(); ACT['welcome-go'](); }
+  });
+}
+
+function boot() {
+  loadState();
+  meName = S.me.name;
+  ui = freshUi();
+  if (!S.me.name) ui.screen = 'welcome';
+  ui.stack = [ui.screen];
+  try { history.replaceState({ s: ui.screen }, ''); } catch (e) {}
+  wire();
+  render();
+  try {
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+  } catch (e) {}
+}
+document.addEventListener('DOMContentLoaded', boot);
+if (document.readyState !== 'loading') boot();
+</script>
+</body>
+</html>
