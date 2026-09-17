@@ -3,6 +3,28 @@
 One entry per released build. When a change ships, add a line under the current
 version. Bump the number with: `python3 scripts/bump_version.py X.Y.Z`
 
+## [Unreleased]
+### Fixed
+- **Snap it now actually reads bills.** On-device OCR silently failed on every
+  photo: the Tesseract worker was pointed at `ocr/` as a *directory*, so it
+  requested `ocr/tesseract-core-simd-lstm.wasm.js` (404 — we ship the plain
+  `.js` loader plus the `.wasm` beside it), and `gzip` defaulted to `true`, so
+  it requested `ocr/eng.traineddata.gz` (404 — we ship the uncompressed file).
+  The worker also ran from a `blob:` URL, which left the emscripten core unable
+  to resolve `tesseract-core-simd-lstm.wasm` relative to itself. Pinned
+  `corePath` to the exact file, set `gzip: false` and `workerBlobURL: false`.
+  Photos that previously produced "Couldn't read the amount" now fill in.
+- OCR failures no longer poison the session: a rejected engine-load promise is
+  no longer cached, so the next photo retries instead of failing instantly.
+  Devices without WebAssembly SIMD now get a clear message.
+- Bills are now read from a high-quality rendition of the photo instead of the
+  small preview JPEG (1280px / q0.78). The compression artefacts were enough to
+  turn "₹1,250" into "71,250". The stored/preview copy is unchanged.
+- Keyword matching is whole-word everywhere, which OCR output made visible:
+  an OCR'd cafe bill reading "Koramangala" matched `ola` and was filed as a cab,
+  and a noisy "…evers 47:50" line matched `rs` so the total became ₹47 instead
+  of ₹997.50. Amount, category and description matching all use word guards now.
+
 ## [1.1.0] — 2026-09-17
 - **On-device OCR** (zero setup): bill photos are read automatically with a
   bundled Tesseract engine — no API key, no network, photo never leaves the phone
