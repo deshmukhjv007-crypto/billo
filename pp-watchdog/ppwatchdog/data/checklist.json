@@ -1,0 +1,135 @@
+[
+  {
+    "id": "profile-picture-privacy",
+    "title": "Lock the profile-picture view to followers",
+    "why": "This is the only control in the app that speaks to 'people I do not know opening my picture'. Instagram has been rolling out profile-photo privacy settings regionally (labelled 'Allow profile picture expansion' or 'Only people you follow' in different builds); coverage and naming change by version, so verify in your app rather than trusting a blog.",
+    "how": [
+      "Instagram → Profile → ☰ → Settings and privacy → Account privacy",
+      "Also check Settings and privacy → 'Story and live' and 'Close Friends' for picture-adjacent toggles",
+      "If no such toggle exists on your build, the private-account switch below is your only lever"
+    ],
+    "severity": "high",
+    "automatable": false
+  },
+  {
+    "id": "private-account",
+    "title": "Switch to a private account",
+    "why": "Private accounts get their profile picture degraded for logged-out visitors: mirrors can only re-host a low-resolution thumbnail (commonly ~150px, sometimes ~320px via search/comment surfaces) rather than the original upload. Public accounts can be served at up to full resolution by third-party fetchers. This is the single most effective reduction in exposure, and it is reversible.",
+    "how": [
+      "Settings and privacy → Account privacy → Private account",
+      "Then audit existing followers; a mirror does not care who follows you"
+    ],
+    "severity": "high",
+    "automatable": false
+  },
+  {
+    "id": "scrub-before-upload",
+    "title": "Strip EXIF/GPS from every picture before it becomes your profile photo",
+    "why": "A mirrored copy of your photo can carry your camera model and, worse, GPS coordinates if it came from a phone camera roll. Once a mirror hosts it, that metadata is public next to your face. pp-watchdog ships a scrubber for exactly this.",
+    "how": [
+      "pp-watchdog scrub --in ~/Pictures/new-pp.jpg --out ~/Pictures/new-pp.scrubbed.jpg",
+      "pp-watchdog scrub --in ~/Pictures/new-pp.jpg   # --check reports what the file leaks",
+      "Upload the scrubbed file; the mirror then copies a file with nothing in it"
+    ],
+    "severity": "high",
+    "automatable": true,
+    "tool": "scrub"
+  },
+  {
+    "id": "deauth-apps",
+    "title": "Revoke third-party app access you granted before today",
+    "why": "This is the actual way accounts get compromised in this category: not by 'viewer' apps reading view logs, but by you handing an app a session token, then it spamming your followers, scraping your DMs, or holding your account for ransom. Sessions beat any 'tracker' on threat.",
+    "how": [
+      "https://www.instagram.com/accounts/manage_access/ → remove anything you do not actively use",
+      "Settings and privacy → App and websites → 'Accounts' → disconnect",
+      "Then Settings → Security → 'Where you're logged in' → log out of everything unfamiliar"
+    ],
+    "severity": "critical",
+    "automatable": false
+  },
+  {
+    "id": "2fa-app-not-sms",
+    "title": "Two-factor with an authenticator app or passkeys, plus recovery codes offline",
+    "why": "SIM-swap is the standard way an account that someone is obsessing over gets taken. Auth-app or passkey 2FA is not affected by port-out fraud. Meta's own help centre warns that SMS recovery is weaker.",
+    "how": [
+      "Settings and privacy → Two-factor authentication → set authenticator app or passkeys",
+      "Print the recovery codes; store them somewhere that is not your phone or your email"
+    ],
+    "severity": "critical",
+    "automatable": false
+  },
+  {
+    "id": "phishing-awareness",
+    "title": "Treat every 'see who viewed your profile' offer as hostile",
+    "why": "Instagram's API does not expose viewer data to any third party, so a tool promising it has exactly two ways to work: it invents the list, or it is after your login. Chrome extensions in this category ask to 'read and change all data on instagram.com', which is a session-hijack request wearing a feature.",
+    "how": [
+      "Never enter your password on a site reached from that pitch; Instagram's own help centre says so too",
+      "Check any installed extension: remove anything with host permissions on instagram.com that you cannot name a reason for",
+      "If you already gave one your password: change it, then revoke sessions in the item above, then check your inbox for unauthorised email changes"
+    ],
+    "severity": "critical",
+    "automatable": false
+  },
+  {
+    "id": "search-indexing",
+    "title": "Stop your bio page being indexed by search engines",
+    "why": "If Google/Bing index instagram.com/<you>, mirror sites inherit your snippets and image URLs through the same SERPs, and cached results keep your face searchable for weeks after the source changes. This does not stop logged-in browsing; it removes the free distribution channel.",
+    "how": [
+      "Instagram web → Edit profile → uncheck 'Account Privacy / Show in search results' equivalents on your build",
+      "Also remove any listing you appear in: Google → myactivity → 'Remove results' for cached pages",
+      "pp-watchdog links prints the exact searches to run for your handle"
+    ],
+    "severity": "medium",
+    "automatable": false
+  },
+  {
+    "id": "username-uniqueness",
+    "title": "Check whether your handle is being reused elsewhere",
+    "why": "Mirrors are usually an opportunistic nuisance; a fake account wearing your handle is not. Same-handle accounts on other platforms are trivially searchable and belong in the same weekly sweep.",
+    "how": [
+      "Run pp-watchdog links, which prints per-platform handle checks for your handle",
+      "If one impersonates you: Instagram counterfeit report https://help.instagram.com/contact/636276399721841"
+    ],
+    "severity": "medium",
+    "automatable": false
+  },
+  {
+    "id": "cadence",
+    "title": "Re-scan on a schedule and keep the history",
+    "why": "One scan is a snapshot of a churny ecosystem; the diff is what matters. A mirror appearing the day after you changed your picture, or a resolution jumping from 150px to 1080px, is a behavioural signal you cannot get from a single run.",
+    "how": [
+      "pp-watchdog scan --history   (default every 14 days is fine; weekly if you are actively being harassed)",
+      "pp-watchdog history to see exposures grouped by how long they have been up",
+      "Keep evidence folders; they are what turn a complaint into an actionable one"
+    ],
+    "severity": "medium",
+    "automatable": true,
+    "tool": "scan --history"
+  },
+  {
+    "id": "escalation",
+    "title": "Know the escalation ladder before you need it",
+    "why": "If the mirrored image is being used to harass, defame, or sexually exploit you, a copyright notice is the wrong tool and too slow. Indian law and platform channels both have faster routes.",
+    "how": [
+      "Cyber Crime portal (India): https://cybercrime.gov.in — for stalking, extortion, impersonation",
+      "For non-consensual intimate imagery: the IT Rules give a tighter takedown clock than a DMCA letter; also ask Instagram for an emergency removal",
+      "Preserve evidence (dated screenshots, the finding JSON) before you contact anyone",
+      "If someone is at immediate risk, police first, platform later"
+    ],
+    "severity": "high",
+    "automatable": false
+  },
+  {
+    "id": "no-credentials-ever",
+    "title": "Confirm this install holds no Instagram credentials",
+    "why": "pp-watchdog has no password field by design and makes exactly one unauthenticated GET per page it checks. If a future fork or a 'pro' version asks for a login, that is the tell that it is no longer the tool described in this README.",
+    "how": [
+      "grep -i -E 'password|token|secret' pp-watchdog.json  → expect no output",
+      "pp-watchdog selftest --network-off prints the exact requests a scan would make",
+      "Everything this tool stores lives in .pp-watchdog/ on your machine; delete that directory and it has no memory"
+    ],
+    "severity": "low",
+    "automatable": true,
+    "tool": "config-audit"
+  }
+]

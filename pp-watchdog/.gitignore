@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+.pp-watchdog/
+out/
+*.egg-info/

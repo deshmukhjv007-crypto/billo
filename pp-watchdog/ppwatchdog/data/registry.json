@@ -1,0 +1,241 @@
+# The mirror registry.
+#
+# WHY THIS IS DATA AND NOT CODE: these services die, get seized, re-brand, and
+# 301 to clones constantly. One sweep of third-party viewer-status reporting from
+# late August 2026 found Picuki's original domain parked on a TikTok site,
+# SmiHub/GreatFon/Dumpor merged onto one domain, InstaNavigation DNS-dead and
+# AnonyIG back up after a US block. So the list below is treated as *leads to
+# verify on this run*, never as truth. Every entry carries a confidence flag and
+# the scan records what it actually observed.
+#
+# `contact_paths` are discovered at scan time (we fetch those pages and harvest
+# abuse/copyright addresses) rather than hardcoded, because the addresses in
+# these operators' own footers change too.
+{
+  "schema": 1,
+  "last_reviewed": "2026-09-17",
+  "note": "Domain liveness for entries with confirmed=false MUST be verified. Edit freely; your edits win.",
+  "sites": [
+    {
+      "id": "mollygram",
+      "name": "Mollygram",
+      "base": "https://mollygram.com",
+      "profile_urls": ["/en/profile/{username}", "/profile/{username}", "/{username}"],
+      "contact_paths": ["/contact", "/dmca", "/terms"],
+      "confirmed": true,
+      "status_2026_08": "up; largest survivor of the MyStalk/Picuki/Imginn lineage",
+      "risk": "high",
+      "notes": "No-login profile + photo browser; auto-caches images it pulls, so old avatars can linger after you change them."
+    },
+    {
+      "id": "dumpor",
+      "name": "Dumpor",
+      "base": "https://dumpor.io",
+      "profile_urls": ["/profile/{username}", "/{username}"],
+      "contact_paths": ["/contact-us", "/dmca", "/terms-of-service"],
+      "confirmed": true,
+      "status_2026_08": "up; dumpor.com, greatfon.com and smihub.com all 301 here",
+      "risk": "high",
+      "notes": "Public-profile-only by its own admission, includes tagged-post view. Absorbed GreatFon and SmiHub brands."
+    },
+    {
+      "id": "imginn",
+      "name": "Imginn",
+      "base": "https://imginn.com",
+      "profile_urls": ["/profile/{username}/", "/{username}/"],
+      "contact_paths": ["/contact", "/dmca", "/privacy-policy"],
+      "confirmed": true,
+      "status_2026_08": "up (intermittent); the long-running bulk-downloader of this space",
+      "risk": "high",
+      "notes": "Offers download buttons for profile pictures, not just stories."
+    },
+    {
+      "id": "picuki-clone-site",
+      "name": "Picuki (picuki.site clone)",
+      "base": "https://picuki.site",
+      "profile_urls": ["/profile/{username}", "/{username}"],
+      "contact_paths": ["/contact", "/dmca"],
+      "confirmed": true,
+      "status_2026_08": "up; brand squat. Original picuki.com is dead since ~2025-09 and now redirects to a TikTok site",
+      "risk": "high",
+      "notes": "Clones trade on a dead brand's SEO. Expect aggressive ad overlays and fake download buttons."
+    },
+    {
+      "id": "picuki-clone-io",
+      "name": "Picuki (picuki.io clone)",
+      "base": "https://picuki.io",
+      "profile_urls": ["/profile/{username}", "/{username}"],
+      "contact_paths": ["/contact", "/dmca"],
+      "confirmed": true,
+      "status_2026_08": "up; second brand-squat domain, unrelated operator",
+      "risk": "high",
+      "notes": "Separate owner from picuki.site; needs its own takedown notice."
+    },
+    {
+      "id": "pixwox",
+      "name": "Pixwox / Picnob",
+      "base": "https://pixwox.com",
+      "profile_urls": ["/profile/{username}/", "/en/profile/{username}"],
+      "contact_paths": ["/contact", "/dmca", "/terms"],
+      "confirmed": false,
+      "status_2026_08": "CONFLICTING: one 2026 review says permanently shut down, another lists it as a working downloader",
+      "risk": "high",
+      "notes": "Verify the live domain yourself; both pixwox.com and picnob.com have been used."
+    },
+    {
+      "id": "anonyig",
+      "name": "AnonyIG",
+      "base": "https://anonyig.com",
+      "profile_urls": ["/profile/{username}/", "/{username}"],
+      "contact_paths": ["/contact", "/dmca", "/terms-of-use"],
+      "confirmed": true,
+      "status_2026_08": "back up for US visitors as of 2026-08-05 after a 451 legal block; several lookalike domains exist",
+      "risk": "medium",
+      "notes": "Profile, story, reel, highlight viewer with HD profile-picture downloads."
+    },
+    {
+      "id": "storiesig",
+      "name": "StoriesIG",
+      "base": "https://storiesig.info",
+      "profile_urls": ["/profile/{username}", "/{username}"],
+      "contact_paths": ["/contact", "/dmca"],
+      "confirmed": true,
+      "status_2026_08": "back up for US visitors as of 2026-08-05",
+      "risk": "medium",
+      "notes": "Story-focused; profile picture appears in the header."
+    },
+    {
+      "id": "stealthgram",
+      "name": "StealthGram",
+      "base": "https://stealthgram.net",
+      "profile_urls": ["/profile/{username}", "/{username}"],
+      "contact_paths": ["/contact", "/dmca"],
+      "confirmed": false,
+      "status_2026_08": "up on .net / .online / .app; .com dead since 2026-07",
+      "risk": "medium",
+      "notes": "Marketed as anonymous private-profile viewing, which makes it the one to complain to first."
+    },
+    {
+      "id": "instapv",
+      "name": "InstaPV",
+      "base": "https://instapv.com",
+      "profile_urls": ["/profile/{username}", "/{username}"],
+      "contact_paths": ["/contact", "/dmca"],
+      "confirmed": false,
+      "status_2026_08": "reported up with heavy ads; name is contested by other sites",
+      "risk": "medium"
+    },
+    {
+      "id": "invizio",
+      "name": "Invizio (inviziogram)",
+      "base": "https://inviziogram.com",
+      "profile_urls": ["/profile/{username}", "/{username}"],
+      "contact_paths": ["/contact", "/dmca"],
+      "confirmed": false,
+      "status_2026_08": "up at 2026-07-21 check; no-login viewer + profile explorer",
+      "risk": "medium"
+    },
+    {
+      "id": "instapeep",
+      "name": "InstaPeep",
+      "base": "",
+      "profile_urls": ["/profile/{username}"],
+      "contact_paths": ["/contact"],
+      "confirmed": false,
+      "status_2026_08": "2026 newcomer, reported up 2026-06-12; domain not confirmed in any source",
+      "risk": "medium",
+      "notes": "No base domain set: run `pp-watchdog registry add instapeep https://THE-DOMAIN` once you find the page in search results."
+    },
+    {
+      "id": "instashadow",
+      "name": "InstaShadow",
+      "base": "",
+      "profile_urls": ["/profile/{username}"],
+      "contact_paths": ["/contact"],
+      "confirmed": false,
+      "status_2026_08": "reported up 2026-06-12; domain not confirmed",
+      "risk": "medium"
+    },
+    {
+      "id": "pictame",
+      "name": "Pictame",
+      "base": "https://pictame.com",
+      "profile_urls": ["/instagram-profile/{username}", "/en/profile/{username}"],
+      "contact_paths": ["/contact", "/dmca", "/terms"],
+      "confirmed": true,
+      "status_2026_08": "up; actively poaches users from dead Picuki/Imginn/Dumpor brands",
+      "risk": "high",
+      "notes": "Long-lived, ad-supported, keeps a profile cache."
+    },
+    {
+      "id": "instadp",
+      "name": "InstaDP",
+      "base": "https://instadp.com",
+      "profile_urls": ["/profile/{username}", "/{username}"],
+      "contact_paths": ["/contact", "/dmca"],
+      "confirmed": false,
+      "status_2026_08": "reported up; purpose-built full-size profile-picture downloader",
+      "risk": "critical",
+      "notes": "Its entire product is 'get the profile picture bigger than Instagram shows it'. Priority takedown target."
+    },
+    {
+      "id": "storiesdown",
+      "name": "StoriesDown",
+      "base": "https://storiesdown.com",
+      "profile_urls": ["/user/{username}", "/profile/{username}"],
+      "contact_paths": ["/contact", "/dmca"],
+      "confirmed": false,
+      "status_2026_08": "conflicting: original reportedly DNS-dead in mid-2026, still cited as the cleanest free viewer weeks later",
+      "risk": "medium"
+    },
+    {
+      "id": "inflact",
+      "name": "Inflact",
+      "base": "https://inflact.com",
+      "profile_urls": ["/instagram-viewer/profile/{username}/", "/instagram/view/profile/{username}/"],
+      "contact_paths": ["/contacts/", "/legal/dmca", "/legal/terms-of-use/"],
+      "confirmed": true,
+      "status_2026_08": "up; commercial product with a real legal team and a DMCA page",
+      "risk": "high",
+      "notes": "Paid marketer tool that ships a no-login profile viewer. Being a company, it responds to written notices far more reliably than the free sites."
+    },
+    {
+      "id": "gramhir",
+      "name": "Gramhir",
+      "base": "https://gramhir.com",
+      "profile_urls": ["/profile/{username}"],
+      "contact_paths": ["/about", "/contact"],
+      "confirmed": false,
+      "status_2026_08": "reported stopped working in one 2026 roundup, live in another",
+      "risk": "low",
+      "notes": "Analytics-flavoured: caches follower/engagement counts alongside profile data."
+    },
+    {
+      "id": "followspy",
+      "name": "FollowSpy",
+      "base": "https://followspy.ai",
+      "profile_urls": ["/profile/{username}", "/{username}"],
+      "contact_paths": ["/contact", "/legal"],
+      "confirmed": false,
+      "status_2026_08": "up at 2026-06-13 check; sells itself on follower monitoring + anonymous stories",
+      "risk": "high",
+      "notes": "Monitoring product, so it stores history on profiles it tracks."
+    },
+    {
+      "id": "goog_image",
+      "name": "Google Images (indexing of mirror copies)",
+      "base": "https://www.google.com",
+      "profile_urls": ["/search?q=%22{username}%22+instagram+profile+photo&tbm=isch"],
+      "contact_paths": ["/support/bin/answer.py?answer=1361951"],
+      "confirmed": true,
+      "risk": "medium",
+      "kind": "search",
+      "status_2026_08": "n/a - search engines block scripted queries; use `pp-watchdog links` to open the searches yourself",
+      "notes": "Not a mirror. If a mirror's page is indexed, deleting the image without deleting the page leaves it in cache for weeks."
+    }
+  ],
+  "search_engines": [
+    {"id": "bing_img", "name": "Bing Image Search", "search": "https://www.bing.com/images/search?q=instagram+profile+{username}"},
+    {"id": "ddg", "name": "DuckDuckGo", "search": "https://duckduckgo.com/?q=%22{username}%22+instagram+viewer"}
+  ]
+}

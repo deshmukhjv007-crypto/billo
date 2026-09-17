@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pp-watchdog"
+version = "1.0.0"
+description = "Find which third-party Instagram mirror sites re-host your profile picture, and generate the takedown notices."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+# No runtime dependencies on purpose: this must work on a machine where you
+# refuse to hand anything your credentials, and must run on a phone hotspot.
+dependencies = []
+
+[project.optional-dependencies]
+# Improves 'is this an old photo of me?' from exact-hash to perceptual matching.
+images = ["Pillow>=10"]
+dev = ["pytest>=7"]
+
+[project.scripts]
+pp-watchdog = "ppwatchdog.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["ppwatchdog*"]
+
+[tool.setuptools.package-data]
+ppwatchdog = ["data/*.json"]
