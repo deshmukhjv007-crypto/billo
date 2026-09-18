@@ -4,10 +4,10 @@
  * Wires the UI to the pure logic in /lib (question detection, analytics,
  * prompts) and to the speech + model clients. State is local to this browser.
  */
-import { extractQuestions, classifyQuestion, isQuestion } from '/lib/detect.js';
+import { extractQuestions, classifyQuestion, isQuestion, findQuestionClause } from '/lib/detect.js';
 import { analyzeSession, pairQuestionsWithAnswers, starCoverage, countWords } from '/lib/analyze.js';
 import { systemPrompt, answerPrompt, mockQuestionPrompt, codingPrompt, debriefPrompt, scaffoldAnswer, KIND_COACHING } from '/lib/prompt.js';
-import { createListener, sttSupported, openMic, createRecorder, transcribeFile, blobToB64 } from '/stt.js';
+import { createListener, sttSupported, openMic, createRecorder, transcribeFile, blobToB64, createSpeakerChannel } from '/stt.js';
 import { streamChat, complete, probe, mdToHtml, hasKey } from '/llm.js';
 
 const $ = (id) => document.getElementById(id);
@@ -30,6 +30,7 @@ const state = {
   mic: null,
   recorder: null,
   listener: null,
+  speakerChannel: null, // captures the interviewer's voice (tab/window audio) via Whisper
   mock: { index: 0, asked: [], round: [] },
 };
 
@@ -209,8 +210,10 @@ function mmss(ms) {
 function pushTurn(speaker, text) {
   const t = text.trim();
   if (!t) return;
-  state.turns.push({ speaker, text: t, t: now() });
-  rescanQuestions();
+  if (!state.startedAt) state.startedAt = Date.now();
+  const turn = { speaker, text: t, t: now() };
+  state.turns.push(turn);
+  rescanQuestions(turn);
   renderTranscript();
 }
 
@@ -222,6 +225,7 @@ function ingestManual(text, speaker = state.speaker) {
 function bindLive() {
   $('btnListen').addEventListener('click', startListening);
   $('btnStop').addEventListener('click', stopListening);
+  $('btnInterviewer').addEventListener('click', toggleSpeakerChannel);
   $('spkInterviewer').addEventListener('click', () => setSpeaker('interviewer'));
   $('spkCandidate').addEventListener('click', () => setSpeaker('candidate'));
   $('overlayOn').addEventListener('change', (e) => $('overlay').classList.toggle('on', e.target.checked));
@@ -268,6 +272,53 @@ function setSpeaker(s) {
   $('spkCandidate').classList.toggle('primary', s === 'candidate');
 }
 
+function ensureClock() {
+  if (!state.startedAt) state.startedAt = Date.now();
+  clearInterval(state.timer);
+  state.timer = setInterval(() => { $('clock').textContent = mmss(now()); }, 500);
+}
+
+/** Start/stop capturing the interviewer's voice (shared tab/window audio → Whisper). */
+async function toggleSpeakerChannel() {
+  if (state.speakerChannel) {
+    state.speakerChannel.stop();
+    state.speakerChannel = null;
+    $('btnInterviewer').classList.remove('primary');
+    $('btnInterviewer').textContent = '🖥 Capture interviewer (share tab audio)';
+    return;
+  }
+  if (!hasKey(state.cfg)) {
+    return alert('Set a base URL, key and STT model in Setup first (e.g. Groq — free) so interviewer audio can be transcribed with Whisper.');
+  }
+  try {
+    const ch = await createSpeakerChannel({
+      cfg: state.cfg,
+      language: state.profile.lang || 'en-IN',
+      onText: (text) => pushTurn('interviewer', text),
+      onState: (s, detail) => {
+        if (s === 'error') setSttPill(detail || 'error', false);
+        if (s === 'stopped') {
+          if (state.speakerChannel) {
+            // stopped from the browser's sharing bar — sync the button
+            state.speakerChannel = null;
+            $('btnInterviewer').classList.remove('primary');
+            $('btnInterviewer').textContent = '🖥 Capture interviewer (share tab audio)';
+          }
+          if (detail) setSttPill(detail, false);
+        }
+      },
+    });
+    if (!ch.supported) return;
+    state.speakerChannel = ch;
+    ensureClock(); // only once capture is actually running — never for a failed start
+    $('btnInterviewer').classList.add('primary');
+    $('btnInterviewer').textContent = '■ Stop interviewer capture';
+    setSttPill('hearing interviewer', true);
+  } catch (e) {
+    setSttPill(String(e?.message || e), false);
+  }
+}
+
 async function startListening() {
   if (!state.startedAt) state.startedAt = Date.now();
   state.listening = true;
@@ -275,8 +326,7 @@ async function startListening() {
   $('btnStop').disabled = false;
   setEngine('listening', true);
 
-  clearInterval(state.timer);
-  state.timer = setInterval(() => { $('clock').textContent = mmss(now()); }, 500);
+  ensureClock();
 
   try {
     state.mic = await openMic({ onLevel: (v) => { $('micLevel').style.width = `${Math.round(v * 100)}%`; } });
@@ -315,7 +365,7 @@ async function startListening() {
 
 async function stopListening() {
   state.listening = false;
-  clearInterval(state.timer);
+  if (!state.speakerChannel) clearInterval(state.timer); // keep the clock if interviewer capture is still running
   $('btnListen').disabled = false;
   $('btnStop').disabled = true;
   setEngine('stopped', false);
@@ -341,8 +391,24 @@ function interviewerText() {
   return state.turns.filter((t) => t.speaker === 'interviewer').map((t) => t.text).join(' ');
 }
 
-function rescanQuestions() {
-  const found = extractQuestions(interviewerText(), state.seen);
+function rescanQuestions(turn) {
+  // Scan the new turn, keeping turn boundaries: re-scanning the whole joined
+  // blob would let one long unpunctuated ASR tail swallow earlier questions.
+  const found = turn ? extractQuestions(turn.text, state.seen) : extractQuestions(interviewerText(), state.seen);
+
+  // ASR has no punctuation: "so moving on can you tell me about a time you
+  // failed" arrives as one flat fragment. Dig the question clause out of it.
+  if (!found.length && turn && turn.speaker === 'interviewer') {
+    const clause = findQuestionClause(turn.text);
+    if (clause) {
+      const key = clause.toLowerCase().replace(/\s+/g, ' ');
+      if (!state.seen.has(key)) {
+        state.seen.add(key);
+        found.push({ text: clause, kind: classifyQuestion(clause) });
+      }
+    }
+  }
+
   if (!found.length) return;
   for (const q of found) state.questions.push({ ...q, answered: false });
   renderQuestions();
@@ -582,7 +648,11 @@ async function runCoding(explainOnly) {
 function debriefData() {
   const durationMs = state.turns.length ? Math.max(now(), 1) : 0;
   const { metrics, tips } = analyzeSession(state.turns, { durationMs });
-  const qs = extractQuestions(interviewerText());
+  // Prefer the questions captured live (includes unpunctuated-ASR clause
+  // detections the blob re-scan would miss); fall back to a fresh scan.
+  const qs = state.questions.length
+    ? state.questions.map((q) => ({ text: q.text, kind: q.kind }))
+    : extractQuestions(interviewerText());
   const pairs = pairQuestionsWithAnswers(state.turns, qs);
   return { metrics, tips, pairs };
 }

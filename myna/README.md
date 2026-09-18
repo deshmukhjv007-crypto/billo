@@ -30,7 +30,7 @@ myna/
 cd myna
 npm install        # only needed for the UI test suite (jsdom)
 npm start          # → http://localhost:4173
-npm test           # 55 tests
+npm test           # 65 tests
 ```
 
 Open it in **Chrome or Edge** — the live microphone transcription uses the browser's
@@ -66,10 +66,18 @@ the Debrief numbers, which are computed locally, need no model whatsoever.
 
 ## Transcription
 
-1. **Web Speech API** — live, in Chrome/Edge. Flip `🎧 Interviewer` / `🗣 You` so turns are
-   attributed correctly; the API cannot tell speakers apart on its own.
-2. **Type or paste** — the box under the transcript, for anything the mic misses.
-3. **Upload a recording** — sent to a Whisper-compatible `/audio/transcriptions` on the
+1. **Capture interviewer (share tab audio)** — the important one for online interviews.
+   Your microphone only hears **you**; the interviewer's voice comes out of your speakers
+   and the mic channel never hears it. Click **🖥 Capture interviewer**, pick the meeting
+   **tab** (or screen on Windows) and tick **"Also share tab audio"**. Myna records 4-second
+   chunks and transcribes them through the Whisper-compatible endpoint you configured —
+   questions arrive punctuated and are detected and (optionally) auto-answered. Needs an
+   STT model in Setup (Groq's free tier includes Whisper).
+2. **Web Speech API** — live mic, in Chrome/Edge. Hears only what the mic hears — fine for
+   in-person interviews. Flip `🎧 Interviewer` / `🗣 You` so turns are attributed
+   correctly; the API cannot tell speakers apart on its own.
+3. **Type or paste** — the box under the transcript, for anything the mic misses.
+4. **Upload a recording** — sent to a Whisper-compatible `/audio/transcriptions` on the
    endpoint you configured.
 
 ## How question detection works
@@ -78,8 +86,12 @@ the Debrief numbers, which are computed locally, need no model whatsoever.
 next segment starts with a capital, so a question is never swallowed behind "Inc."), then
 tests each one against question marks and the imperative forms interviews actually use —
 *tell me about a time…*, *walk me through…*, *describe a situation…* — because ASR output
-frequently drops the question mark entirely. Results are deduped by a `seen` set so a
-streaming transcript can be re-scanned on every partial result without re-emitting.
+frequently drops the question mark entirely. When a fragment carries no punctuation at all
+(real Web Speech chunks), `findQuestionClause` digs the trailing question clause out of the
+middle of the fragment ("so moving on can you tell me about a time you failed" →
+"tell me about a time you failed"). Results are deduped by a `seen` set so a streaming
+transcript can be re-scanned on every partial result without re-emitting, and detection
+runs per turn so one long unpunctuated tail can never swallow an earlier question.
 
 Classification drives the scaffold: a behavioral question gets a STAR brief, a coding
 question gets "name the approach before the code", logistics gets "answer directly, do not

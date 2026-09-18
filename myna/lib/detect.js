@@ -155,3 +155,53 @@ export function isQuestionSettled(fragment, { silenceMs = 900, sinceLastWordMs =
   if (/[?]\s*$/.test(s)) return true;
   return sinceLastWordMs >= silenceMs;
 }
+
+/**
+ * Words that can open a question clause mid-stream. Position-agnostic cousin of
+ * IMPERATIVE_PROMPTS, used when ASR hands us speech with no punctuation at all:
+ * the question is buried inside a longer fragment ("so moving on can you tell
+ * me about a time you failed") and the sentence detector never sees it.
+ */
+const CLAUSE_START_RE =
+  /\b(tell me|tell us|walk me|walk us|talk me through|describe|explain|outline|can you|could you|would you|will you|do you|did you|have you|are you|what's|whats|what|why|how|when|where|which|who|give me|let's say|say you|imagine|suppose|assume)\b/gi;
+
+/**
+ * "Let me tell you what we do here." — a wh-word followed by a plain subject
+ * (no inversion, no "you") is a statement about something, not an ask.
+ */
+const INDIRECT_STATEMENT_RE = /^(what|why|how|when|where|which|who|whose)\s+(we|i|it|this|that|they|he|she|the|our|my|its)\b/i;
+
+/**
+ * Dig a question clause out of an unpunctuated ASR fragment.
+ * Returns the clause text, or null when the fragment holds no ask.
+ * Whole-fragment questions (starter at offset 0) are left to isQuestion —
+ * this only fires when normal detection found nothing.
+ */
+export function findQuestionClause(text) {
+  const s = stripLeadNoise(text);
+  if (!s || /[?!]\s*$/.test(s)) return null;
+
+  let last = null;
+  for (const m of s.matchAll(CLAUSE_START_RE)) last = m;
+  if (!last || last.index === 0) return null;
+
+  // "…how would you design…" — the aux phrase matches last, but an adjacent
+  // wh-word in front makes a cleaner question. Extend back to it.
+  let start = last.index;
+  if (/^(can|could|would|will|do|does|did|have|are) you\b/i.test(last[0])) {
+    const before = s.slice(0, last.index);
+    const wh = /(what's|whats|what|why|how|when|where|which|who)\s*$/i.exec(before);
+    if (wh) start = wh.index;
+  }
+
+  const clause = s
+    .slice(start)
+    .replace(/^[,.:;–—-]+\s*/, '')
+    .replace(/[\s.,…]+$/, '')
+    .trim();
+
+  // A stray "what" or "why" in passing is not a question — need substance.
+  if (clause.split(/\s+/).length < 4) return null;
+  if (INDIRECT_STATEMENT_RE.test(clause) && !/\b(you|your)\b/i.test(clause)) return null;
+  return clause;
+}

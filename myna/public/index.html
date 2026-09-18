@@ -137,14 +137,16 @@
       <div class="row">
         <button class="btn primary" id="btnListen">● Start listening</button>
         <button class="btn" id="btnStop" disabled>■ Stop</button>
+        <button class="btn" id="btnInterviewer" title="Share the meeting tab's audio so the interviewer's voice is transcribed">🖥 Capture interviewer (share tab audio)</button>
         <span class="pill" id="clockPill"><span class="dot"></span><span id="clock">00:00</span></span>
         <div class="spacer"></div>
         <span style="font-size:12.5px;color:var(--muted)">Who is talking:</span>
         <button class="btn sm" id="spkInterviewer">🎧 Interviewer</button>
         <button class="btn sm" id="spkCandidate">🗣 You</button>
       </div>
+      <p class="hint" style="margin:8px 0 0">Online interview? The mic only hears <strong>you</strong> — the interviewer's voice comes out of your speakers. Click <strong>Capture interviewer</strong> and share the meeting tab <em>with audio</em> so questions are picked up. Requires an STT model in Setup (e.g. Groq free tier).</p>
       <div class="row" style="margin-top:10px">
-        <label style="font-size:13px;color:var(--muted)"><input type="checkbox" id="autoAnswer" /> Auto-answer each detected question</label>
+        <label style="font-size:13px;color:var(--muted)"><input type="checkbox" id="autoAnswer" checked /> Auto-answer each detected question</label>
         <label style="font-size:13px;color:var(--muted)"><input type="checkbox" id="overlayOn" checked /> Floating overlay</label>
         <div class="spacer"></div>
         <span style="font-size:12.5px;color:var(--muted)">Mic level</span>

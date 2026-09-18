@@ -209,6 +209,40 @@ test('Mock interview cycles the offline bank instead of repeating the first ques
   assert.notEqual(asked[4], asked[3], 'it must keep cycling, not stall on question #1');
 });
 
+test('an unpunctuated ASR-style question mid-fragment is detected, classified and auto-answered', async () => {
+  // Auto-answer must be ON by default — that's the product's headline behaviour.
+  assert.equal($('autoAnswer').checked, true);
+
+  stubFetch(sseResponse(['I own the outcome end to end, with a number to prove it.']));
+  click('spkInterviewer');
+  const before = Number($('qCount').textContent);
+
+  // What Web Speech actually delivers: one flat fragment, no question mark.
+  $('manualIn').value = 'so moving on can you tell me about a time you failed';
+  click('manualAdd');
+  await tick(); await tick(); await tick(); await tick();
+
+  assert.equal(Number($('qCount').textContent), before + 1, 'a buried question must be detected');
+  const rows = [...$('qList').querySelectorAll('.q')];
+  const lastRow = rows.at(-1);
+  assert.match(lastRow.querySelector('.kind').textContent, /behavioral/);
+  assert.match(lastRow.textContent, /tell me about a time you failed/);
+  // auto-answered without any button click
+  assert.ok(fetchCalls.some((c) => c.body.messages?.some((m) => /time you failed/.test(m.content))), 'auto-answer must ask the model about the detected question');
+  assert.match($('answerOut').textContent, /own the outcome/);
+});
+
+test('interviewer capture degrades gracefully where tab-audio is unsupported', async () => {
+  // jsdom has neither MediaRecorder nor getDisplayMedia — like a browser that
+  // can't share tab audio. The button must report, not crash.
+  const before = $('qCount').textContent;
+  click('btnInterviewer');
+  await tick(); await tick();
+  assert.match($('sttPillTxt').textContent, /tab audio/i);
+  assert.equal($('qCount').textContent, before, 'no phantom questions');
+  assert.equal($('btnInterviewer').textContent, '🖥 Capture interviewer (share tab audio)');
+});
+
 test('Coding tab refuses to run with an empty problem and solves a pasted one', async () => {
   [...document.querySelectorAll('nav.tabs button')].find((b) => b.dataset.tab === 'coding')
     .dispatchEvent(new window.Event('click', { bubbles: true }));

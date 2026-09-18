@@ -147,6 +147,8 @@ export function blobToB64(blob) {
 /** Send audio to a Whisper-compatible /audio/transcriptions through the local proxy. */
 export async function transcribeFile({ blob, cfg, language }) {
   const audioB64 = await blobToB64(blob);
+  const mimeType = blob.type || 'audio/webm';
+  const ext = { 'audio/webm': 'webm', 'audio/mp4': 'm4a', 'audio/ogg': 'ogg', 'audio/wav': 'wav', 'audio/mpeg': 'mp3' }[mimeType.split(';')[0]] || 'webm';
   const res = await fetch('/api/transcribe', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -156,11 +158,111 @@ export async function transcribeFile({ blob, cfg, language }) {
       model: cfg.sttModel || 'whisper-1',
       language: language ? language.split('-')[0] : undefined,
       audioB64,
-      filename: 'myna-audio.webm',
-      mimeType: blob.type || 'audio/webm',
+      filename: `myna-audio.${ext}`,
+      mimeType,
     }),
   });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || `Transcription failed (${res.status})`);
   return json.text || '';
+}
+
+/**
+ * Whisper-on-silence hallucinations we never want to drop into the transcript.
+ */
+const WHISPER_NOISE_RE = /^[\s\W]*(thank\s?you|thanks|thank you so much|thanks for watching|thank you for watching|bye|you)[\s.!…]*$/i;
+
+/**
+ * Capture the interviewer's voice from a meeting tab / window and transcribe it
+ * in small chunks through the configured Whisper endpoint.
+ *
+ * Why this exists: SpeechRecognition only listens to the microphone. In an
+ * online interview the other side's voice comes out of the speakers, so the
+ * mic channel never hears a single interview question. Browsers cannot route a
+ * MediaStream into SpeechRecognition, so the only way to hear the interviewer
+ * is display-capture audio + chunked Whisper transcription.
+ *
+ * Chunking detail: MediaRecorder timeslice chunks after the first are not
+ * independently decodable, so each chunk is a fresh stop()/start() pair — the
+ * next recorder starts immediately while the finished chunk uploads in the
+ * background.
+ *
+ * @param {object} o
+ * @param {object} o.cfg           proxy config (endpoint / apiKey / sttModel)
+ * @param {string} o.language      BCP-47 tag
+ * @param {(text:string)=>void} o.onText   one call per transcribed chunk
+ * @param {(state:'listening'|'stopped'|'error', detail?:string)=>void} o.onState
+ * @param {number} o.chunkMs       chunk length (default 4s — latency vs. accuracy trade-off)
+ */
+export async function createSpeakerChannel({ cfg, language, onText = () => {}, onState = () => {}, chunkMs = 4000 } = {}) {
+  if (typeof MediaRecorder === 'undefined' || !navigator.mediaDevices?.getDisplayMedia) {
+    onState('error', 'This browser cannot capture tab audio. Use desktop Chrome or Edge — or paste what the interviewer said into the manual box.');
+    return { supported: false, stop() {} };
+  }
+
+  const display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+  const audioTracks = display.getAudioTracks();
+  if (!audioTracks.length) {
+    display.getTracks().forEach((t) => t.stop());
+    throw new Error('No audio was shared. Pick the meeting TAB in the chooser and tick "Also share tab audio" (on Windows, "Also share system audio" works for the whole call).');
+  }
+  display.getVideoTracks().forEach((t) => t.stop()); // we only need the sound
+  const stream = new MediaStream(audioTracks);
+  const audioTrack = audioTracks[0];
+
+  let stopped = false;
+  audioTrack.addEventListener('ended', () => {
+    stopped = true;
+    onState('stopped', 'Audio sharing was stopped from the browser bar.');
+  });
+
+  const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((t) => MediaRecorder.isTypeSupported(t)) || '';
+
+  const runChunk = () => {
+    if (stopped) return;
+    let rec;
+    try {
+      rec = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    } catch (e) {
+      stopped = true;
+      onState('error', `Could not record the shared audio: ${e?.message || e}`);
+      return;
+    }
+    const chunks = [];
+    rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    rec.onstop = () => {
+      const blob = new Blob(chunks, { type: rec.mimeType || 'audio/webm' });
+      runChunk(); // start the next chunk immediately — don't wait for Whisper
+      if (stopped || blob.size < 2000) return;
+      transcribeFile({ blob, cfg, language })
+        .then((text) => {
+          const t = String(text || '').trim();
+          if (t && !WHISPER_NOISE_RE.test(t)) onText(t);
+        })
+        .catch((e) => {
+          stopped = true;
+          onState('error', `Transcription failed: ${e.message}`);
+        });
+    };
+    try {
+      rec.start();
+    } catch (e) {
+      stopped = true;
+      onState('error', `Could not record the shared audio: ${e?.message || e}`);
+      return;
+    }
+    setTimeout(() => { try { rec.stop(); } catch { /* already stopped */ } }, chunkMs);
+  };
+
+  runChunk();
+  onState('listening');
+  return {
+    supported: true,
+    stream,
+    stop() {
+      stopped = true;
+      try { stream.getTracks().forEach((t) => t.stop()); } catch { /* noop */ }
+      onState('stopped');
+    },
+  };
 }
