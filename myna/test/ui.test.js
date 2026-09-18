@@ -192,6 +192,23 @@ test('Mock interview asks an offline question from the bank when no model is rea
   assert.equal($('mockList').querySelectorAll('.q').length, 1);
 });
 
+test('Mock interview cycles the offline bank instead of repeating the first question', async () => {
+  stubFetch(sseResponse([''])); // no model output — every ask falls back to the bank
+  $('mockKind').value = 'company'; // smallest selectable bank (3 questions) so it exhausts fast
+  click('mockStart');
+  await tick(); await tick(); await tick();
+  for (let i = 0; i < 4; i++) { // 5 asks total against a 3-question bank → exhausts it
+    click('mockNext');
+    await tick(); await tick(); await tick();
+  }
+
+  const asked = [...$('mockList').querySelectorAll('.txt')].map((n) => n.textContent);
+  assert.equal(asked.length, 5);
+  assert.equal(new Set(asked.slice(0, 3)).size, 3, 'the first pass asks each bank question once');
+  assert.equal(asked[3], asked[0], 'an exhausted bank restarts from the top');
+  assert.notEqual(asked[4], asked[3], 'it must keep cycling, not stall on question #1');
+});
+
 test('Coding tab refuses to run with an empty problem and solves a pasted one', async () => {
   [...document.querySelectorAll('nav.tabs button')].find((b) => b.dataset.tab === 'coding')
     .dispatchEvent(new window.Event('click', { bubbles: true }));

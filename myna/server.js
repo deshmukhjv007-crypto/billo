@@ -54,7 +54,12 @@ function sendJSON(res, status, obj) {
 
 /** Reject path traversal and resolve to a real file under an allowed root. */
 function resolveStatic(urlPath) {
-  const clean = decodeURIComponent(urlPath.split('?')[0].split('#')[0]);
+  let clean;
+  try {
+    clean = decodeURIComponent(urlPath.split('?')[0].split('#')[0]);
+  } catch {
+    return null; // malformed percent-encoding — treat as not found, not a 500
+  }
   const rel = clean === '/' ? '/index.html' : clean;
   for (const [prefix, root] of Object.entries(ROOTS)) {
     if (!rel.startsWith(prefix)) continue;
@@ -69,17 +74,23 @@ function readBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
+    let tooLarge = false;
     req.on('data', (c) => {
       size += c.length;
       if (size > MAX_BODY_BYTES) {
-        reject(Object.assign(new Error('Payload too large'), { status: 413 }));
-        req.destroy();
+        if (!tooLarge) {
+          tooLarge = true;
+          reject(Object.assign(new Error('Payload too large'), { status: 413 }));
+          // Drain rather than destroy: destroying the request kills the socket
+          // before the 413 response can be written, so the client saw a hangup.
+          req.resume();
+        }
         return;
       }
       chunks.push(c);
     });
-    req.on('end', () => resolve(Buffer.concat(chunks)));
-    req.on('error', reject);
+    req.on('end', () => { if (!tooLarge) resolve(Buffer.concat(chunks)); });
+    req.on('error', (e) => { if (!tooLarge) reject(e); });
   });
 }
 
@@ -97,13 +108,28 @@ function requireEndpoint({ endpoint }) {
   return u;
 }
 
+/** Read + parse a JSON request body, preserving readBody's own status (e.g. 413). */
+async function readJsonBody(req) {
+  let raw;
+  try {
+    raw = await readBody(req);
+  } catch (e) {
+    throw Object.assign(new Error(e.message || 'Could not read request body.'), { status: e.status || 400 });
+  }
+  try {
+    return JSON.parse(raw.toString('utf8'));
+  } catch {
+    throw Object.assign(new Error('Request body must be valid JSON.'), { status: 400 });
+  }
+}
+
 /** OpenAI-compatible chat completions, with optional SSE streaming passthrough. */
 async function handleChat(req, res) {
   let payload;
   try {
-    payload = JSON.parse((await readBody(req)).toString('utf8'));
+    payload = await readJsonBody(req);
   } catch (e) {
-    return sendJSON(res, 400, { error: 'Request body must be valid JSON.' });
+    return sendJSON(res, e.status || 400, { error: e.message });
   }
 
   const { endpoint, apiKey, model, messages, stream = true, temperature = 0.4, max_tokens = 900 } = payload;
@@ -139,7 +165,12 @@ async function handleChat(req, res) {
     return sendJSON(res, upstream.status, { error: `Upstream ${upstream.status}`, detail: text.slice(0, 2000) });
   }
 
-  if (!stream || !upstream.body) {
+  // Only do the SSE passthrough when the upstream is actually streaming.
+  // Some local servers ignore `stream: true` and answer with plain JSON — if
+  // we still responded with an event-stream header, the browser would wait for
+  // `data:` lines that never arrive and render an empty answer.
+  const upstreamType = upstream.headers.get('content-type') || '';
+  if (!stream || !upstream.body || !upstreamType.includes('text/event-stream')) {
     const data = await upstream.json();
     return sendJSON(res, 200, { content: data?.choices?.[0]?.message?.content ?? '', raw: data });
   }
@@ -188,9 +219,9 @@ async function handleChat(req, res) {
 async function handleTranscribe(req, res) {
   let payload;
   try {
-    payload = JSON.parse((await readBody(req)).toString('utf8'));
-  } catch {
-    return sendJSON(res, 400, { error: 'Request body must be valid JSON.' });
+    payload = await readJsonBody(req);
+  } catch (e) {
+    return sendJSON(res, e.status || 400, { error: e.message });
   }
 
   const { endpoint, apiKey, model = 'whisper-1', audioB64, language, filename = 'audio.webm', mimeType = 'audio/webm' } = payload;
@@ -210,11 +241,21 @@ async function handleTranscribe(req, res) {
   if (language) form.append('language', language);
 
   const url = new URL(base.pathname.replace(/\/$/, '') + '/audio/transcriptions', base);
-  const upstream = await fetch(url, {
-    method: 'POST',
-    headers: apiKey ? { authorization: `Bearer ${apiKey}` } : {},
-    body: form,
-  });
+  let upstream;
+  try {
+    upstream = await fetch(url, {
+      method: 'POST',
+      headers: apiKey ? { authorization: `Bearer ${apiKey}` } : {},
+      body: form,
+    });
+  } catch (e) {
+    // Same treatment as /api/chat: an unreachable endpoint is a 502 with an
+    // actionable message, not an opaque 500.
+    return sendJSON(res, 502, {
+      error: `Could not reach ${url.origin}`,
+      detail: `${e?.message || e}. Is the endpoint running and reachable from this machine? For a local server (Ollama, LM Studio) check the port and that it serves /v1.`,
+    });
+  }
 
   const text = await upstream.text();
   if (!upstream.ok) return sendJSON(res, upstream.status, { error: `Upstream ${upstream.status}`, detail: text.slice(0, 2000) });
