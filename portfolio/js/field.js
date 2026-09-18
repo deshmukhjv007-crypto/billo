@@ -173,6 +173,7 @@ function waitForFont(shorthand) {
     .catch(() => document.fonts ? document.fonts.ready : undefined);
 }
 let shape = null, stage = null, morph = 1, running = false, raf = 0;
+let stillFor = 0, calm = 1;
 let shake = 0, stride = 1, frameEMA = 16, t0 = 0, lastStats = 0;
 
 export const field = {
@@ -266,6 +267,13 @@ function frame(now) {
   shake += (target - shake) * (target > shake ? 0.22 : 0.05);
   const dis = shake * shake;
 
+  /* Everything the field does at rest is now gated on this: full motion while
+     the page is moving, and a genuine standstill after a moment of stillness,
+     so a reader gets a still surface. */
+  stillFor = state.speed < 0.004 ? stillFor + dt : 0;
+  const calmTarget = stillFor > 1400 ? 0 : 1;
+  calm += (calmTarget - calm) * (calmTarget > calm ? 0.06 : 0.02);
+
   /* where the drawing lives right now */
   let ox = 0, oy = 0, w = 0, h = 0, drawing = false;
   if (shape && stage) {
@@ -283,7 +291,7 @@ function frame(now) {
   if (morph < 1) morph = Math.min(1, morph + dt / 900);
   const m = easeOut(morph);
 
-  const spread = Math.max(VW, VH) * 0.4;
+  const spread = Math.max(VW, VH) * 0.26;
   const px = state.pointer.x, py = state.pointer.y;
   const R = state.fine ? 105 : 74, R2 = R * R;
   const step = Math.max(1, stride | 0);
@@ -309,8 +317,13 @@ function frame(now) {
         tx = ox + uu * w + P.sx[i] * spread * dis;
         ty = oy + vv * h + P.sy[i] * spread * dis;
       } else {
-        tx = P.cx[i] * VW + Math.sin(t * 0.28 + P.ph[i]) * 34;
-        ty = P.cy[i] * VH + Math.cos(t * 0.21 + P.ph[i]) * 34;
+        /* Between scenes the particles drift as a cloud. It used to be a
+           perpetual 34px sine at ~0.3 rad/s — never still, never quiet, and
+           always at the edge of your vision. Now it is a slow 11px float, and
+           it eases to a complete standstill while you are actually reading. */
+        const amp = 11 * calm;
+        tx = P.cx[i] * VW + Math.sin(t * 0.14 + P.ph[i]) * amp;
+        ty = P.cy[i] * VH + Math.cos(t * 0.11 + P.ph[i]) * amp;
       }
 
       let ax = (tx - P.x[i]) * P.k[i], ay = (ty - P.y[i]) * P.k[i];

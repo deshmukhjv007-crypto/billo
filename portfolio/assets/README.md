@@ -25,13 +25,27 @@ exists, the monogram is drawn instead, so the page never shows a broken image.
 
 ### What works best
 
-The portrait renders as a **circle, cropped from the top third** of the image
-(`object-position: 50% 32%`), so:
+The portrait renders inside a **circle** that clips the image. Two CSS variables
+control the framing, both on `.portrait-frame` in `styles.css`:
+
+| variable | default | what it does |
+|---|---|---|
+| `--portrait-zoom` | `1.12` | scales the photo inside the circle. **Raise it to ~1.25** to fill the circle with the face; set it to `1` to show the whole frame |
+| `--portrait-focus` | `50% 30%` | which part of the image the circle centres on (`x y`). Raise the second number to show more of the top of the head |
+
+For example, a slightly tighter crop:
+
+```css
+.portrait { --portrait-zoom: 1.22; --portrait-focus: 50% 26%; }
+```
+
+A **square** photo needs no cropping at all — it fills the circle as-is. For
+anything else the image is centre-cropped, so:
 
 | | |
 |---|---|
 | **Framing** | head and shoulders, eyes roughly a third from the top |
-| **Shape** | roughly square. Anything not square gets cropped around the middle, which usually decapitates people — check it after building |
+| **Shape** | square if you have it. Non-square images get centre-cropped, so check the result after building |
 | **Size** | 800×800 px is plenty. It renders at ~230 px on a retina screen |
 | **Background** | the page is dark ink with an ember accent; a plain or softly blurred background reads best |
 | **Format** | `.jpg` for photographs, `.png` only if you need transparency (the circle crop hides it anyway) |

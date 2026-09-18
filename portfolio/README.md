@@ -100,16 +100,25 @@ portfolio/
 * **The ink** — thousands of particles fly into a different procedural drawing
   per section, from SVG path strings in `content.js` (0 bytes over the wire,
   resolution-independent). Same paths are injected as the faint blueprint line
-  art that draws itself on, and that carries the design with JS off.
-* **Film grain** — an `feTurbulence` tile *plus* an animated canvas sprite
-  sheet, reacting to scroll velocity and pointer speed. Press `G` for a lab
-  with 11 sliders, 8 presets (including a side-by-side A/B) and copy-out CSS.
+  art that draws itself on, and that carries the design with JS off. Nothing
+  loops on its own: the drawing settles, and the particles come to a stop while
+  you are reading.
+* **Film grain** — an `feTurbulence` tile *plus* a canvas noise sprite. It
+  **holds still by default**, because real grain does not move relative to the
+  frame, and anything faster reads as the page rocking. Press `G` for a lab with
+  11 sliders, 8 presets (including a side-by-side A/B and `VHS — moving grain`)
+  and copy-out CSS if you do want it to move.
 * **The résumé section** — a live paper preview scaled with container queries so
   the whole one-pager always fits the sheet, whatever the window size.
 * **Keyboard** — `R` résumé · `G` grain lab · `T` theme · `S` smooth wheel ·
   `C` copy email · `⌘K`/`Ctrl K` command palette.
 * **Print** — a print stylesheet hides the ink and the chrome, so `Ctrl P` gives
   a clean reading copy (the PDF is still the better artefact).
+* **Calm by default** — the background is a still surface you read against. The
+  only perpetual animation is the ticker, and it pauses when you point at it.
+  Everything else is a one-shot reveal or driven by your own scrolling.
+  `test/page.test.mjs` fails the build if a new forever-animation is added to a
+  background layer.
 * **A11y** — skip link, `:focus-visible` rings, `aria-keyshortcuts`, `inert` on
   the closed lab drawer, labelled landmarks, `prefers-reduced-motion` honoured
   everywhere, `prefers-color-scheme` respected on first paint.

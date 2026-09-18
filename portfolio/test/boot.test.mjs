@@ -123,7 +123,7 @@ test('grain: a layer builds, applies, presets and emits a snippet', async () => 
   assert.equal(host.innerHTML.includes('g-turb'), true, 'turbulence layer not mounted');
   assert.equal(host.innerHTML.includes('g-film'), true, 'film layer not mounted');
   assert.equal(layer.s.opacity, PRESETS['16mm (default)'].opacity);
-  layer.preset('VHS');
+  layer.preset('VHS — moving grain');
   assert.equal(layer.s.blend, 'screen');
   layer.set({ opacity: 0.2 });
   assert.equal(layer.s.opacity, 0.2);
@@ -133,6 +133,44 @@ test('grain: a layer builds, applies, presets and emits a snippet', async () => 
   assert.match(css, /\.grain\{position:fixed;inset:0;z-index:60/);
   assert.match(css, /mix-blend-mode:screen/);
   assert.match(css, /feTurbulence/);
+  layer.destroy();
+});
+
+test('grain: the noise is STANDING STILL by default', async () => {
+  /* Regression. The sprite used to be stepped with a translate that carried a
+     second, independent Y term — `-(((f * 37) % 5) * tile)` — which teleported
+     the noise field 402-569 px every frame at 14 fps. That is not grain, that is
+     the page rocking. Motion is now opt-in and, when on, is one clean horizontal
+     tile per frame. */
+  const { DEFAULTS } = await import('../js/grain.js');
+  assert.equal(DEFAULTS.filmAnimate, false, 'grain must not animate unless asked');
+  assert.equal(DEFAULTS.react, false, 'scroll-reactive opacity strobing must be opt-in too');
+  assert.ok(DEFAULTS.opacity <= 0.1, `master opacity ${DEFAULTS.opacity} is too loud for a default`);
+});
+
+test('grain: when animation IS on, it drifts one sheet in X and never in Y', async () => {
+  const { grainKeyframes } = await import('../js/grain.js');
+  const kf = grainKeyframes({ tile: 180, frames: 8, fps: 12, name: 'grainShift1' });
+  assert.match(kf.css, /@keyframes grainShift1\{from\{transform:translate3d\(0,0,0\)\}/);
+  const to = kf.css.match(/to\{transform:translate3d\((-?[\d.]+)px,0,0\)\}/);
+  assert.ok(to, 'the drift must translate in X only — a Y term is what broke it');
+  assert.equal(Number(to[1]), -(180 * 8), 'exactly one whole sheet of tiles per cycle');
+  assert.equal(kf.animation, 'grainShift1 0.667s steps(8, end) infinite');
+  assert.match(kf.animation, /steps\(8, end\)/, 'stepping keeps each frame on a tile boundary');
+  /* and the catastrophic case: a single frame must mean no animation at all */
+  assert.equal(grainKeyframes({ frames: 1 }).animation, 'none');
+});
+
+test('grain: switching motion off restores a held frame', async () => {
+  const { GrainLayer, DEFAULTS } = await import('../js/grain.js');
+  const host = dom.document.createElement('div');
+  const layer = new GrainLayer(host, { ...DEFAULTS, filmAnimate: true });
+  assert.match(layer.style.textContent, /@keyframes/, 'should start animating');
+  layer.setMotion(false);
+  assert.equal(layer.s.filmAnimate, false);
+  assert.equal(layer.film.style.animation, 'none');
+  assert.equal(layer.film.style.transform, 'translate3d(0,0,0)');
+  assert.equal(layer.style.textContent, '', 'keyframes should be torn down, not just unused');
   layer.destroy();
 });
 

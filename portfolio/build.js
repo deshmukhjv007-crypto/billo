@@ -14,6 +14,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as C from './content.js';
 import { PERSON, SUMMARY, SKILLS, EDUCATION, CERTIFICATIONS, ACHIEVEMENTS } from './resume.js';
+import { findPhoto } from './photo.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -35,17 +36,7 @@ const pdfLabel = pdf.exists ? `PDF · ${human(pdf.size)} · 1 page` : 'PDF';
 
 /* The photo is picked up from disk so swapping in a real one is a file copy,
    not a code change. Until then an inked monogram stands in. */
-function findPhoto() {
-  const explicit = C.ME.photo && path.join(__dirname, C.ME.photo.replace(/^\.\//, ''));
-  const candidates = [
-    explicit,
-    ...['jpg', 'jpeg', 'png', 'webp', 'avif'].flatMap(ext =>
-      ['jayesh', 'photo', 'portrait', 'me'].map(n => path.join(__dirname, 'assets', `${n}.${ext}`)))
-  ].filter(Boolean);
-  for (const f of candidates) if (fs.existsSync(f)) return './' + path.relative(__dirname, f).split(path.sep).join('/');
-  return null;
-}
-const photo = findPhoto();
+const photo = findPhoto(__dirname, C.ME.photo);
 
 const monogram = `<svg class="monogram" viewBox="0 0 200 200" role="img" aria-label="${esc(C.ME.name)}">
       <defs><linearGradient id="mg" x1="0" y1="0" x2="1" y2="1">
@@ -219,7 +210,7 @@ try {
     </div>
     <div class="hero-side">
       <figure class="portrait${photo ? ' has-photo' : ''}" data-magnet-host>
-        ${portrait}
+        <span class="portrait-frame">${portrait}</span>
         <figcaption class="mono">${esc(PERSON.city)} · IST</figcaption>
       </figure>
       <div class="stage" data-art="${C.HERO.shape}">
