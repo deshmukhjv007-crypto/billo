@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Myna — real-time AI interview coach</title>
+<meta name="description" content="Live transcription, question detection, resume-aware answers, coding help, mock interviews and a post-interview debrief." />
+<link rel="stylesheet" href="/styles.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦜</text></svg>" />
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="logo">
+      <div class="mark">🦜</div>
+      <div>
+        <h1>Myna</h1>
+        <div class="sub">real-time interview coach</div>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="setup" aria-selected="true">Setup</button>
+      <button role="tab" data-tab="live" aria-selected="false">Live</button>
+      <button role="tab" data-tab="mock" aria-selected="false">Mock</button>
+      <button role="tab" data-tab="coding" aria-selected="false">Coding</button>
+      <button role="tab" data-tab="debrief" aria-selected="false">Debrief</button>
+    </nav>
+    <span class="pill" id="enginePill"><span class="dot"></span><span id="engineTxt">engine idle</span></span>
+  </header>
+
+  <div class="notice info" style="margin-bottom:16px">
+    <strong>Use it straight.</strong> Myna is built for practice rounds, mock interviews, transcription you are
+    entitled to make, and post-interview review. It has no stealth layer: it does not hide from screen shares,
+    process lists or proctoring software, and it must not be used in an assessment whose rules forbid assistance.
+    <a href="#policy" id="policyLink">Read the policy</a>.
+  </div>
+
+  <!-- ================= SETUP ================= -->
+  <section data-pane="setup">
+    <div class="live-grid">
+      <div>
+        <div class="panel">
+          <h2>Interview context</h2>
+          <p class="hint">Everything here is injected into the prompt so answers are yours, not generic. Stored in this browser only.</p>
+          <div class="grid c2">
+            <div><label class="fld" for="pName">Your name</label><input id="pName" type="text" placeholder="Aditi Sharma" /></div>
+            <div><label class="fld" for="pRole">Role</label><input id="pRole" type="text" placeholder="Senior Backend Engineer" /></div>
+            <div><label class="fld" for="pCompany">Company</label><input id="pCompany" type="text" placeholder="Zeta Payments" /></div>
+            <div><label class="fld" for="pLang">Interview language</label>
+              <select id="pLang">
+                <option value="en-IN">English (India)</option>
+                <option value="en-US">English (US)</option>
+                <option value="en-GB">English (UK)</option>
+                <option value="hi-IN">हिन्दी (India)</option>
+                <option value="mr-IN">मराठी (India)</option>
+                <option value="de-DE">Deutsch</option>
+                <option value="fr-FR">Français</option>
+                <option value="es-ES">Español</option>
+                <option value="pt-BR">Português (BR)</option>
+                <option value="ja-JP">日本語</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:12px">
+            <label class="fld" for="pResume">Resume (paste, or drop a .txt / .md file)</label>
+            <textarea id="pResume" class="tall" placeholder="Paste your resume text. Real bullets with real numbers make the answers land."></textarea>
+            <div class="row" style="margin-top:8px">
+              <input type="file" id="pResumeFile" accept=".txt,.md,.text,text/plain" class="btn sm" style="max-width:280px" />
+              <span class="spacer"></span>
+              <button class="btn sm" id="loadSample">Load a sample resume</button>
+            </div>
+          </div>
+          <div style="margin-top:12px">
+            <label class="fld" for="pJd">Job description (optional)</label>
+            <textarea id="pJd" placeholder="Paste the JD — it sharpens 'why this role' and technical answers."></textarea>
+          </div>
+          <div style="margin-top:12px">
+            <label class="fld" for="pExtra">Anything else the coach should know</label>
+            <input id="pExtra" type="text" placeholder="e.g. nervous about system design; 2 years of Go; leaving because of RTO" />
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="panel">
+          <h2>AI model</h2>
+          <p class="hint">Any OpenAI-compatible endpoint. The key stays in this browser and is sent per request to the local Myna server, which forwards it. Works with OpenAI, OpenRouter, Groq, Together, or a local Ollama / LM Studio.</p>
+          <label class="fld" for="aiEndpoint">Base URL</label>
+          <input id="aiEndpoint" type="url" placeholder="https://api.openai.com/v1" />
+          <div style="height:10px"></div>
+          <label class="fld" for="aiKey">API key</label>
+          <input id="aiKey" type="password" placeholder="sk-…  (leave blank for local Ollama)" />
+          <div style="height:10px"></div>
+          <label class="fld" for="aiModel">Model</label>
+          <input id="aiModel" type="text" placeholder="gpt-4o-mini" />
+          <div class="row" style="margin-top:12px">
+            <button class="btn primary" id="testAi">Test connection</button>
+            <span class="spacer"></span>
+            <span class="pill" id="aiPill"><span class="dot"></span><span id="aiPillTxt">not tested</span></span>
+          </div>
+          <div id="aiTestOut" class="notice hidden" style="margin-top:12px"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Transcription</h2>
+          <p class="hint">Browser speech recognition runs on-device/in-browser and needs Chrome or Edge. If your browser blocks it, paste transcripts manually or upload a recording for Whisper.</p>
+          <div class="row">
+            <button class="btn" id="testMic">Test microphone</button>
+            <span class="pill" id="sttPill"><span class="dot"></span><span id="sttPillTxt">not tested</span></span>
+          </div>
+          <div style="margin-top:12px">
+            <label class="fld" for="audioFile">Or transcribe a recording (Whisper, needs an endpoint with /audio/transcriptions)</label>
+            <input type="file" id="audioFile" accept="audio/*" class="btn sm" style="max-width:100%" />
+            <div class="row" style="margin-top:8px"><button class="btn sm" id="doTranscribe">Transcribe file</button></div>
+          </div>
+        </div>
+
+        <div class="panel" id="policy">
+          <h2>Usage policy</h2>
+          <p class="hint" style="margin-bottom:8px">What Myna will and will not do.</p>
+          <ul style="color:var(--muted); font-size:13.5px; padding-left:20px; margin:0">
+            <li>Built for mock interviews, prep, drills, transcription you are allowed to make, and after-the-fact review.</li>
+            <li>No anti-detection, no screen-share hiding, no proctoring evasion. None is planned.</li>
+            <li>Never use it where the rules forbid assistance — proctored tests, take-home assessments, or an employer that bans AI. Getting caught costs the offer and the reference.</li>
+            <li>Recording a call you are on is your responsibility: consent and wiretap law vary by country and state.</li>
+            <li>Your resume, transcript and key never leave your machine except to the endpoint you configure.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= LIVE ================= -->
+  <section data-pane="live" class="hidden">
+    <div class="panel">
+      <div class="row">
+        <button class="btn primary" id="btnListen">● Start listening</button>
+        <button class="btn" id="btnStop" disabled>■ Stop</button>
+        <span class="pill" id="clockPill"><span class="dot"></span><span id="clock">00:00</span></span>
+        <div class="spacer"></div>
+        <span style="font-size:12.5px;color:var(--muted)">Who is talking:</span>
+        <button class="btn sm" id="spkInterviewer">🎧 Interviewer</button>
+        <button class="btn sm" id="spkCandidate">🗣 You</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <label style="font-size:13px;color:var(--muted)"><input type="checkbox" id="autoAnswer" /> Auto-answer each detected question</label>
+        <label style="font-size:13px;color:var(--muted)"><input type="checkbox" id="overlayOn" checked /> Floating overlay</label>
+        <div class="spacer"></div>
+        <span style="font-size:12.5px;color:var(--muted)">Mic level</span>
+        <div class="level" style="width:120px"><i id="micLevel"></i></div>
+      </div>
+      <div style="margin-top:10px">
+        <label class="fld" for="manualIn">No mic? Paste or type what was just said, then press Enter</label>
+        <div class="row">
+          <input id="manualIn" type="text" placeholder="Tell me about a time you handled a production outage" style="flex:1" />
+          <button class="btn sm" id="manualAdd">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="live-grid">
+      <div class="panel">
+        <h2>Transcript</h2>
+        <p class="hint">Live. Interim results show greyed until they settle.</p>
+        <div id="transcript"><div class="turn"><div class="who">waiting</div>Start listening, or type above.</div></div>
+      </div>
+      <div>
+        <div class="panel">
+          <h2>Questions detected <span class="pill" id="qCount" style="margin-left:6px">0</span></h2>
+          <p class="hint">Tap <em>Answer</em> for a resume-aware reply. <span class="kbd">A</span> answers the latest.</p>
+          <div id="qList"><div class="q" style="border-left-color:var(--line)"><div class="txt" style="margin:0;color:var(--muted)">Nothing yet.</div></div></div>
+        </div>
+        <div class="panel">
+          <h2>Answer</h2>
+          <div id="answerOut"><span style="color:var(--muted)">Your answer will appear here.</span></div>
+          <div class="row" style="margin-top:10px">
+            <button class="btn sm" id="copyAnswer">Copy</button>
+            <button class="btn sm" id="regenAnswer">Regenerate</button>
+            <button class="btn sm" id="toOverlay">Send to overlay</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= MOCK ================= -->
+  <section data-pane="mock" class="hidden">
+    <div class="live-grid">
+      <div class="panel">
+        <h2>Mock interview</h2>
+        <p class="hint">Myna plays the interviewer: one question at a time, feedback on your answer, then it raises the difficulty.</p>
+        <div class="row">
+          <label class="fld" for="mockKind">Question type</label>
+          <select id="mockKind">
+            <option value="behavioral">Behavioral (STAR)</option>
+            <option value="technical">Technical concepts</option>
+            <option value="system-design">System design</option>
+            <option value="coding">Coding</option>
+            <option value="situational">Situational</option>
+            <option value="company">Company / motivation</option>
+            <option value="logistics">Logistics &amp; salary</option>
+            <option value="mixed">Mixed round</option>
+          </select>
+          <label class="fld" for="mockFocus" style="flex:1;min-width:180px">Focus</label>
+          <input id="mockFocus" type="text" placeholder="e.g. payments scale, incident response" style="flex:2" />
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn primary" id="mockStart">Start round</button>
+          <button class="btn" id="mockNext" disabled>Next question</button>
+          <button class="btn" id="mockMic">🎙 Answer by voice</button>
+          <span class="pill" id="mockPill"><span class="dot"></span><span id="mockPillTxt">idle</span></span>
+        </div>
+        <div style="margin-top:12px">
+          <label class="fld" for="mockAnswer">Your answer</label>
+          <textarea id="mockAnswer" class="tall" placeholder="Answer out loud with the mic, or type it here."></textarea>
+          <div class="row" style="margin-top:8px"><button class="btn sm" id="mockSubmit">Submit answer</button></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Coach</h2>
+        <div id="mockOut" class="md"><span style="color:var(--muted)">Start a round to begin.</span></div>
+        <div style="margin-top:14px">
+          <h2 style="font-size:14px;color:var(--muted);margin:0 0 6px">Questions so far <span class="pill" id="mockCount">0</span></h2>
+          <div id="mockList"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CODING ================= -->
+  <section data-pane="coding" class="hidden">
+    <div class="live-grid">
+      <div class="panel">
+        <h2>Coding problem</h2>
+        <p class="hint">Paste the problem statement — from a shared screen, an email, or your notes. Myna gives the approach, working code, complexity and edge cases.</p>
+        <textarea id="codeProblem" class="tall" placeholder="Given an array of integers and a target, return indices of the two numbers that add up to the target…"></textarea>
+        <div class="grid c2" style="margin-top:12px">
+          <div><label class="fld" for="codeLang">Language</label>
+            <select id="codeLang">
+              <option value="">Auto</option><option>Python</option><option>JavaScript</option><option>TypeScript</option>
+              <option>Java</option><option>Go</option><option>C++</option><option>C#</option><option>Rust</option><option>SQL</option>
+            </select>
+          </div>
+          <div><label class="fld" for="codeNotes">Your attempt so far (optional)</label><input id="codeNotes" type="text" placeholder="I tried a two-pointer sort but it fails duplicates" /></div>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn primary" id="codeRun">Solve it</button>
+          <button class="btn sm" id="codeExplain">Explain the approach only</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Solution</h2>
+        <div id="codeOut" class="md"><span style="color:var(--muted)">Run a problem to see the solution.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= DEBRIEF ================= -->
+  <section data-pane="debrief" class="hidden">
+    <div class="panel">
+      <div class="row">
+        <h2 style="margin:0">Post-interview debrief</h2>
+        <div class="spacer"></div>
+        <button class="btn sm" id="runDebrief">Generate AI debrief</button>
+        <button class="btn sm" id="exportMd">Export .md</button>
+        <button class="btn sm" id="exportJson">Export .json</button>
+      </div>
+      <p class="hint" style="margin-top:6px">Computed from the transcript in the Live tab — talk share, pace, fillers, hedging, ownership, and STAR coverage per answer. No key needed for the numbers.</p>
+      <div class="grid c3" id="metricGrid"></div>
+    </div>
+    <div class="grid c2">
+      <div class="panel"><h2>What to fix</h2><div id="tipList"></div></div>
+      <div class="panel"><h2>Per-question breakdown</h2><div style="overflow-x:auto"><table class="qa" id="qaTable"><thead><tr><th>#</th><th>Question</th><th>Words</th><th>STAR</th></tr></thead><tbody></tbody></table></div></div>
+    </div>
+    <div class="panel"><h2>AI debrief</h2><div id="debriefOut" class="md"><span style="color:var(--muted)">Answer a few questions in the Live tab, then generate.</span></div></div>
+  </section>
+
+  <footer>Myna 0.1.0 — runs entirely on your machine plus the AI endpoint you choose. No account, no telemetry, no recordings stored.</footer>
+</div>
+
+<div id="overlay">
+  <div class="oh" id="overlayHead">🦜 Myna overlay <div class="spacer"></div><button class="btn sm ghost" id="overlayClose">✕</button></div>
+  <div class="ob" id="overlayBody">—</div>
+</div>
+
+<script type="module" src="/app.js"></script>
+</body>
+</html>

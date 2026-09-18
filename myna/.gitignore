@@ -1,0 +1,4 @@
+node_modules/
+.uitmp/
+*.log
+.DS_Store
