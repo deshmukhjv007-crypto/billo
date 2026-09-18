@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   isQuestion, splitSentences, extractQuestions, classifyQuestion,
-  isQuestionSettled, stripLeadNoise, lastQuestion,
+  isQuestionSettled, stripLeadNoise, lastQuestion, findQuestionClause,
 } from '../lib/detect.js';
 import {
   analyzeSession, starCoverage, countWords, countPhrase, pairQuestionsWithAnswers, buildTips,
@@ -44,6 +44,50 @@ test('isQuestion rejects ordinary statements', () => {
   assert.equal(isQuestion('I worked on the payments team for three years.'), false);
   assert.equal(isQuestion('We shipped the migration in March.'), false);
   assert.equal(isQuestion('The latency dropped by 40 percent.'), false);
+});
+
+test('findQuestionClause digs a question out of unpunctuated ASR speech', () => {
+  // Real Web Speech / Whisper chunks arrive as one flat fragment with no '?'.
+  // It takes the last starter, so "…can you tell me about…" yields the cleaner "tell me about…".
+  assert.equal(
+    findQuestionClause('so moving on can you tell me about a time you failed'),
+    'tell me about a time you failed',
+  );
+  assert.equal(
+    findQuestionClause('alright and how would you design a rate limiter for this'),
+    'how would you design a rate limiter for this',
+  );
+  // takes the LAST starter when the clause compounds ("let's say … walk me through …")
+  assert.equal(
+    findQuestionClause("okay let's say production is on fire walk me through your first ten minutes"),
+    'walk me through your first ten minutes',
+  );
+  // an indirect ask ("tell me why you want to leave") is still worth answering
+  assert.equal(
+    findQuestionClause('before we wrap up tell me why you want to leave your current role'),
+    'why you want to leave your current role',
+  );
+});
+
+test('findQuestionClause ignores statements, chatter and whole-fragment questions', () => {
+  // statement about something, not an ask
+  assert.equal(findQuestionClause('let me explain how we scaled the service'), null);
+  assert.equal(findQuestionClause('what we do here'), null);
+  // trailing wh-word with no substance
+  assert.equal(findQuestionClause('that is how'), null);
+  // ordinary chat
+  assert.equal(findQuestionClause('I worked on the payments team for three years'), null);
+  // whole-fragment questions are isQuestion's job — clause extraction stays out of the way
+  assert.equal(findQuestionClause('tell me about yourself'), null);
+  assert.equal(findQuestionClause('Tell me about yourself?'), null);
+  assert.equal(findQuestionClause(''), null);
+  assert.equal(findQuestionClause(null), null);
+});
+
+test('a clause dug out of ASR speech classifies like a real question', () => {
+  assert.equal(classifyQuestion(findQuestionClause('so moving on can you tell me about a time you failed')), 'behavioral');
+  assert.equal(findQuestionClause('next question what is your expected ctc'), 'what is your expected ctc');
+  assert.equal(classifyQuestion(findQuestionClause('next question what is your expected ctc')), 'logistics');
 });
 
 test('classifyQuestion routes to the right scaffold', () => {
