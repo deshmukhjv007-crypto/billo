@@ -1,0 +1,14 @@
+{
+  "name": "hire-rest-v5",
+  "version": "5.0.0",
+  "private": true,
+  "description": "Portfolio one-pager: particle-ink drawings + a two-layer grain engine. Zero dependencies.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "build": "node build.js",
+    "dev": "node build.js && node server.js",
+    "test": "node --test --test-force-exit"
+  },
+  "engines": { "node": ">=18" }
+}
