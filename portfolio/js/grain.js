@@ -56,7 +56,7 @@ export const DEFAULTS = {
   /* layer 2 — canvas noise sprite, held still unless you ask for motion */
   filmOn: true,
   filmOpacity: 0.9,
-  filmAnimate: false,   // <- OFF by default. See the note above animateFrames().
+  filmAnimate: false,   // <- OFF by default. See the note on _applyMotion().
   tile: 180,            // px per noise frame
   frames: 8,            // frames in the sprite sheet
   fps: 12,              // cadence when animation is on
