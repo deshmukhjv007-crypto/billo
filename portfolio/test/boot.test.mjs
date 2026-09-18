@@ -10,6 +10,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import { installDOM } from './dom-stub.js';
 
 const ROOT = path.join(import.meta.dirname, '..');
@@ -255,6 +256,80 @@ test('app: image art falls back to a drawing when there is no JS to ink it', asy
   const written = Object.keys(TEXT_ART)[0];
   assert.ok(blueprint(written).includes('<svg class="blueprint"'), 'text shapes still need their SVG');
   assert.equal(blueprint('no-such-shape'), '', 'an unknown shape must render nothing at all');
+});
+
+test('photo: dimensions are read from the header, without decoding', async () => {
+  /* The build tells the user their photo is 4032x3024 and should probably be
+     smaller. That number comes from the file header — no image library, no
+     dependency. Parsing headers is exactly the kind of code that works on the
+     happy path and fails on real photographs, so the awkward cases are here. */
+  const { describePhoto } = await import('../photo.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'photo-'));
+  const put = (name, ...bytes) => { const f = path.join(dir, name); fs.writeFileSync(f, Buffer.from(bytes.flat())); return f; };
+  const be32 = n => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+  const be16 = n => [(n >>> 8) & 255, n & 255];
+
+  /* PNG: signature then IHDR */
+  const png = put('a.png', [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+    be32(13), [...Buffer.from('IHDR')], be32(1200), be32(1600), [8, 6, 0, 0, 0], be32(0));
+
+  /* JPEG: SOI, then DHT *before* the frame header. DHT (0xC4) sits inside the
+     SOF range, and mistaking it for a frame header is the classic way these
+     parsers report a height of 0 — or a height of 383. */
+  const jpeg = put('b.jpg', [0xff, 0xd8],
+    [0xff, 0xc4], be16(20), Array(18).fill(0),
+    [0xff, 0xc0], be16(17), [8], be16(3024), be16(4032), [3], Array(9).fill(0),
+    [0xff, 0xd9]);
+
+  /* WebP/VP8X: canvas size is stored as 24-bit little-endian, minus one */
+  const webp = put('c.webp', [...Buffer.from('RIFF')], be32(40), [...Buffer.from('WEBP')],
+    [...Buffer.from('VP8X')], be32(10), [0, 0, 0, 0],
+    [319 & 255, (319 >> 8) & 255, (319 >> 16) & 255],      // canvas width - 1
+    [159 & 255, (159 >> 8) & 255, (159 >> 16) & 255]);     // canvas height - 1
+
+  const a = describePhoto(png), b = describePhoto(jpeg), c = describePhoto(webp);
+  assert.deepEqual([a.format, a.width, a.height], ['png', 1200, 1600]);
+  assert.deepEqual([b.format, b.width, b.height], ['jpeg', 4032, 3024], 'the DHT segment was mistaken for a frame header');
+  assert.deepEqual([c.format, c.width, c.height], ['webp', 320, 160], 'VP8X is 24-bit, little-endian, off by one');
+
+  /* nothing here may throw, whatever it is handed */
+  const junk = put('d.bin', Array(64).fill(0x42));
+  const empty = put('e.png', []);
+  const cut = put('f.jpg', [0xff, 0xd8, 0xff, 0xc0, 0x00]);
+  assert.equal(describePhoto(junk).format, 'unknown');
+  assert.deepEqual([describePhoto(empty).width, describePhoto(empty).height], [0, 0]);
+  assert.deepEqual([describePhoto(cut).width, describePhoto(cut).height], [0, 0]);
+  assert.equal(describePhoto(path.join(dir, 'does-not-exist.jpg')), null);
+
+  assert.equal(a.bytes, fs.statSync(png).size, 'the reported size is not the file size');
+});
+
+test('photo: a photo the build will ignore is named, with the reason', async () => {
+  /* Somebody drops their picture in assets/ and the site still shows a
+     monogram. That is the moment this exists for: no silence, no guessing. */
+  const { photoNearMisses } = await import('../photo.js');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'site-'));
+  fs.mkdirSync(path.join(root, 'assets'));
+  const touch = n => fs.writeFileSync(path.join(root, 'assets', n), 'x');
+
+  assert.deepEqual(photoNearMisses(root), [], 'an empty assets folder reported a problem');
+  assert.deepEqual(photoNearMisses(root, null).length, 0);
+
+  touch('IMG_4821.jpg');            // right format, wrong name
+  touch('me.heic');                 // right idea, undecodable
+  touch('jayesh.jpg');              // exactly right — must not be reported
+  touch('README.md');               // not a photo at all
+  touch('resume.pdf');
+
+  const misses = photoNearMisses(root);
+  assert.deepEqual(misses.map(m => m.file), ['IMG_4821.jpg', 'me.heic']);
+  assert.equal(misses.find(m => m.file === 'IMG_4821.jpg').reason, 'unexpected-name');
+  assert.equal(misses.find(m => m.file === 'me.heic').reason, 'undecodable');
+  assert.ok(!misses.some(m => m.file === 'jayesh.jpg'), 'a usable photo was reported as a problem');
+  assert.ok(!misses.some(m => m.file.endsWith('.md') || m.file.endsWith('.pdf')), 'non-images were reported');
+
+  /* a folder that does not exist is not an error */
+  assert.deepEqual(photoNearMisses(path.join(root, 'nowhere')), []);
 });
 
 test('portrait: the hero looks for the same photo the build does, in the same order', async () => {

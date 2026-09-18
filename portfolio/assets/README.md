@@ -14,10 +14,33 @@ assets/jayesh.avif
 assets/photo.jpg       ← also checked, as is portrait.* and me.*
 ```
 
+**HEIC does not work.** It is what iPhones produce by default, and no browser
+will decode it — so a `.heic` file is never picked up. The build will spot it and
+say so, but the fix is to export a JPEG first (on a Mac: `sips -s format jpeg
+IMG_1234.HEIC --out jayesh.jpg`; on a phone, most share sheets offer "Most
+Compatible" when sending).
+
 Then:
 
 ```bash
 npm run build
+```
+
+The build tells you what it did with the file, and what it noticed about it:
+
+```
+  portrait     jayesh.jpg 4032x3024, 4200 kB — the hero inks it into particles
+               note: 4.1 MB is heavy for a hero image;
+               resizing to ~1600px on the long edge would not be visible here
+```
+
+And if it *cannot* use what it finds, it says so rather than quietly drawing the
+monogram anyway:
+
+```
+  portrait     inked monogram — the hero becomes your face in dots once there is a photo
+               found assets/IMG_4821.jpg, which is not a name the build looks for.
+               Rename it to jayesh.jpg, or set PERSON.photo in resume.js.
 ```
 
 The hero will swap the inked **JD** monogram for your picture. Until a file

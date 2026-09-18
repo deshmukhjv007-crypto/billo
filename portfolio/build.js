@@ -14,7 +14,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as C from './content.js';
 import { PERSON, SUMMARY, SKILLS, EDUCATION, CERTIFICATIONS, ACHIEVEMENTS } from './resume.js';
-import { findPhoto } from './photo.js';
+import { findPhoto, photoNearMisses, describePhoto } from './photo.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -379,6 +379,54 @@ ${C.ROLES.map(role).join('\n')}
 
 fs.writeFileSync(path.join(__dirname, 'index.html'), html);
 console.log(`  index.html   ${(html.length / 1024).toFixed(1)} kB · ${C.ROLES.length} roles · ${SKILLS.length} skill groups · ${ACHIEVEMENTS.length} achievements`);
-console.log(`  portrait     ${photo
-  ? `${path.basename(photo)} — the hero will ink it into particles (js/portrait.js)`
-  : 'inked monogram — drop a photo in assets/ and the hero becomes your face in dots (see assets/README.md)'}`);
+/**
+ * Say what happened to the photograph, and — when there isn't one — say why the
+ * file sitting in assets/ was ignored. "No photo found" in answer to somebody
+ * who has just dropped a photo in the folder is the worst possible reply.
+ */
+function portraitReport() {
+  if (photo) {
+    const d = describePhoto(path.join(__dirname, photo));
+    const facts = d && d.width
+      ? ` ${d.width}x${d.height}, ${(d.bytes / 1024).toFixed(0)} kB`
+      : '';
+    console.log(`  portrait     ${path.basename(photo)}${facts} — the hero inks it into particles`);
+
+    if (d && d.width) {
+      const short = Math.min(d.width, d.height);
+      const long = Math.max(d.width, d.height);
+      if (short < 320) {
+        console.log(`               note: ${short}px is small for a portrait — the halftone will be coarse`);
+      }
+      if (d.bytes > 1.5 * 1024 * 1024) {
+        console.log(`               note: ${(d.bytes / 1024 / 1024).toFixed(1)} MB is heavy for a hero image;`);
+        console.log(`               resizing to ~1600px on the long edge would not be visible here`);
+      }
+      if (long / short > 1.6) {
+        console.log(`               note: ${(long / short).toFixed(1)}:1 is cropped to a square from the`);
+        console.log(`               upper middle, so a tall photo loses some of its lower half`);
+      }
+      if (d.format && d.format !== 'jpeg' && d.format !== 'png' && d.format !== 'webp') {
+        console.log(`               note: browsers may not decode ${d.format} — jpg is the safe choice`);
+      }
+    }
+    return;
+  }
+
+  console.log('  portrait     inked monogram — the hero becomes your face in dots once there is a photo');
+  const misses = photoNearMisses(__dirname, C.ME.photo);
+  for (const m of misses) {
+    if (m.reason === 'undecodable') {
+      console.log(`               found assets/${m.file}, which no browser can decode.`);
+      console.log(`               Convert it first:  sips -s format jpeg "${m.file}" --out jayesh.jpg`);
+      console.log(`               (on Windows/Linux, any "export as JPEG" will do.)`);
+    } else {
+      console.log(`               found assets/${m.file}, which is not a name the build looks for.`);
+      console.log(`               Rename it to jayesh.jpg, or set PERSON.photo in resume.js.`);
+    }
+  }
+  if (!misses.length) {
+    console.log('               drop one in as assets/jayesh.jpg — see assets/README.md');
+  }
+}
+portraitReport();
