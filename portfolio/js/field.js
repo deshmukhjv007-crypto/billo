@@ -77,7 +77,7 @@ function fromPaths(paths, S = 260, lw = 7) {
     for (const d of paths) { try { g.stroke(new Path2D(d)); } catch (_) { /* skip bad path */ } }
     g.restore();
   }, S, S);
-  return finish(sampleCanvas(c, S, S), 1);
+  return budgetPoints(sampleCanvas(c, S, S), 1);
 }
 
 function fromText(spec, S = 260) {
@@ -85,22 +85,41 @@ function fromText(spec, S = 260) {
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const g = c.getContext('2d');
-  if (!g) return finish([], W / H);
+  if (!g) return budgetPoints([], W / H);
   g.fillStyle = '#fff';
   g.font = spec.font;
   g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillText(spec.text, W / 2, H / 2);
-  return finish(sampleCanvas(c, W, H), W / H);
+  return budgetPoints(sampleCanvas(c, W, H), W / H);
 }
 
 /** Shuffle, cap to COUNT, then sort into rough scanline order so morphs sweep. */
-function finish(pts, aspect) {
+/**
+ * Fit a raw point set to the particle budget. Pure apart from the shuffle.
+ *
+ * Order matters here, and getting it wrong is visible:
+ *
+ *   shuffle  so a cut is a UNIFORM sample of the whole drawing, not the first
+ *            path / the top of the image
+ *   slice    to the budget, so every particle has a dot of its own
+ *   sort     by scanline, which is what the per-particle stagger in applyShape
+ *            turns into the ink-on sweep
+ *
+ * Skipping the shuffle drops everything past the budget: for path art that
+ * loses whole strokes, for a photograph it silently deletes the bottom of the
+ * face. Skipping the sort leaves the portrait fading in as random scatter.
+ *
+ * @param {Array} pts   candidate points, mutated and consumed
+ * @param {number} aspect  width / height of the intended composition
+ * @param {number} max  particle budget; defaults to this device's COUNT
+ */
+export function budgetPoints(pts, aspect, max = COUNT) {
   if (!pts.length) pts = [{ u: 0.5, v: 0.5, c: 0, w: 1 }];
   for (let i = pts.length - 1; i > 0; i--) {
     const j = (Math.random() * (i + 1)) | 0;
     [pts[i], pts[j]] = [pts[j], pts[i]];
   }
-  const cut = pts.slice(0, Math.max(COUNT, 1200));
+  const cut = pts.slice(0, Math.max(max, 1200));
   cut.sort((a, b) => (a.v * 6 + a.u) - (b.v * 6 + b.u));
   return { pts: cut, aspect };
 }
@@ -128,9 +147,13 @@ function loadImageShape(name) {
   loadPortrait(spec).then(res => {
     imageLoading.delete(name);
     if (!res || !res.pts.length) return;                  // no photo → keep the drawn art
-    shapeCache.set(name, { pts: res.pts, aspect: res.aspect });
-    if (currentName === name) { shape = shapeCache.get(name); applyShape(shape); }
-    bus.emit('art', { name, points: res.pts.length, src: res.src });
+    /* Through the same budget as the drawn art. A photograph arrives with more
+       candidates than this device has particles, and the cut has to be uniform
+       across the whole frame — see budgetPoints(). */
+    const fitted = budgetPoints(res.pts, res.aspect);
+    shapeCache.set(name, fitted);
+    if (currentName === name) { shape = fitted; applyShape(fitted); }
+    bus.emit('art', { name, points: fitted.pts.length, src: res.src });
   }).catch(() => { imageLoading.delete(name); });
 }
 
@@ -261,6 +284,8 @@ export const field = {
   },
 
   start, stop,
+  /** How many particles this device gets. */
+  budget: () => COUNT,
   get stats() { return { count: COUNT, drawn: Math.ceil(COUNT / stride), fps: Math.round(1000 / Math.max(1, frameEMA)), stride }; }
 };
 

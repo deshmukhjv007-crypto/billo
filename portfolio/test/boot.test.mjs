@@ -287,6 +287,54 @@ test('portrait: the hero looks for the same photo the build does, in the same or
   if (found) assert.ok(sources.includes(found), `the build found ${found}, which the browser never tries`);
 });
 
+test('field: fitting art to the particle budget keeps the whole composition', async () => {
+  /* The budget is per device (4200 with a fine pointer, 2400 without), and a
+     photograph arrives with far more candidates than either. The cut must be a
+     uniform sample of the WHOLE frame: taking the first N in sampling order
+     silently deletes the bottom of the face on smaller screens, and taking them
+     unsorted leaves the portrait fading in as random scatter instead of a
+     scanline sweep. */
+  const { budgetPoints } = await import('../js/field.js');
+  const grid = (cols, rows) => {
+    const pts = [];
+    for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+      pts.push({ u: (i + 0.5) / cols, v: (j + 0.5) / rows, c: 0, w: 1 });
+    }
+    return pts;
+  };
+
+  const fitted = budgetPoints(grid(60, 60), 1, 2400);
+  assert.equal(fitted.pts.length, 2400, 'the budget was not respected');
+  /* a budget below the floor still yields the floor: the field is never
+     allowed to degrade into a sparse sprinkle */
+  assert.equal(budgetPoints(grid(60, 60), 1, 900).pts.length, 1200, 'the minimum was not applied');
+  const v = fitted.pts.map(p => p.v);
+  assert.ok(Math.min(...v) < 0.05, `the top of the frame was dropped (min v ${Math.min(...v).toFixed(3)})`);
+  assert.ok(Math.max(...v) > 0.95, `the bottom of the frame was dropped (max v ${Math.max(...v).toFixed(3)})`);
+
+  /* and the thinning itself must be even, not concentrated in one region */
+  const band = (lo, hi) => fitted.pts.filter(p => p.v >= lo && p.v < hi).length;
+  const bands = [band(0, .2), band(.2, .4), band(.4, .6), band(.6, .8), band(.8, 1)];
+  assert.ok(Math.min(...bands) > fitted.pts.length * 0.15, `uneven thinning across the frame: ${bands.join('/')}`);
+
+  /* sorted by scanline, which is what makes the ink-on sweep read as a sweep */
+  const key = p => p.v * 6 + p.u;
+  for (let i = 1; i < fitted.pts.length; i++) {
+    assert.ok(key(fitted.pts[i]) >= key(fitted.pts[i - 1]) - 1e-9, `not in scanline order at ${i}`);
+  }
+});
+
+test('field: a point set smaller than the budget is used whole', async () => {
+  const { budgetPoints } = await import('../js/field.js');
+  const small = Array.from({ length: 300 }, (_, i) => ({ u: (i % 20) / 20, v: Math.floor(i / 20) / 15, c: 0, w: 1 }));
+  const fitted = budgetPoints(small, 2.5, 4200);
+  assert.equal(fitted.pts.length, 300, 'points were invented to fill the budget');
+  assert.equal(fitted.aspect, 2.5, 'the aspect was not carried through');
+  /* an empty set must still yield a shape, or the field has nothing to draw */
+  const empty = budgetPoints([], 1, 4200);
+  assert.equal(empty.pts.length, 1, 'an empty point set left the field with no shape at all');
+});
+
 test('field: image art that never loads leaves the drawn shape in place', async () => {
   /* Sampling a photograph is async. If it fails — no file, no decoder — the
      field must simply carry on with whatever it was already drawing and must
