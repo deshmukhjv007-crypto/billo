@@ -8,7 +8,11 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import path from 'node:path';
+import fs from 'node:fs';
 import { installDOM } from './dom-stub.js';
+
+const ROOT = path.join(import.meta.dirname, '..');
 
 const errors = [];
 process.on('uncaughtException', e => errors.push('uncaughtException: ' + e.message));
@@ -19,8 +23,8 @@ const dom = installDOM();
 /* ---------------------------------------------------------------- content */
 
 test('content.js: every role points at art that exists', async () => {
-  const { ROLES, ART, TEXT_ART, HERO, ABOUT, CONTACT, RESUME } = await import('../content.js');
-  const known = k => k in ART || k in TEXT_ART;
+  const { ROLES, ART, TEXT_ART, IMAGE_ART, HERO, ABOUT, CONTACT, RESUME } = await import('../content.js');
+  const known = k => k in ART || k in TEXT_ART || k in IMAGE_ART;
   for (const r of ROLES) {
     assert.ok(known(r.art), `${r.id}: art "${r.art}" is not in ART/TEXT_ART`);
     assert.ok(r.name && r.kicker && r.sub && r.role && r.when, `${r.id}: missing copy`);
@@ -228,6 +232,76 @@ test('app: the whole page boots without throwing', async () => {
   assert.ok(dom.h1.childNodes.length >= 1, 'split produced nothing');
   assert.ok(dom.stage.innerHTML.includes('<svg class="blueprint"'), 'blueprint art not injected');
   assert.ok(dom.stage.innerHTML.includes('pathLength="1"'), 'draw-on needs normalised path length');
+});
+
+test('app: image art falls back to a drawing when there is no JS to ink it', async () => {
+  /* The blueprint is what a reader with JavaScript off sees. There is no field
+     to ink a photograph into dots, so image art falls back to a drawn shape
+     rather than repeating the picture the hero already frames. */
+  const { blueprint } = await import('../js/app.js');
+  const { IMAGE_ART, ART, TEXT_ART } = await import('../content.js');
+
+  const img = blueprint('portrait');
+  assert.match(img, /<svg class="blueprint"/, 'image art must fall back to the drawn shape');
+  assert.ok(!img.includes('<img'), 'the photograph must not be drawn twice');
+  assert.ok(img.includes('pathLength="1"'), 'the fallback drawing needs its draw-on length');
+  assert.ok(IMAGE_ART.portrait.fallback, 'image art must declare what to draw when it cannot be sampled');
+  assert.ok(IMAGE_ART[IMAGE_ART.portrait.fallback] || ART[IMAGE_ART.portrait.fallback],
+    `the fallback shape "${IMAGE_ART.portrait.fallback}" does not exist`);
+
+  /* and it must not have stolen the drawn shapes' behaviour */
+  const drawn = Object.keys(ART)[0];
+  assert.ok(blueprint(drawn).includes('<svg class="blueprint"'), 'drawn shapes still need their SVG');
+  const written = Object.keys(TEXT_ART)[0];
+  assert.ok(blueprint(written).includes('<svg class="blueprint"'), 'text shapes still need their SVG');
+  assert.equal(blueprint('no-such-shape'), '', 'an unknown shape must render nothing at all');
+});
+
+test('portrait: the hero looks for the same photo the build does, in the same order', async () => {
+  /* These two lists disagreeing is not a cosmetic bug: the build would report a
+     portrait and the browser would fall back to a monogram, with no error
+     anywhere. They are generated from one shared constant, and this checks it. */
+  const { IMAGE_ART } = await import('../content.js');
+  const { PERSON } = await import('../resume.js');
+  const { photoSources } = await import('../js/photo-names.js');
+  const { findPhoto } = await import('../photo.js');
+
+  const { sources } = IMAGE_ART.portrait;
+  assert.ok(sources.length > 1, 'there should be conventional filenames to fall back on');
+  assert.equal(new Set(sources).size, sources.length, 'the source list repeats itself');
+  assert.ok(sources.every(s => typeof s === 'string' && s.length), 'a source is empty');
+  assert.deepEqual(sources, photoSources(), 'the browser list drifted from the shared one');
+
+  /* Walk the list the way the loader does — <img> tries each source in turn —
+     and check the browser lands on the same file the build already picked.
+     Note findPhoto() cannot be used per-source here: given an explicit path it
+     falls back to the conventional stems, so it would answer "yes, somewhere"
+     for every candidate. Ask the disk instead. */
+  const firstOnDisk = sources.find(src => fs.existsSync(path.join(ROOT, src.replace(/^\.\//, ''))));
+  assert.equal(firstOnDisk ?? null, findPhoto(ROOT, PERSON.photo),
+    'the build and the browser would pick different files as the portrait');
+
+  if (PERSON.photo) assert.equal(sources[0], PERSON.photo, 'a configured photo path must be tried first');
+  /* whatever the build found must be a path the browser actually tries */
+  const found = findPhoto(ROOT, PERSON.photo);
+  if (found) assert.ok(sources.includes(found), `the build found ${found}, which the browser never tries`);
+});
+
+test('field: image art that never loads leaves the drawn shape in place', async () => {
+  /* Sampling a photograph is async. If it fails — no file, no decoder — the
+     field must simply carry on with whatever it was already drawing and must
+     never emit art that does not exist. */
+  const { field } = await import('../js/field.js');
+  const { bus } = await import('../js/bus.js');
+  const seen = [];
+  const off = bus.on('art', p => seen.push(p));
+  assert.doesNotThrow(() => field.setShape('portrait', null));
+  await new Promise(r => setTimeout(r, 80));
+  off();
+  assert.deepEqual(seen, [], 'an art event fired for a photograph that could not be read');
+  assert.deepEqual(errors, [], errors.join('\n'));
+  /* and the setter must survive being called twice while a load is in flight */
+  assert.doesNotThrow(() => { field.setShape('portrait', null); field.setShape('portrait', null); });
 });
 
 test('app: theme flips and the grain blend follows the surface', async () => {

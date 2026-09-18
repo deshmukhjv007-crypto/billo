@@ -38,6 +38,11 @@ const pdfLabel = pdf.exists ? `PDF · ${human(pdf.size)} · 1 page` : 'PDF';
    not a code change. Until then an inked monogram stands in. */
 const photo = findPhoto(__dirname, C.ME.photo);
 
+/* With a photograph on disk the hero's artwork IS the photograph — sampled
+   into a halftone and re-inked by the particle field (js/portrait.js). Without
+   one it stays the drawn shape, so the hero is never empty. */
+const heroArt = photo ? 'portrait' : C.HERO.shape;
+
 const monogram = `<svg class="monogram" viewBox="0 0 200 200" role="img" aria-label="${esc(C.ME.name)}">
       <defs><linearGradient id="mg" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0" stop-color="currentColor" stop-opacity=".22"/>
@@ -198,7 +203,7 @@ try {
 <main id="main">
 
   <!-- ░░ hero ░░ -->
-  <section class="scene hero" id="home" data-shape="${C.HERO.shape}">
+  <section class="scene hero" id="home" data-shape="${heroArt}">
     <div class="copy">
       <p class="meta reveal"><span>${esc(C.HERO.kicker[0])}</span><span>${esc(C.HERO.kicker[1])}</span></p>
       <h1 data-split data-chaos-word="${esc(chaosWord)}">${heroWords}</h1>
@@ -213,7 +218,7 @@ try {
         <span class="portrait-frame">${portrait}</span>
         <figcaption class="mono">${esc(PERSON.city)} · IST</figcaption>
       </figure>
-      <div class="stage" data-art="${C.HERO.shape}">
+      <div class="stage" data-art="${heroArt}">
         <p class="hint hand">${esc(C.HERO.hint)}</p>
       </div>
     </div>
@@ -374,4 +379,6 @@ ${C.ROLES.map(role).join('\n')}
 
 fs.writeFileSync(path.join(__dirname, 'index.html'), html);
 console.log(`  index.html   ${(html.length / 1024).toFixed(1)} kB · ${C.ROLES.length} roles · ${SKILLS.length} skill groups · ${ACHIEVEMENTS.length} achievements`);
-console.log(`  portrait     ${photo ? path.basename(photo) : 'inked monogram — drop a photo in assets/ to replace it (see assets/README.md)'}`);
+console.log(`  portrait     ${photo
+  ? `${path.basename(photo)} — the hero will ink it into particles (js/portrait.js)`
+  : 'inked monogram — drop a photo in assets/ and the hero becomes your face in dots (see assets/README.md)'}`);

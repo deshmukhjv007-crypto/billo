@@ -4,7 +4,7 @@
    particle field, the command palette, theming and the little conveniences.
    ========================================================================== */
 
-import { ME, ART, TEXT_ART, ROLES, ACHIEVED, NAV, TICKER } from '../content.js';
+import { ME, ART, TEXT_ART, IMAGE_ART, ROLES, ACHIEVED, NAV, TICKER } from '../content.js';
 import { grain, mountLab, PRESETS } from './grain.js';
 import { field } from './field.js';
 import { motion } from './motion.js';
@@ -79,6 +79,11 @@ function splitHeadings() {
 /* --------------------------------------------------------- blueprint art -- */
 
 function blueprint(name) {
+  /* Image art has no paths to stroke — it is sampled from a file at runtime.
+     The blueprint falls back to the drawn shape, NOT to the photograph: the
+     hero already frames the photo, so drawing it twice reads as a bug. */
+  const img = IMAGE_ART[name];
+  if (img) return img.fallback ? blueprint(img.fallback) : '';
   const art = ART[name];
   if (art) {
     return `<svg class="blueprint" viewBox="0 0 200 200" aria-hidden="true" focusable="false">${
@@ -142,6 +147,13 @@ function initField() {
   }
 
   field.start();
+
+  /* The photograph has finished being inked: let the dots be the portrait, and
+     retire the framed copy beside them (see .hero.inked in styles.css). */
+  bus.on('art', e => {
+    if (e && e.name === 'portrait') $('.hero')?.classList.add('inked');
+  });
+
   bus.on('stats', s => {
     const hud = $('[data-hud]');
     if (hud) hud.textContent = `${s.drawn.toLocaleString('en-IN')} of ${s.count.toLocaleString('en-IN')} particles · ${s.fps} fps`;
@@ -454,4 +466,4 @@ function boot() {
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
 else boot();
 
-export { applyTheme, openLab, toast };
+export { applyTheme, openLab, toast, blueprint };

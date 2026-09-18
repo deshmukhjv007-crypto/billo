@@ -607,6 +607,29 @@ p.link.static { border-bottom-color: var(--line2); color: var(--mute); font-weig
 .portrait-img { transition: transform .5s var(--ease); }
 .portrait:hover .portrait-img { transform: scale(calc(var(--portrait-zoom, 1.12) * 1.03)); }
 .portrait figcaption { text-align: center; font-size: .62rem; letter-spacing: .1em; opacity: .75; }
+
+/* Once the photograph has been inked into particles, the framed copy above is
+   the same picture twice — so the frame steps aside and the dots take over as
+   the hero portrait, which is the whole point of the effect. The image is moved
+   out of sight rather than removed: it is the hero's accessible name, and the
+   caption underneath it stays where it is. Transitions only once the swap has
+   actually happened, so nothing flickers while the photo is still decoding. */
+.js .hero.inked .portrait-frame {
+  position: absolute; width: 1px; height: 1px; margin: -1px;
+  padding: 0; overflow: hidden; clip-path: inset(50%);
+  border: 0; white-space: nowrap;
+}
+.hero .portrait-frame { transition: opacity .5s var(--ease); }
+.js .hero.inked .hero-side .portrait { pointer-events: none; }
+.js .hero.inked .hero-side .stage { animation: inkIn .9s var(--ease) both; }
+@keyframes inkIn { from { opacity: 0; } to { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  /* No field under reduced motion, so nothing is ever inked and the frame is
+     the portrait. Belt and braces in case .inked lingers from a reload. */
+  .js .hero.inked .portrait-frame { position: static; width: auto; height: auto;
+    margin: 0; clip-path: none; overflow: visible; }
+}
 .avail {
   font-family: var(--mono); font-size: .74rem; letter-spacing: .04em; color: var(--lime);
   display: inline-flex; align-items: center; gap: 8px;

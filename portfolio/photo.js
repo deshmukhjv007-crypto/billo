@@ -14,9 +14,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-/** File stems tried, in order, when PERSON.photo is not set. */
-export const PHOTO_STEMS = ['jayesh', 'photo', 'portrait', 'me', 'headshot'];
-export const PHOTO_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'avif'];
+/* The candidate names live in js/photo-names.js, which has no fs import, so the
+   browser's own source list in js/portrait.js is built from the very same
+   constants. Re-exported here so existing importers keep working. */
+export { PHOTO_STEMS, PHOTO_EXTS, photoSources } from './js/photo-names.js';
+import { PHOTO_STEMS, PHOTO_EXTS } from './js/photo-names.js';
 
 /**
  * @param {string} root        directory of the site (build.js's own folder)

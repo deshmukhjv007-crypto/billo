@@ -10,6 +10,7 @@
    ========================================================================== */
 
 import { PERSON, SUMMARY, SKILLS, EXPERIENCE, EDUCATION, CERTIFICATIONS, ACHIEVEMENTS, STATS, FILE_STEM } from './resume.js';
+import { PHOTO_SOURCES } from './js/portrait.js';
 export { PERSON, SUMMARY, SKILLS, EDUCATION, CERTIFICATIONS, ACHIEVEMENTS, STATS };
 
 /* make-pdf.js writes exactly these two files next to index.html. */
@@ -265,6 +266,31 @@ export const ART = {
       'M170 90 v46',
       'M170 140 a7 7 0 1 1 -0.1 0'
     ]
+  }
+};
+
+/* --------------------------------------------------------------------------- 
+   IMAGE_ART — shapes made of light and dark rather than strokes.
+
+   `portrait` is the hero: your photograph, sampled into a halftone and handed
+   to the particle field as several thousand targets, which is how a face ends
+   up made of ink (see js/portrait.js). It is declared here so the art registry
+   stays in one place, and it is only ever used when a photograph actually
+   exists — otherwise the hero keeps the drawn shape below.
+   ------------------------------------------------------------------------ */
+export const IMAGE_ART = {
+  portrait: {
+    sources: [PERSON.photo, ...PHOTO_SOURCES].filter(Boolean),
+    /* What the stage shows if the dots never arrive: a reader with JavaScript
+       off, or a photograph that will not decode. Deliberately the drawn shape
+       rather than the picture — the hero already shows the photograph in its
+       frame, and printing it twice looks like a mistake. */
+    fallback: HERO.shape,
+    size: 208,     // working resolution: higher is finer detail, more candidates
+    step: 2,       // sample every 2nd pixel → ~5k candidates against a 4.2k budget
+    pivot: 0.42,
+    gain: 1.55,
+    bias: 0.05
   }
 };
 

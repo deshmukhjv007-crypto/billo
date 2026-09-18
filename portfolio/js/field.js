@@ -23,7 +23,8 @@
                                              and when no stage is on screen
    ========================================================================== */
 
-import { ART, TEXT_ART } from '../content.js';
+import { ART, TEXT_ART, IMAGE_ART } from '../content.js';
+import { loadPortrait } from './portrait.js';
 import { bus, state } from './bus.js';
 
 const COLORS = ['#f4f1ea', '#ef5024', '#ffd166'];   // ink · lava · lime
@@ -110,10 +111,27 @@ function buildShape(name) {
   if (shapeCache.has(name)) return shapeCache.get(name);
   let s = null;
   if (name === 'cloud' || name == null) s = null;
+  /* Image art can't be built synchronously — decoding a photograph is async.
+     See loadImageShape(), which fills the cache and re-morphs when it lands. */
+  else if (IMAGE_ART[name]) s = null;
   else if (TEXT_ART[name]) s = fromText(TEXT_ART[name]);
   else if (ART[name]) s = fromPaths(ART[name].paths);
   shapeCache.set(name, s);
   return s;
+}
+
+/** Sample a photograph, cache it as a shape, and morph into it if it is current. */
+function loadImageShape(name) {
+  if (imageLoading.has(name)) return;
+  imageLoading.add(name);
+  const spec = IMAGE_ART[name];
+  loadPortrait(spec).then(res => {
+    imageLoading.delete(name);
+    if (!res || !res.pts.length) return;                  // no photo → keep the drawn art
+    shapeCache.set(name, { pts: res.pts, aspect: res.aspect });
+    if (currentName === name) { shape = shapeCache.get(name); applyShape(shape); }
+    bus.emit('art', { name, points: res.pts.length, src: res.src });
+  }).catch(() => { imageLoading.delete(name); });
 }
 
 /* --------------------------------------------------------------- engine --- */
@@ -172,8 +190,9 @@ function waitForFont(shorthand) {
     .then(() => document.fonts.ready)
     .catch(() => document.fonts ? document.fonts.ready : undefined);
 }
-let shape = null, stage = null, morph = 1, running = false, raf = 0;
+let shape = null, stage = null, currentName = null, morph = 1, running = false, raf = 0;
 let stillFor = 0, calm = 1;
+const imageLoading = new Set();        // IMAGE_ART names already being sampled
 let shake = 0, stride = 1, frameEMA = 16, t0 = 0, lastStats = 0;
 
 export const field = {
@@ -196,7 +215,16 @@ export const field = {
   setShape(name, stageEl) {
     stage = stageEl || null;
     if (!ctx) return;                       // no 2D context → nothing to draw into
-    if (!name || name === 'cloud') { shape = null; return; }
+    if (!name || name === 'cloud') { shape = null; currentName = null; return; }
+    currentName = name;
+
+    /* Image art: start the sample and keep showing whatever is already there
+       (the drawn fallback) until the dots are ready. Same two-pass pattern the
+       text shapes use for webfonts. */
+    if (IMAGE_ART[name] && !shapeCache.has(name)) {
+      loadImageShape(name);
+      return;
+    }
 
     /* text shapes get built twice: instantly with a fallback face, then again
        once the webfont lands, so "hello" is never rendered in the wrong hand */
@@ -221,7 +249,11 @@ export const field = {
     const step = () => {
       if (i >= names.length) return;
       const n = names[i++];
-      const work = () => { if (!TEXT_ART[n]) buildShape(n); };
+      const work = () => {
+        if (TEXT_ART[n]) return;                      // text shapes handle their own font pass
+        if (IMAGE_ART[n]) { loadImageShape(n); return; }   // async: decode + halftone
+        buildShape(n);
+      };
       if (typeof requestIdleCallback === 'function') requestIdleCallback(work); else work();
       setTimeout(step, 140);
     };

@@ -107,7 +107,7 @@ test('page: the content model and the markup agree', () => {
 });
 
 test('page: every drawing the markup asks for exists in content.js', () => {
-  const known = k => k in C.ART || k in C.TEXT_ART;
+  const known = k => k in C.ART || k in C.TEXT_ART || k in C.IMAGE_ART;
   const asked = new Set([
     ...[...html.matchAll(/data-shape="([^"]+)"/g)].map(m => m[1]),
     ...[...html.matchAll(/data-art="([^"]+)"/g)].map(m => m[1])
@@ -164,6 +164,42 @@ test('page: accessibility basics hold', () => {
   const portraitOk = /class="monogram"[^>]*role="img"[^>]*aria-label="Jayesh Deshmukh"/.test(html)
     || /<img class="portrait-img"[^>]*alt="Jayesh Deshmukh"/.test(html);
   assert.ok(portraitOk, 'the hero image must be labelled for a screen reader');
+});
+
+test('page: the hero artwork follows the photograph', () => {
+  /* The hero is the one place where the artwork IS the photograph: it gets
+     sampled into a halftone and re-inked as particles. So the markup must ask
+     for the "portrait" shape exactly when a photo exists, and for the drawn
+     shape when it does not — otherwise the field waits forever for a file that
+     was never there, or ignores one that is. */
+  const photo = findPhoto(ROOT, C.ME.photo);
+  const stage = html.match(/class="scene hero" id="home" data-shape="([^"]+)"/);
+  assert.ok(stage, 'the hero lost its data-shape attribute');
+  if (photo) {
+    assert.equal(stage[1], 'portrait', 'a photo exists, so the hero must ask for the portrait shape');
+    assert.match(html, /class="stage" data-art="portrait"/, 'the hero stage must ask the field for the portrait too');
+  } else {
+    assert.notEqual(stage[1], 'portrait', 'no photo exists, so the hero must keep the drawn shape');
+  }
+  assert.ok(C.IMAGE_ART[stage[1]] || C.ART[stage[1]] || C.TEXT_ART[stage[1]], `unknown hero shape: ${stage[1]}`);
+});
+
+test('page: the framed photograph steps aside only once it has been inked', () => {
+  /* The hero shows the photograph twice while it is being sampled: once in its
+     frame, once as the shape the particles are still settling into. The field
+     announces the finished portrait on the bus, and that is when the frame is
+     retired. Both halves have to be present, or the page either prints the
+     picture twice for good, or hides it before the dots exist and leaves a gap.
+     It is scoped to .js so a reader without JavaScript keeps the photograph. */
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(css, /\.js \.hero\.inked \.portrait-frame\s*\{/, 'the framed copy has no inked state');
+  const rule = css.slice(css.indexOf('.js .hero.inked .portrait-frame'));
+  assert.match(rule.slice(0, rule.indexOf('}')), /clip-path|display:\s*none|visibility/,
+    'the inked frame must actually be moved out of sight');
+
+  const app = fs.readFileSync(path.join(ROOT, 'js', 'app.js'), 'utf8');
+  assert.match(app, /bus\.on\('art'/, 'nothing listens for the finished portrait');
+  assert.match(app, /classList\.add\('inked'\)/, 'the finished portrait never marks the hero as inked');
 });
 
 test('page: the portrait slot is honest about whether a photo exists', () => {
