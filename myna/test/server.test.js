@@ -18,6 +18,13 @@ before(async () => {
       seenBody = Buffer.concat(chunks).toString('utf8');
 
       if (req.url === '/v1/chat/completions') {
+        // Emulates a local server that ignores `stream: true` and answers with plain JSON.
+        let parsed = {};
+        try { parsed = JSON.parse(seenBody || '{}'); } catch { /* not JSON */ }
+        if (parsed.model === 'json-only-model') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ choices: [{ message: { content: 'plain json answer' } }] }));
+        }
         res.writeHead(200, { 'Content-Type': 'text/event-stream' });
         res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'I am ' } }] })}\n\n`);
         res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'Aditi.' } }] })}\n\n`);
@@ -147,6 +154,37 @@ test('/api/chat gives an actionable message when the endpoint is unreachable', a
   assert.match(body.detail, /Ollama/);
 });
 
+test('/api/chat falls back to JSON when the upstream ignores `stream: true`', async () => {
+  const res = await fetch(`${baseUrl}/api/chat`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ endpoint: upstreamUrl, model: 'json-only-model', messages: [{ role: 'user', content: 'hi' }] }),
+  });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type') || '', /application\/json/);
+  assert.equal((await res.json()).content, 'plain json answer');
+});
+
+test('an over-size body gets a 413, not a hangup or a misreported 400', async () => {
+  const big = JSON.stringify({
+    endpoint: upstreamUrl,
+    model: 'x',
+    messages: [{ role: 'user', content: 'x'.repeat(33 * 1024 * 1024) }],
+  });
+  const res = await fetch(`${baseUrl}/api/chat`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: big,
+  });
+  assert.equal(res.status, 413);
+  assert.match((await res.json()).error, /too large/i);
+});
+
+test('malformed percent-encoding in a path is a 404, not a 500', async () => {
+  const res = await fetch(`${baseUrl}/%E0%A4%A`);
+  assert.equal(res.status, 404);
+});
+
 test('/api/transcribe forwards base64 audio and returns the text', async () => {
   const b64 = Buffer.from('fake-audio-bytes').toString('base64');
   const res = await fetch(`${baseUrl}/api/transcribe`, {
@@ -166,4 +204,17 @@ test('/api/transcribe requires audio', async () => {
   });
   assert.equal(res.status, 400);
   assert.match((await res.json()).error, /audioB64/);
+});
+
+test('/api/transcribe gives an actionable message when the endpoint is unreachable', async () => {
+  const b64 = Buffer.from('fake-audio-bytes').toString('base64');
+  const res = await fetch(`${baseUrl}/api/transcribe`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ endpoint: 'http://127.0.0.1:9/v1', apiKey: 'sk-test', audioB64: b64 }),
+  });
+  assert.equal(res.status, 502);
+  const body = await res.json();
+  assert.match(body.error, /Could not reach/);
+  assert.match(body.detail, /Ollama/);
 });

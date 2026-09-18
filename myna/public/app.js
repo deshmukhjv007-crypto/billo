@@ -416,6 +416,8 @@ async function answerQuestion(q, { askedAgain = false } = {}) {
     out.textContent = `Model error: ${e.message}\n\nFalling back to an offline scaffold.\n\n` +
       scaffoldAnswer(q.text, { kind: q.kind, resume: state.profile.resume, role: state.profile.role });
     state.currentAnswer = out.textContent;
+    // The overlay was set to "Thinking…" above — don't leave it stuck there.
+    $('overlayBody').textContent = out.textContent;
   }
 }
 
@@ -463,8 +465,13 @@ async function nextMockQuestion() {
     }
   }
   if (!question) {
-    const pool = bankFor(kind).filter((q) => !state.mock.asked.includes(q));
-    question = (pool.length ? pool : bankFor(kind))[state.mock.index % Math.max(pool.length, 1)];
+    const bank = bankFor(kind);
+    const pool = bank.filter((q) => !state.mock.asked.includes(q));
+    // Once every bank question has been asked, cycle the full bank — the old
+    // `index % Math.max(pool.length, 1)` collapsed to modulo 1 and repeated
+    // the first question forever.
+    const source = pool.length ? pool : bank;
+    question = source[state.mock.index % source.length];
   }
 
   state.mock.asked.push(question);
