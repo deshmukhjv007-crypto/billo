@@ -18,16 +18,37 @@ const dom = installDOM();
 
 /* ---------------------------------------------------------------- content */
 
-test('content.js: every project points at art that exists', async () => {
-  const { PROJECTS, ART, TEXT_ART, HERO, ABOUT, CONTACT } = await import('../content.js');
+test('content.js: every role points at art that exists', async () => {
+  const { ROLES, ART, TEXT_ART, HERO, ABOUT, CONTACT, RESUME } = await import('../content.js');
   const known = k => k in ART || k in TEXT_ART;
-  for (const p of PROJECTS) {
-    assert.ok(known(p.art), `${p.id}: art "${p.art}" is not in ART/TEXT_ART`);
-    assert.ok(p.name && p.kicker && p.sub && p.desc, `${p.id}: missing copy`);
-    assert.ok(Array.isArray(p.tags) && p.tags.length, `${p.id}: missing tags`);
+  for (const r of ROLES) {
+    assert.ok(known(r.art), `${r.id}: art "${r.art}" is not in ART/TEXT_ART`);
+    assert.ok(r.name && r.kicker && r.sub && r.role && r.when, `${r.id}: missing copy`);
+    assert.ok(Array.isArray(r.tags) && r.tags.length, `${r.id}: missing tags`);
+    assert.ok(Array.isArray(r.bullets) && r.bullets.length >= 3, `${r.id}: missing achievement bullets`);
   }
-  assert.ok(known(HERO.shape) && known(ABOUT.shape) && known(CONTACT.shape));
-  assert.equal(new Set(PROJECTS.map(p => p.id)).size, PROJECTS.length, 'duplicate project id');
+  assert.ok(known(HERO.shape) && known(ABOUT.shape) && known(CONTACT.shape) && known(RESUME.shape));
+  assert.equal(new Set(ROLES.map(r => r.id)).size, ROLES.length, 'duplicate role id');
+});
+
+test('content.js: the page and the PDF cannot drift apart', async () => {
+  const C = await import('../content.js');
+  const R = await import('../resume.js');
+  // the page imports its facts from resume.js, so these must be the same objects
+  assert.deepEqual(C.ROLES.map(r => r.bullets), R.EXPERIENCE.map(j => j.bullets),
+    'the page bullets and the PDF bullets have diverged');
+  assert.equal(C.ME.email, R.PERSON.email);
+  assert.equal(C.ME.phone, R.PERSON.phone);
+  assert.equal(C.ME.resume, `./${R.FILE_STEM}.pdf`);
+  assert.equal(C.ME.resumeTxt, `./${R.FILE_STEM}.txt`);
+  assert.deepEqual(C.KIT.map(k => k.k), R.SKILLS.map(g => g.group), 'skill groups out of sync');
+  assert.equal(C.HIGHLIGHTS.length, R.STATS.length);
+  // the download link must actually exist on disk
+  const { existsSync } = await import('node:fs');
+  const { fileURLToPath } = await import('node:url');
+  const here = fileURLToPath(new URL('.', import.meta.url));
+  assert.ok(existsSync(here + '../' + R.FILE_STEM + '.pdf'), 'index.html links a PDF that has not been built');
+  assert.ok(existsSync(here + '../' + R.FILE_STEM + '.txt'), 'index.html links a text résumé that has not been built');
 });
 
 test('content.js: art paths look like path data', async () => {

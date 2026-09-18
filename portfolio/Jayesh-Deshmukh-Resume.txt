@@ -1,0 +1,93 @@
+JAYESH DESHMUKH
+Software Developer · Microsoft Dynamics 365 & Azure Integration
++91 98811 59380 | jdeshmukh521@gmail.com | linkedin.com/in/jdz777 | Pune,
+Maharashtra, India
+
+PROFESSIONAL SUMMARY
+------------------------------------------------------------------------------
+Results-driven Software Developer with 3+ years of enterprise software
+development experience, specializing in Microsoft Dynamics 365 CRM, cloud
+integration, and scalable enterprise solutions. Proven track record of leading
+end-to-end CRM implementations, building complex API integrations, and
+delivering high-impact automation solutions that optimize business processes
+and operational efficiency.
+
+TECHNICAL SKILLS
+------------------------------------------------------------------------------
+Languages               C#, JavaScript, TypeScript, SQL, Python
+Frameworks & Technologies.NET Core, Azure Functions, Power Platform (Power BI,
+                        Power Apps, Power Automate)
+Cloud & DevOps          Microsoft Azure, Azure DevOps, CI/CD Pipelines,
+                        Solution Deployments
+CRM & ERP               Microsoft Dynamics 365 (Sales, Marketing, Project
+                        Operations), SAP Integration
+Development Tools       Plugin Development, Ribbon Workbench, REST/SOAP APIs,
+                        MySQL, Git
+Methodologies           Agile/Scrum, SAFe 6, Requirements Gathering,
+                        Stakeholder Management
+
+PROFESSIONAL EXPERIENCE
+------------------------------------------------------------------------------
+Siemens Technology and Services Private Limited
+Software Developer | March 2024 – Present | Pune, India
+  • Contributing to end-to-end implementation of Dynamics 365 Project
+  Operations, collaborating with business stakeholders to build scalable
+  project management solutions and optimize workflows.
+  • Architected and developed comprehensive CRM customizations for Sales and
+  Marketing modules using plugins (C#), JavaScript, Power Automate, and Ribbon
+  Workbench, improving user productivity by 40%.
+  • Built custom Power BI dashboards and Power Apps solutions integrated with
+  D365 CRM, providing real-time analytics and business insights to executive
+  leadership.
+  • Managed solution deployments across multiple environments (Dev, QA,
+  Production) with zero downtime, implementing CI/CD best practices using
+  Azure DevOps.
+  • Collaborated directly with business owners to gather requirements,
+  translate business needs into technical specifications, and deliver
+  solutions aligned with organizational goals.
+
+UST (Pragmasys LLP)
+MS D365 CRM Developer — Enterprise Solutions | August 2022 – March 2024 |
+Pune, India
+  • Designed and implemented scalable Azure Function Apps to orchestrate API
+  integrations between Dynamics 365 CRM and SAP ERP, enabling real-time data
+  synchronization for 10,000+ records daily.
+  • Developed custom plugins and JavaScript solutions for complex business
+  workflows, reducing manual data entry time by 60% through automation.
+  • Successfully consumed and integrated SAP APIs with D365 CRM, creating
+  seamless enterprise system connectivity and improving operational efficiency
+  by 35%.
+  • Built automated workflows using Power Automate to streamline approval
+  processes and notifications, reducing processing time from days to hours.
+  • Collaborated with cross-functional teams to deliver cloud-based CRM
+  solutions, ensuring high availability and performance optimization.
+
+AssetCues
+.NET Developer | February 2022 – August 2022 | Pune, India
+  • Developed full-stack web applications using .NET Core, implementing
+  RESTful APIs and database solutions with MySQL.
+  • Contributed to application architecture decisions and code reviews,
+  maintaining high code quality standards.
+  • Collaborated with product teams to deliver customer-facing features on
+  tight deadlines.
+
+EDUCATION
+------------------------------------------------------------------------------
+Master of Computer Applications (MCA) — Computer Programming
+Department of Computer Science, Pune University | Pune, India | 2020 – 2022
+
+CERTIFICATIONS
+------------------------------------------------------------------------------
+  • Certified SAFe 6 Practitioner — Scaled Agile Framework
+  • C# .NET Core with Real World Examples — Applied Software Development
+
+KEY ACHIEVEMENTS
+------------------------------------------------------------------------------
+  • Contributing to D365 Project Operations implementation serving 500+ users
+  across multiple business units.
+  • Reduced system integration errors by 75% through robust error handling and
+  automated testing framework.
+
+------------------------------------------------------------------------------
+Plain-text version of Jayesh-Deshmukh-Resume.pdf — same content,
+no layout, so applicant tracking systems parse every field.

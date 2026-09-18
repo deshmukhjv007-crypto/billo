@@ -1,153 +1,139 @@
-# hire.rest v5 — the same idea, built better
+# Jayesh Deshmukh — portfolio & résumé
 
-A rebuild of [hire.rest](https://hire.rest/) as a **zero-dependency** one-pager:
-static, crawlable HTML; one canvas of particles that ink themselves into each
-drawing; and a grain engine you can tune live and copy out.
+A one-page portfolio that doubles as a CV, plus a **zero-dependency résumé PDF
+engine**. Nothing here needs `npm install`: no framework, no PDF library, no
+build tooling beyond Node itself.
+
+```
+npm run build     # résumé PDF + text + index.html
+npm start         # http://localhost:4173
+npm test          # 47 tests
+```
+
+---
+
+## The résumé download
+
+This is the part worth reading about, because most "download my CV" buttons on
+a portfolio are a lie — a link to a PDF somebody exported from Word three years
+ago and then edited the website around. Here the CV is **data**, and three
+things are generated from it:
+
+```
+resume.js ──┬─→ make-pdf.js ─→ Jayesh-Deshmukh-Resume.pdf   (1 page, A4, links)
+            ├─→ make-pdf.js ─→ Jayesh-Deshmukh-Resume.txt   (plain text, for ATS)
+            └─→ build.js    ─→ index.html                   (page + paper preview)
+```
+
+Edit a bullet in `resume.js`, run `npm run build`, and the page, the PDF and the
+text file all change together. `test/page.test.mjs` asserts that the bullets on
+the page are the bullets in the PDF, so they cannot quietly drift apart.
+
+### What the visitor gets
+
+| | |
+|---|---|
+| **PDF** | 15 kB, one page, A4, real selectable text — not a screenshot of a page |
+| **Clickable** | phone (`tel:`), email (`mailto:`) and LinkedIn are live link annotations |
+| **Plain text** | `Jayesh-Deshmukh-Resume.txt`, for ATS portals that mangle PDFs |
+| **Works with JS off** | every download is a plain `<a download>`; the `<noscript>` block offers it too |
+| **Reachable from** | header pill, hero button, résumé section, footer, contact section, `⌘K` palette, keyboard `R` |
+
+### The PDF engine (`make-pdf.js`)
+
+No `pdfkit`, no `puppeteer`, no LaTeX. The file is written byte by byte:
+
+* **Fonts** — Helvetica / Helvetica-Bold / Helvetica-Oblique, un-embedded
+  standard-14. No font files to ship, no licensing, and any viewer has them.
+* **Metrics** — Adobe's real AFM advance widths, so line wrapping is *measured*
+  rather than guessed, and nothing ever runs into the right margin.
+* **Coordinates** — the layout thinks in "cursor space" (y grows downward, which
+  is how you actually lay out a document) and converts to PDF space once, in
+  `Doc.toPdf()`.
+* **Pagination** — `need()` reserves space, so headings never orphan and a
+  bullet never splits across a page break. Then `balance()` bisects the spacing
+  to spend whatever is left over, because a page break cascades and always
+  leaves a band of unusable space otherwise.
+* **Links** — `/Annot /Subtype /Link` rectangles placed from the same metrics
+  used to draw the text, so a link box is always exactly over its own text.
+* **Metadata** — Title, Author, Subject, Keywords and a DCTimestamp, so the
+  browser tab and a recruiter's file browser both say who it is.
+
+### Tests without a PDF library
+
+There is no `qpdf`/`poppler` in CI, so `test/pdf-lite.mjs` is a small PDF
+*reader*: it walks the xref table, resolves the object graph, checks the page
+tree and `/Length`s, and extracts text from content streams. On top of it:
+
+* every xref offset must land exactly on its `N 0 obj` header
+* every text run is re-measured and asserted inside the margins
+* no two lines may collide (cap heights vs descenders, computed from font size)
+* every link rectangle must contain the text it belongs to
+* the PDF must be **one page** — a three-year CV that spills onto page two is a
+  bug, not a feature, and the test says so
+
+---
+
+## The page
 
 ```
 portfolio/
-├── content.js        every word, link and drawing — edit this only
-├── build.js          renders index.html from content.js  (node build.js)
-├── index.html        generated, static, works with JS off
-├── styles.css        design system, dark + light, reduced-motion aware
-├── server.js         zero-dep static server (node server.js → :4173)
-├── js/
-│   ├── bus.js        one event bus + shared frame state (one rAF loop)
-│   ├── grain.js      ★ the grain engine + the Grain Lab
-│   ├── field.js      the particle field (procedural art, typed arrays)
-│   ├── motion.js     scroll velocity, reveals, scrubs, magnets, smooth wheel
-│   └── app.js        enhancement layer: theme, palette, wiring
-└── test/
-    ├── dom-stub.js   forgiving fake DOM (no browser in CI)
-    └── boot.test.mjs 13 tests: boots the real app, asserts nothing throws
+├── resume.js          every fact about Jayesh — the single source of truth
+├── content.js         every word, link and drawing on the page (imports resume.js)
+├── make-pdf.js        ★ the PDF engine: metrics, layout, serialiser, CLI
+├── build.js           resume.js + content.js → index.html (+ picks up the PDF stats)
+├── index.html         generated, static, crawlable, works with JS off
+├── styles.css         design system: dark + light, reduced-motion aware
+├── Jayesh-Deshmukh-Resume.pdf / .txt    generated by make-pdf.js
+├── server.js          zero-dep static server
+├── assets/            drop your photo here (see assets/README.md)
+└── js/
+    ├── bus.js         one event bus + shared frame state (one rAF loop)
+    ├── grain.js       ★ the grain engine + the live Grain Lab
+    ├── field.js       the particle field (procedural art, typed arrays)
+    ├── motion.js      scroll velocity, reveals, scrubs, magnets
+    └── app.js         enhancement layer: theme, palette, downloads, wiring
 ```
+
+### What it does
+
+* **The ink** — thousands of particles fly into a different procedural drawing
+  per section, from SVG path strings in `content.js` (0 bytes over the wire,
+  resolution-independent). Same paths are injected as the faint blueprint line
+  art that draws itself on, and that carries the design with JS off.
+* **Film grain** — an `feTurbulence` tile *plus* an animated canvas sprite
+  sheet, reacting to scroll velocity and pointer speed. Press `G` for a lab
+  with 11 sliders, 8 presets (including a side-by-side A/B) and copy-out CSS.
+* **The résumé section** — a live paper preview scaled with container queries so
+  the whole one-pager always fits the sheet, whatever the window size.
+* **Keyboard** — `R` résumé · `G` grain lab · `T` theme · `S` smooth wheel ·
+  `C` copy email · `⌘K`/`Ctrl K` command palette.
+* **Print** — a print stylesheet hides the ink and the chrome, so `Ctrl P` gives
+  a clean reading copy (the PDF is still the better artefact).
+* **A11y** — skip link, `:focus-visible` rings, `aria-keyshortcuts`, `inert` on
+  the closed lab drawer, labelled landmarks, `prefers-reduced-motion` honoured
+  everywhere, `prefers-color-scheme` respected on first paint.
+* **SEO** — one `h1`, an ordered heading outline, a real meta description,
+  OpenGraph tags, and `Person` JSON-LD with `knowsAbout` built from the skills
+  list in `resume.js`.
+
+---
+
+## Changing things
+
+| I want to… | edit |
+|---|---|
+| fix a typo in a bullet | `resume.js` → `EXPERIENCE[n].bullets` |
+| add a job | append to `resume.js` → `EXPERIENCE`, give it an `art:` name from `ART` |
+| add a skill | `resume.js` → `SKILLS` (it flows to the page, the PDF and the JSON-LD) |
+| change the hero headline | `content.js` → `HERO.title` |
+| add a drawing | `content.js` → `ART` — a list of SVG paths in a `0 0 200 200` box |
+| add my photo | drop `assets/jayesh.jpg`, then `npm run build` |
+
+Then always:
 
 ```bash
-npm run build   # content.js → index.html
-npm start       # http://localhost:4173
-npm test        # 13 tests
+npm run build && npm test
 ```
 
----
-
-## ★ The grain effect on hire.rest, exactly
-
-It is **one CSS rule** in `https://hire.rest/style.css` — technique #1 from the
-usual four (SVG `feTurbulence`, tiled PNG, WebGL shader, gradient hacks):
-
-```css
-.grain{position:fixed;inset:0;z-index:60;pointer-events:none;opacity:.07;mix-blend-mode:overlay;
- background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-size:160px}
-```
-
-Decoded, that data URI is:
-
-```xml
-<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'>
-  <filter id='n'>
-    <feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/>
-  </filter>
-  <rect width='100%' height='100%' filter='url(#n)'/>
-</svg>
-```
-
-What each piece is doing:
-
-| Piece | Why it's there |
-|---|---|
-| `feTurbulence type='fractalNoise'` | Perlin-style **fractal noise** — soft, cloudy, film-like. (`type='turbulence'` would give harder, veinier marble.) |
-| `baseFrequency='.9'` | Very high frequency → **fine** grain. ~0.9 cycles/px. Drop to 0.2 and it becomes blotches; raise past 1 and it aliases into moiré. |
-| `numOctaves='2'` | Two noise octaves summed: the 2nd adds half-scale detail. More octaves = richer but slower to rasterise. |
-| `stitchTiles='stitch'` | Makes the tile **seamless** — without it you'd see a 160px grid of seams. |
-| `width/height='160'` + `background-size:160px` | The tile is generated once at 160px and **repeated**; the browser caches it, so scrolling costs nothing. |
-| `opacity:.07` | 7% — the "you feel it, you don't see it" number. |
-| `mix-blend-mode:overlay` | Multiplies the dark half / screens the light half, so grain bites into mid-tones and leaves pure black/white alone. |
-| `position:fixed;inset:0;z-index:60;pointer-events:none` | One full-viewport overlay above the whole page (their header is `z-index:50`), clicking through it. |
-
-Two things worth knowing about that implementation:
-
-1. **It is completely static.** No `@keyframes`, no JS, no seed change — one frozen
-   frame of noise for the life of the page. Real film grain *moves*; that's most of
-   why it reads as "film".
-2. **The noise is coloured.** `feTurbulence` writes RGBA, so each channel gets an
-   independent noise value. At 7% overlay it's nearly invisible, but it does tint
-   slightly. Add `<feColorMatrix type='saturate' values='0'/>` after it for neutral
-   luminance grain.
-
-There is no `<canvas>` grain and no PNG on that site. The canvas (`.field`,
-`z-index:0`) is the **particle field** — a separate effect: 4,000 dots
-(2,400 on touch) that are sampled out of the seven `.webp` illustrations and fly
-into whichever drawing belongs to the section you're in, scattering with scroll
-velocity and repelling from your cursor.
-
----
-
-## What v5 does differently
-
-### Grain — two layers, and it moves
-
-```
-.grain                     ← fixed overlay, mix-blend-mode, master opacity
-├── .g-turb                ← layer 1: the hire.rest trick, parameterised
-│                             (baseFrequency, numOctaves, seed, mono)
-└── .g-film > i            ← layer 2: canvas sprite sheet of N noise frames,
-                              stepped with translate3d at 8–24 fps
-```
-
-* **Layer 2 is the upgrade.** `js/grain.js` builds one PNG sprite sheet
-  (`tile × frames` noise frames, triangular-distribution noise shaped by a gamma
-  so it reads as silver halide rather than TV static) and cycles it with a
-  `steps()` **transform** animation — compositor-only, no repaint of the page.
-* **It reacts to you.** Scroll velocity and pointer speed drive the master
-  opacity (`reactMax`), with fast attack / slow release, and a click on the word
-  *chaos* spikes it. The grain is now part of the physics of the page instead of
-  a decal on it.
-* **It follows the theme.** `overlay` on dark, `multiply` on light — unless you
-  pick a blend mode by hand, which locks it.
-* **`prefers-reduced-motion`** keeps layer 1 and drops the animation + reactivity.
-* **Grain Lab** (`G`, or the ◍ button): 11 sliders, 4 switches, 8 presets
-  (including `hire.rest (theirs)`), randomize, and an **A/B swatch** that renders
-  their exact recipe next to yours on identical art. `Copy CSS` emits a
-  ready-to-paste rule for your current settings; `Copy full engine` emits a
-  standalone ~40-line IIFE you can drop into any site.
-
-### The field — same idea, no image budget
-
-| hire.rest v4 | v5 |
-|---|---|
-| 7 `.webp` illustrations downloaded, rasterised to 180px, sampled | art is a list of **SVG path strings** in `content.js` — 0 bytes over the wire, resolution independent, and the same paths are injected as the faint "blueprint" line art that draws itself on with `stroke-dashoffset` |
-| 4,000 particle objects | Structure-of-arrays `Float32Array`/`Uint8Array` |
-| `fillStyle` swapped per particle | 3 batched paths, one `fill()` per colour, `lighter` compositing on the accents |
-| fixed particle count | **adaptive**: measures frame time and drops draw density (stride 1→3) before it drops frames |
-| morph moves everything at once | per-particle stagger in scanline order, so the drawing **inks itself on** |
-| GSAP + ScrollTrigger + Lenis (≈90 kB CDN) | 0 dependencies, one shared rAF loop |
-| wheel hijacked always | **native scroll by default**; smooth wheel is opt-in (`S`) |
-| runs while the tab is visible | pauses on hidden, on reduced motion, and when no stage is on screen |
-
-### The rest
-
-* **Static, crawlable HTML.** `build.js` renders `index.html` from `content.js`,
-  so the copy lives in one place *and* the page works with JS off (there's a
-  `<noscript>` block and the blueprint art carries the illustrations).
-* **Light theme** that was designed, not inverted (`T`).
-* **Command palette** (`⌘K`/`Ctrl K`) over sections, projects, grain presets and
-  actions; keyboard shortcuts `G` lab · `T` theme · `S` smooth wheel · `C` copy email.
-* **A11y**: skip link, `:focus-visible` rings, `aria-keyshortcuts`, `inert` on the
-  closed lab drawer, `prefers-reduced-motion` everywhere, `prefers-color-scheme`.
-* **Tests**: 13, booting the real app against a stub DOM — including one that
-  asserts the turbulence data URI round-trips to `filter='url(#g)'` and never
-  double-encodes the `#` (the bug that silently kills a data-URI grain layer).
-
----
-
-## Changing the person, the projects or the art
-
-Everything is in `content.js`:
-
-* `ME`, `HERO`, `ABOUT`, `JOURNEY`, `CONTACT`, `NAV`, `TICKER` — copy.
-* `PROJECTS[]` / `BENCH[]` — cards; `art` names a drawing.
-* `ART` — each drawing is SVG path data in a `0 0 200 200` box. Add a shape,
-  point a project at it, and both the particles and the blueprint pick it up.
-* `TEXT_ART` — hand-lettered shapes (`hello`) rasterised in the Caveat face.
-
-Then `npm run build`. Nothing else needs touching.
+`npm test` will tell you if the page and the PDF have drifted apart.
