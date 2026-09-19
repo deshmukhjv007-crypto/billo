@@ -1,13 +1,14 @@
 {
-  "name": "hire-rest-v5",
-  "version": "5.0.0",
+  "name": "jayesh-deshmukh-portfolio",
+  "version": "1.0.0",
   "private": true,
-  "description": "Portfolio one-pager: particle-ink drawings + a two-layer grain engine. Zero dependencies.",
+  "description": "Jayesh Deshmukh — portfolio one-pager with a downloadable résumé. Particle-ink drawings, a two-layer grain engine, and a zero-dependency PDF engine. No npm dependencies.",
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "build": "node build.js",
-    "dev": "node build.js && node server.js",
+    "pdf": "node make-pdf.js",
+    "build": "node make-pdf.js && node build.js",
+    "dev": "npm run build && node server.js",
     "test": "node --test --test-force-exit"
   },
   "engines": { "node": ">=18" }

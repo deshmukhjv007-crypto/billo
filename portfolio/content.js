@@ -1,240 +1,303 @@
 /* ============================================================================
    content.js — every word, link and drawing on the page lives here.
-   Swap the person, the projects or the art without touching a single style.
+
+   The facts about Jayesh are NOT retyped here: they come from resume.js, the
+   same file make-pdf.js reads to build the PDF. Edit a bullet there and both
+   the page and the download change together.
+
+   What lives here is the *page*: the hero copy, the section blurbs, the skills
+   grid, and the drawings the particle field inks into.
    ========================================================================== */
 
+import { PERSON, SUMMARY, SKILLS, EXPERIENCE, EDUCATION, CERTIFICATIONS, ACHIEVEMENTS, STATS, FILE_STEM } from './resume.js';
+import { PHOTO_SOURCES } from './js/portrait.js';
+export { PERSON, SUMMARY, SKILLS, EDUCATION, CERTIFICATIONS, ACHIEVEMENTS, STATS };
+
+/* make-pdf.js writes exactly these two files next to index.html. */
+const RESUME_PDF = `./${FILE_STEM}.pdf`;
+const RESUME_TXT = `./${FILE_STEM}.txt`;
+
 export const ME = {
-  name: 'Krishna Thorat',
-  sig: 'krishna',
-  role: 'Full-stack developer & AI engineer',
-  place: 'Pune, India',
-  email: 'krishnathorat007@gmail.com',
-  resume: '/krishna-thorat-resume.pdf',
+  name: PERSON.name,
+  first: PERSON.first,
+  sig: PERSON.sig,
+  role: PERSON.role,
+  headline: PERSON.headline,
+  focus: PERSON.focus,
+  place: PERSON.place,
+  city: PERSON.city,
+  email: PERSON.email,
+  phone: PERSON.phone,
+  phoneHref: `tel:${PERSON.phoneHref}`,
+  availability: PERSON.availability,
+  photo: PERSON.photo,
+  photoAlt: PERSON.photoAlt,
+  /* The download. build.js reads the real byte size off disk for the label. */
+  resume: RESUME_PDF,
+  resumeTxt: RESUME_TXT,
+  resumeName: `${FILE_STEM}.pdf`,
+  resumeTxtName: `${FILE_STEM}.txt`,
   socials: [
-    { label: 'GitHub', href: 'https://github.com/gamentionkray' },
-    { label: 'LinkedIn', href: 'https://linkedin.com/in/krishnathorat' },
-    { label: 'Résumé', href: '/krishna-thorat-resume.pdf' }
+    { label: 'LinkedIn', href: PERSON.linkedin },
+    { label: 'Email', href: `mailto:${PERSON.email}` },
+    { label: 'Phone', href: `tel:${PERSON.phoneHref}` },
+    { label: 'Résumé', href: RESUME_PDF, download: true }
   ]
 };
 
 export const HERO = {
-  kicker: ['portfolio', 'v5 · built from scratch'],
-  // Words get split and rise in one by one. {chaos:true} makes a word clickable.
+  kicker: ['portfolio', 'D365 · Azure · Power Platform'],
   title: [
-    { t: 'Serious ' },
-    { t: 'code. ' },
-    { t: 'Curious ' },
-    { t: 'mind. ' },
-    { t: 'A ' },
-    { t: 'little ', chaos: true },
-    { t: 'chaos.' }
+    { t: 'I ' },
+    { t: 'make ' },
+    { t: 'Dynamics ' },
+    { t: '365 ' },
+    { t: 'do ' },
+    { t: 'things ', chaos: true },
+    { t: 'it ' },
+    { t: 'doesn\u2019t.' }
   ],
-  lede: `<strong>${ME.role} in ${ME.place}.</strong> I turn "what if?" into things
-         you can actually use — web apps, AI systems, and the messy bits in between.`,
+  lede: `<strong>${PERSON.headline}.</strong> ${PERSON.years} of CRM implementations, Azure
+         Functions and Power Platform automation — the kind of work that quietly
+         removes a week of somebody's manual data entry.`,
   ctas: [
-    { label: 'See the work', href: '#work', kind: 'solid', ico: '↓' },
-    { label: 'Résumé', href: ME.resume, kind: 'ghost', ico: '↗' }
+    { label: 'Download résumé', href: RESUME_PDF, kind: 'solid', ico: '\u2193', download: true, act: 'resume' },
+    { label: 'See the work', href: '#work', kind: 'ghost', ico: '\u2192' }
   ],
-  hint: 'drag your finger through the ink ↝',
+  hint: 'run your finger through the ink \u21dd',
   shape: 'spark',
   shapeText: 'what if?'
 };
 
-export const TICKER = ['Sketch it', 'Build it', 'Ship it', 'Make it better', 'Delete half of it'];
-
-export const PROJECTS = [
-  {
-    id: 'billo',
-    name: 'Billo.',
-    kicker: 'Money, sorted',
-    sub: 'just send the bills. we\'ll do the math.',
-    desc: 'Group-trip expense tracking that runs entirely on the phone. Snap a receipt or say "paid ₹800 cab for me and Rahul" — on-device OCR and a Hinglish parser turn it into a paise-exact ledger, then reduce the group to the fewest possible settlements. Ships as a PWA and an Android WebView with Play Billing.',
-    tags: ['Vanilla JS', 'Tesseract WASM', 'PWA', 'Kotlin', 'Play Billing'],
-    href: null,
-    hrefLabel: 'In this repo → /Billo App V3',
-    art: 'bill',
-    note: '62 unit tests on the money math. Zero network calls.',
-    flip: false
-  },
-  {
-    id: 'myna',
-    name: 'Myna.',
-    kicker: 'Real-time AI coach',
-    sub: 'an interview copilot you can run yourself',
-    desc: 'Listens to your interview, transcribes live, detects each question, and streams an answer written in your voice from your own résumé. Then debriefs you: talk share, words per minute, filler rate, hedging, "I" vs "we", STAR coverage per question. Zero dependencies, nothing recorded server-side.',
-    tags: ['Node (zero-dep)', 'Web Speech API', 'Whisper', 'SSE streaming', 'jsdom tests'],
-    href: null,
-    hrefLabel: 'In this repo → /myna',
-    art: 'wave',
-    note: '55 tests. Five surfaces: Setup · Live · Mock · Coding · Debrief.',
-    flip: true
-  },
-  {
-    id: 'cue',
-    name: 'Cue.',
-    kicker: 'AI interviews',
-    sub: 'an AI that interviews you back',
-    desc: 'A live video interview with an AI that watches, listens and scores. Candidates practise and get a report on content, delivery, body language and integrity. Employers screen and review.',
-    tags: ['Next.js 16', 'LiveKit', 'Gemini Live'],
-    href: 'https://interview.hire.rest/',
-    hrefLabel: 'Open Cue',
-    art: 'cue',
-    note: null,
-    flip: false
-  },
-  {
-    id: 'pulse',
-    name: 'Pulse.',
-    kicker: 'Real-time collaboration',
-    sub: 'collaboration in a few HTML tags',
-    desc: 'Web components that add comment threads, live cursors, presence, reactions and shared data to any website. Self-hosted, framework-agnostic, no lock-in.',
-    tags: ['Lit 3', 'WebSockets', 'Fastify', 'Redis'],
-    href: 'https://pulse.hire.rest/',
-    hrefLabel: 'Open Pulse',
-    art: 'chat',
-    note: null,
-    flip: true
-  },
-  {
-    id: 'ems',
-    name: 'EMS.',
-    kicker: 'Human resources',
-    sub: 'payroll compliance, built in',
-    desc: 'Multi-tenant HR for Indian companies with PF, ESI, PT and TDS handled. Onboarding, shift attendance, leave, and OKR performance reviews.',
-    tags: ['Lit 3', 'Fastify', 'PostgreSQL', 'Docker'],
-    href: 'https://ems.hire.rest/',
-    hrefLabel: 'Open EMS',
-    art: 'grid',
-    note: null,
-    flip: false
-  }
+export const TICKER = [
+  'Dynamics 365', 'Azure Functions', 'Power Automate', 'C#', 'Project Operations',
+  'SAP integration', 'Power BI', 'Ribbon Workbench', 'CI/CD', 'SAFe 6'
 ];
 
-export const BENCH = [
-  { name: 'NexusLMS', desc: 'AI-native learning management: RAG tutor, eight question types, block course builder.', href: 'https://nexus.hire.rest/' },
-  { name: 'TalentScan', desc: '16-agent career platform. Résumé analysis, interview prep, bulk screening, bring your own key.', href: 'https://talentscan.hire.rest/' },
-  { name: 'MailCraft', desc: 'Multi-tenant email template builder with Monaco, Inky/SCSS compile, live preview and an AI assistant.', href: null },
-  { name: 'hire.rest v5', desc: 'This page. No framework, no GSAP, no Lenis — one canvas, one grain engine, ~2k lines.', href: null }
-];
+/* The résumé's achievements, rephrased as numbers a recruiter can scan. */
+export const HIGHLIGHTS = STATS;
+
+/* Experience, shaped for the page: resume.js holds the bullets, this adds the
+   art each scene inkes into and the one-line framing. */
+export const ROLES = EXPERIENCE.map(r => ({
+  id: r.id,
+  name: r.company,
+  short: r.short,
+  role: r.role,
+  when: r.when,
+  place: r.place,
+  current: r.current,
+  kicker: r.kicker,
+  sub: r.sub,
+  desc: null,
+  bullets: r.bullets,
+  tags: r.tags,
+  art: r.art,
+  note: r.note,
+  href: null,
+  hrefLabel: null
+}));
+
+/* The "kit" grid on the page — same groups as the PDF, wide rather than tall. */
+export const KIT = SKILLS.map(g => ({ k: g.group, v: g.items.join(' · ') }));
 
 export const ABOUT = {
-  kicker: 'the whole puzzle',
-  title: 'I like the whole puzzle.',
-  body: `The interface someone touches. The API behind it. The database that remembers.
-         The infrastructure that keeps it running. Building production software since 2020 —
-         these days at Prescient Technologies on the Showpad / Bigtincan Content Hub.`,
-  kit: [
-    { k: 'Interface', v: 'Vanilla JS · Web Components · Lit · React · Next.js · Angular · React Native · TypeScript' },
-    { k: 'API', v: 'Node.js · Fastify · Python · FastAPI' },
-    { k: 'Data & intelligence', v: 'PostgreSQL · Redis · RAG · LangChain · Pydantic AI · Azure OpenAI · Gemini' },
-    { k: 'Infrastructure', v: 'AWS · Azure · GCP · Docker · Kubernetes · CI/CD' }
-  ],
-  hand: 'ideas are messy. the code doesn\'t have to be.',
+  kicker: 'how I work',
+  title: 'Enterprise software,\nwithout the enterprise drag.',
+  body: `I sit between the business and the system. Requirements come in as a
+         conversation in a meeting room; they go out as plugins, Azure Functions,
+         Power Automate flows and Power BI dashboards that people actually open
+         every morning. Most of my work is Microsoft's stack — Dynamics 365,
+         Azure, the Power Platform — and most of the value is in the seams
+         between systems that were never designed to talk.`,
+  kit: KIT,
+  hand: 'the integration is the product.',
   shape: 'puzzle'
 };
 
+/* Education and certifications, as a timeline. */
+/* Newest first. The certification bodies and the degree are already on the
+   line above, so the body copy adds context rather than repeating a name. */
 export const JOURNEY = [
-  { when: '2025 → now', org: 'Prescient Technologies', role: 'Senior System Developer · Showpad / Bigtincan', body: 'Content Hub features, JavaScript-to-TypeScript migration, code reviews and production performance.' },
-  { when: '2024 → 2025', org: 'Ergobite Tech Solutions', role: 'Software Developer · Intellify', body: 'Multi-agent knowledge systems, RAG search, data migration and cloud automation on Azure.' },
-  { when: '2024', org: 'Internship Studio', role: 'Senior Web Developer', body: 'AI-powered hiring, a cross-platform mobile app and full-stack exam platforms.' },
-  { when: '2022 → 2024', org: 'Infosys', role: 'System Engineer · Infosys Cortex', body: 'Enterprise web apps, Salesforce integration, WebRTC and accessible user experiences.' },
-  { when: '2020 → 2022', org: 'Internship Studio', role: 'Web Developer', body: 'Web platforms, payment integrations and the foundations of building end to end.' }
+  ...CERTIFICATIONS.map(c => ({
+    when: 'Certified',
+    org: c.name,
+    role: c.org,
+    body: c.name.includes('SAFe')
+      ? 'The delivery model behind the D365 Project Operations rollout — programme-level planning, not just sprints.'
+      : 'Building production applications in .NET Core and C#: dependency injection, testing, and the patterns that survive contact with real users.'
+  })),
+  ...EDUCATION.map(e => ({
+    when: e.when,
+    org: e.school,
+    role: e.degree,
+    body: `${e.place}. Computer science fundamentals, systems design, and the software engineering habits the job actually needs.`
+  }))
 ];
 
-export const EDU = 'MCA · Vishwakarma Institute of Technology, Pune · 2022 · CGPA 8.75';
+export const ACHIEVED = ACHIEVEMENTS;
+
+/* ------------------------------------------------------------- the résumé -- */
+
+export const RESUME = {
+  kicker: 'the one-page version',
+  title: 'Take it with you.',
+  hand: 'print it, forward it, paste it into a portal',
+  body: `One page, A4, no fluff — the same content you just scrolled past, laid out
+         as a document. Real text (not an image), so applicant tracking systems
+         read every field, and the phone, email and LinkedIn in the header are
+         clickable.`,
+  notes: [
+    'One page, A4 — prints cleanly in black and white',
+    'Selectable, searchable text — no screenshots',
+    'Clickable phone, email and LinkedIn links',
+    'A plain-text twin for ATS portals that mangle PDFs'
+  ],
+  shape: 'doc'
+};
 
 export const CONTACT = {
   kicker: 'hello',
-  hand: 'every good thing starts with a conversation',
-  title: ['Got a "what if?"', 'Let\'s build it.'],
-  cta: 'Say hello',
+  hand: 'the fastest way to find out if I fit is a conversation',
+  title: ['Building something on', 'Dynamics 365?'],
+  cta: 'Email me',
   shape: 'hello'
 };
 
+/* Every id here must be a section id in the built page — page.test.mjs
+   asserts it, because a nav link that scrolls nowhere is the kind of thing
+   nobody notices until a recruiter clicks it. */
 export const NAV = [
   { id: 'work', label: 'Work' },
   { id: 'about', label: 'About' },
-  { id: 'journey', label: 'Journey' },
+  { id: 'resume', label: 'Résumé' },
+  { id: 'journey', label: 'Journey', desktop: true },   // 5 chips crowd a 360px phone
   { id: 'contact', label: 'Contact', hot: true }
 ];
 
-/* ---------------------------------------------------------------------------
+/* --------------------------------------------------------------------------- 
    ART — one source of truth for every drawing.
    Each shape is a list of SVG path strings in a 0 0 200 200 box.
    • field.js strokes them into an offscreen canvas and samples the pixels,
-     so 4,000 particles fly into the drawing.
+     so thousands of particles fly into the drawing.
    • app.js injects the very same paths as the faint "blueprint" line art that
      stays visible behind the particles (and for anyone with JS off).
    Text shapes ({ text }) are rasterised in the hand font instead.
    ------------------------------------------------------------------------ */
+
 export const ART = {
+  /* hero — a compass rose / spark, the "what if" mark */
   spark: {
     paths: [
-      'M100 34 L100 166', 'M34 100 L166 100',
-      'M53 53 L147 147', 'M147 53 L53 147',
-      'M100 12 A88 88 0 0 1 188 100', 'M188 100 A88 88 0 0 1 100 188',
-      'M100 188 A88 88 0 0 1 12 100', 'M12 100 A88 88 0 0 1 100 12',
-      'M100 78 A22 22 0 1 1 99.9 78'
+      'M100 30 L100 170', 'M30 100 L170 100',
+      'M51 51 L149 149', 'M149 51 L51 149',
+      'M100 8 A92 92 0 0 1 192 100', 'M192 100 A92 92 0 0 1 100 192',
+      'M100 192 A92 92 0 0 1 8 100', 'M8 100 A92 92 0 0 1 100 8',
+      'M100 76 A24 24 0 1 1 99.9 76'
     ]
   },
-  bill: {
-    paths: [
-      'M52 22 H148 V166 L136 176 L124 166 L112 176 L100 166 L88 176 L76 166 L64 176 L52 166 Z',
-      'M70 56 H130', 'M70 78 H130', 'M70 100 H112',
-      'M70 132 H130', 'M92 122 H108',
-      'M118 118 a10 10 0 1 1 0 0.1 M128 112 v26 M120 130 l16 0'
-    ]
-  },
-  wave: {
-    paths: [
-      'M100 30 a20 20 0 0 1 20 20 v26 a20 20 0 0 1 -40 0 v-26 a20 20 0 0 1 20 -20 z',
-      'M64 82 a36 36 0 0 0 72 0', 'M100 118 v22', 'M76 146 h48',
-      'M28 96 v10', 'M40 78 v46', 'M172 96 v10', 'M160 78 v46',
-      'M16 100 v4'
-    ]
-  },
-  cue: {
-    paths: [
-      'M26 40 a10 10 0 0 1 10 -10 h128 a10 10 0 0 1 10 10 v84 a10 10 0 0 1 -10 10 h-128 a10 10 0 0 1 -10 -10 z',
-      'M86 62 L124 84 L86 106 Z',
-      'M100 134 v22', 'M70 162 h60',
-      'M44 52 a6 6 0 1 1 -0.1 0', 'M156 52 a6 6 0 1 1 -0.1 0'
-    ]
-  },
-  chat: {
-    paths: [
-      'M30 46 a12 12 0 0 1 12 -12 h76 a12 12 0 0 1 12 12 v44 a12 12 0 0 1 -12 12 h-46 l-24 22 v-22 h-6 a12 12 0 0 1 -12 -12 z',
-      'M88 118 h62 a12 12 0 0 1 12 12 v34 a12 12 0 0 1 -12 12 h-8 l-20 20 v-20 h-34 a12 12 0 0 1 -12 -12 v-22',
-      'M54 62 h52', 'M54 82 h34',
-      'M148 40 l26 44 -12 -2 -6 14 z'
-    ]
-  },
+
+  /* Siemens — enterprise project management: a project board */
   grid: {
     paths: [
-      'M28 40 h144 v120 h-144 z', 'M28 74 h144', 'M28 106 h144', 'M28 138 h144',
-      'M84 40 v120', 'M132 40 v120',
-      'M44 57 h22', 'M100 57 h16', 'M146 57 h12',
-      'M44 90 h26', 'M100 90 h14',
-      'M136 122 l10 10 l20 -22'
+      'M24 36 h152 v128 h-152 z',
+      'M24 66 h152', 'M24 100 h152', 'M24 134 h152',
+      'M76 36 v128', 'M124 36 v128',
+      'M40 51 h24', 'M92 51 h20', 'M140 51 h20',
+      'M40 84 h20', 'M92 84 h26', 'M140 84 h16',
+      'M40 118 h26', 'M92 118 h18',
+      'M140 118 l9 9 l18 -20'
     ]
   },
-  puzzle: {
-    paths: [
-      'M40 62 h34 a16 16 0 1 1 26 0 h34 v34 a16 16 0 1 0 0 26 v34 h-94 v-34 a16 16 0 1 1 0 -26 z',
-      'M148 96 h18 v60 h-30',
-      'M58 172 v-14', 'M100 46 v-14',
-      'M170 40 l6 12 l12 6 l-12 6 l-6 12 l-6 -12 l-12 -6 l12 -6 z'
-    ]
-  },
+
+  /* UST — CRM talking to SAP: two systems, two directions */
   route: {
     paths: [
-      'M28 168 C60 168 56 112 92 112 S124 56 168 56',
-      'M28 168 a12 12 0 1 1 -0.1 0', 'M92 112 a10 10 0 1 1 -0.1 0', 'M168 56 a12 12 0 1 1 -0.1 0',
-      'M52 140 h20', 'M112 84 h20', 'M150 30 h22', 'M150 82 h22'
+      'M20 72 h52 v56 h-52 z',
+      'M128 72 h52 v56 h-52 z',
+      'M72 88 C92 88 108 112 128 112',
+      'M72 112 C92 112 108 88 128 88',
+      'M112 84 l10 4 l-8 7',
+      'M88 116 l-10 -4 l8 -7',
+      'M46 44 v16', 'M154 44 v16', 'M100 28 v12',
+      'M34 156 h132'
+    ]
+  },
+
+  /* AssetCues — full-stack foundations: stacked layers */
+  puzzle: {
+    paths: [
+      'M100 40 L172 74 L100 108 L28 74 Z',
+      'M28 104 L100 138 L172 104',
+      'M28 134 L100 168 L172 134',
+      'M100 108 v30',
+      'M56 88 h88'
+    ]
+  },
+
+  /* résumé — a document with a folded corner and a download arrow */
+  doc: {
+    paths: [
+      'M46 24 h74 l34 34 v116 h-108 z',
+      'M120 24 v34 h34',
+      'M62 84 h74',
+      'M62 104 h74',
+      'M62 124 h50',
+      'M100 150 v34',
+      'M88 172 l12 14 l12 -14'
+    ]
+  },
+
+  /* certification — a medal with a check */
+  badge: {
+    paths: [
+      'M100 26 a40 40 0 1 1 -0.1 0',
+      'M100 56 a22 22 0 1 1 -0.1 0',
+      'M86 94 l12 12 l24 -26',
+      'M84 102 l-14 66 l30 -18 l30 18 l-14 -66'
+    ]
+  },
+
+  /* degree — a mortarboard */
+  cap: {
+    paths: [
+      'M100 46 L182 84 L100 122 L18 84 Z',
+      'M52 104 v38 a48 20 0 0 0 96 0 v-38',
+      'M170 90 v46',
+      'M170 140 a7 7 0 1 1 -0.1 0'
     ]
   }
 };
 
+/* --------------------------------------------------------------------------- 
+   IMAGE_ART — shapes made of light and dark rather than strokes.
+
+   `portrait` is the hero: your photograph, sampled into a halftone and handed
+   to the particle field as several thousand targets, which is how a face ends
+   up made of ink (see js/portrait.js). It is declared here so the art registry
+   stays in one place, and it is only ever used when a photograph actually
+   exists — otherwise the hero keeps the drawn shape below.
+   ------------------------------------------------------------------------ */
+export const IMAGE_ART = {
+  portrait: {
+    sources: [PERSON.photo, ...PHOTO_SOURCES].filter(Boolean),
+    /* What the stage shows if the dots never arrive: a reader with JavaScript
+       off, or a photograph that will not decode. Deliberately the drawn shape
+       rather than the picture — the hero already shows the photograph in its
+       frame, and printing it twice looks like a mistake. */
+    fallback: HERO.shape,
+    size: 208,     // working resolution: higher is finer detail, more candidates
+    step: 2,       // sample every 2nd pixel → ~5k candidates against a 4.2k budget
+    pivot: 0.42,
+    gain: 1.55,
+    bias: 0.05
+  }
+};
+
+/* Text shapes are rasterised in the hand face instead of stroked as paths —
+   they live here, never in ART, because ART is what the path iterator walks. */
 export const TEXT_ART = {
   hello: { text: 'hello', font: '700 150px Caveat, "Segoe Print", cursive', box: [360, 170] }
 };
+
+export { FILE_STEM, RESUME_PDF, RESUME_TXT };

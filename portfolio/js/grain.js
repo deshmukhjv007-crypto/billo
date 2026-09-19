@@ -44,7 +44,7 @@ export const HIRE_REST_CSS = `.grain{position:fixed;inset:0;z-index:60;pointer-e
 
 export const DEFAULTS = {
   on: true,
-  opacity: 0.11,        // master
+  opacity: 0.085,       // master — a texture you notice, not a layer you watch
   blend: 'overlay',     // overlay | soft-light | multiply | screen | hard-light | difference
   /* layer 1 — SVG feTurbulence (the hire.rest trick, tunable) */
   turbOn: true,
@@ -53,26 +53,27 @@ export const DEFAULTS = {
   numOctaves: 3,
   mono: true,           // desaturate the turbulence (theirs is coloured RGBA)
   seed: 7,
-  /* layer 2 — animated canvas sprite */
+  /* layer 2 — canvas noise sprite, held still unless you ask for motion */
   filmOn: true,
   filmOpacity: 0.9,
+  filmAnimate: false,   // <- OFF by default. See the note on _applyMotion().
   tile: 180,            // px per noise frame
   frames: 8,            // frames in the sprite sheet
-  fps: 14,              // grain cadence
+  fps: 12,              // cadence when animation is on
   contrast: 1.3,        // gamma: >1 = sparser, punchier specks
   tint: 0.15,           // 0 = neutral, 1 = warm/cool chroma speckle
   /* behaviour */
-  react: true,
-  reactMax: 1.9         // opacity multiplier at full scroll speed
+  react: false,         // opacity follows scroll speed — off, it strobes
+  reactMax: 1.25        // opacity multiplier at full scroll speed
 };
 
 export const PRESETS = {
   'hire.rest (theirs)': { opacity: 0.07, turbOn: true, turbOpacity: 1, baseFrequency: 0.9, numOctaves: 2, mono: false, filmOn: false, blend: 'overlay', react: false, contrast: 1, tint: 0 },
   'Subtle': { opacity: 0.06, turbOn: true, turbOpacity: 0.8, baseFrequency: 0.85, numOctaves: 2, mono: true, filmOn: false, blend: 'overlay', react: false, contrast: 1.1, tint: 0 },
-  '35mm': { opacity: 0.11, turbOn: true, turbOpacity: 0.55, baseFrequency: 0.72, numOctaves: 3, mono: true, filmOn: true, fps: 14, tile: 180, frames: 8, contrast: 1.3, tint: 0.15, blend: 'overlay', react: true, reactMax: 1.9 },
+  '35mm': { opacity: 0.1, turbOn: true, turbOpacity: 0.55, baseFrequency: 0.72, numOctaves: 3, mono: true, filmOn: true, filmAnimate: true, fps: 12, tile: 180, frames: 8, contrast: 1.3, tint: 0.15, blend: 'overlay', react: false, reactMax: 1.25 },
   '16mm (default)': { ...DEFAULTS },
-  'Riso print': { opacity: 0.15, turbOn: true, turbOpacity: 0.5, baseFrequency: 0.34, numOctaves: 2, mono: false, filmOn: true, fps: 7, tile: 220, frames: 5, contrast: 1.7, tint: 1, blend: 'multiply', react: false },
-  'VHS': { opacity: 0.19, turbOn: true, turbOpacity: 0.7, baseFrequency: 0.22, numOctaves: 5, mono: false, filmOn: true, fps: 24, tile: 120, frames: 6, contrast: 0.75, tint: 0.6, blend: 'screen', react: true, reactMax: 2.6 },
+  'Riso print': { opacity: 0.14, turbOn: true, turbOpacity: 0.5, baseFrequency: 0.34, numOctaves: 2, mono: false, filmOn: true, filmAnimate: false, fps: 7, tile: 220, frames: 5, contrast: 1.7, tint: 1, blend: 'multiply', react: false },
+  'VHS — moving grain': { opacity: 0.17, turbOn: true, turbOpacity: 0.7, baseFrequency: 0.22, numOctaves: 5, mono: false, filmOn: true, filmAnimate: true, fps: 16, tile: 120, frames: 6, contrast: 0.75, tint: 0.6, blend: 'screen', react: false, reactMax: 1.25 },
   'Newsprint': { opacity: 0.09, turbOn: true, turbOpacity: 1, baseFrequency: 1.25, numOctaves: 1, mono: true, filmOn: false, blend: 'soft-light', react: false, contrast: 1 },
   'Off': { on: false }
 };
@@ -80,6 +81,31 @@ export const PRESETS = {
 /* -------------------------------------------------------------------------- */
 /* texture builders                                                           */
 /* -------------------------------------------------------------------------- */
+
+/**
+ * The @keyframes that advance the noise sprite, as a string.
+ *
+ * One clean horizontal drift of exactly one whole sheet of tiles, stepped so
+ * every jump lands on a frame boundary. Pure and exported: the animation is the
+ * part that was wrong before, and it should be testable without a canvas.
+ *
+ * (For the record, what was wrong: the old version added an independent Y term,
+ * `-(((f * 37) % 5) * tile)`, so consecutive frames displaced the noise field by
+ * 402-569 px. Grain that teleports is not grain, it is the page rocking.)
+ */
+export function grainKeyframes({ tile = 180, frames = 8, fps = 12, name = 'grainShift' } = {}) {
+  const F = Math.max(1, Math.round(frames));
+  const T = Math.round(tile);
+  const dur = (F / Math.max(1, fps)).toFixed(3);
+  if (F < 2) return { css: '', animation: 'none', duration: dur, ticks: 1 };
+  return {
+    css: `@keyframes ${name}{from{transform:translate3d(0,0,0)}`
+      + `to{transform:translate3d(${-T * F}px,0,0)}}`,
+    animation: `${name} ${dur}s steps(${F}, end) infinite`,
+    duration: dur,
+    ticks: F
+  };
+}
 
 /** The feTurbulence data-URI. Same primitive hire.rest uses, parameterised. */
 export function turbulenceURI({ baseFrequency = 0.72, numOctaves = 3, mono = true, seed = 7, size = 180 } = {}) {
@@ -160,6 +186,11 @@ export class GrainLayer {
     this.apply({ rebuild: rebuild || needsSprite });
   }
 
+  /** Still or moving — the one switch most people will want. */
+  setMotion(on) {
+    this.set({ filmAnimate: !!on });
+  }
+
   preset(name) {
     const p = PRESETS[name];
     if (!p) return;
@@ -183,9 +214,8 @@ export class GrainLayer {
       this.turb.style.opacity = s.turbOpacity;
     } else this.turb.style.display = 'none';
 
-    /* layer 2: animated film sprite */
-    const animated = s.filmOn && !state.reduce;
-    if (!animated) {
+    /* layer 2: the noise sprite */
+    if (!s.filmOn) {
       this.filmWrap.style.display = 'none';
       return;
     }
@@ -193,31 +223,46 @@ export class GrainLayer {
     this.filmWrap.style.opacity = s.filmOpacity;
     if (rebuild || !this._sprite) {
       if (this._regen) cancelAnimationFrame(this._regen);
+      this._applyMotion();                    // settle motion state immediately
       this._regen = requestAnimationFrame(() => {
         this._sprite = filmSprite(s);
         if (!this._sprite) { this.filmWrap.style.display = 'none'; return; }
         this.film.style.backgroundImage = `url(${this._sprite})`;
         this.film.style.backgroundSize = `${s.tile * s.frames}px ${s.tile}px`;
-        this._injectKeyframes();
+        this._applyMotion();
       });
     } else {
       this.film.style.backgroundSize = `${s.tile * s.frames}px ${s.tile}px`;
-      this._injectKeyframes();
+      this._applyMotion();
     }
   }
 
-  _injectKeyframes() {
+  /**
+   * Motion, or none.
+   *
+   * The first version of this stepped the sprite with a translate that had a
+   * second, independent term on the Y axis — `-(((f * 37) % 5) * tile)` — which
+   * teleported the noise field by 402-569 px on every frame at 14 fps. That is
+   * not grain; it is the whole texture jumping, and it reads exactly like the
+   * page rocking under you.
+   *
+   * Film grain doesn't move *at all* relative to the frame — that is what makes
+   * it grain. So stillness is the default, and when motion is switched on it is
+   * a single clean horizontal drift of one tile per frame: the same gentle
+   * crawl a projector gate has, never a jump.
+   */
+  _applyMotion() {
     const s = this.s;
-    const dur = (s.frames / Math.max(1, s.fps)).toFixed(3);
-    const steps = [];
-    for (let f = 0; f < s.frames; f++) {
-      // hop by whole tiles so the sheet never shows a seam mid-frame
-      const dx = -((f * s.tile) % (s.tile * s.frames));
-      const dy = -(((f * 37) % 5) * s.tile);
-      steps.push(`${((f / s.frames) * 100).toFixed(2)}%{transform:translate3d(${dx}px,${dy}px,0)}`);
+    if (!(s.filmAnimate && !state.reduce)) {
+      /* frame 0, held: a frozen silver-halide texture over the page */
+      this.film.style.animation = 'none';
+      this.film.style.transform = 'translate3d(0,0,0)';
+      this.style.textContent = '';
+      return;
     }
-    this.style.textContent = `@keyframes grainShift${this.id}{${steps.join('')}}`;
-    this.film.style.animation = `grainShift${this.id} ${dur}s steps(${s.frames}, end) infinite`;
+    const kf = grainKeyframes({ tile: s.tile, frames: s.frames, fps: s.fps, name: `grainShift${this.id}` });
+    this.style.textContent = kf.css;
+    this.film.style.animation = kf.animation;
   }
 
   /** v = 0..1 drive. Called from the single motion rAF loop. */
@@ -304,6 +349,8 @@ export function mountLab(root, layer) {
     <div>
       <h3>Grain lab</h3>
       <p>Everything on this page is these two layers. Drag, then take the CSS with you.</p>
+      <p class="lab-note">The noise sits still by default &mdash; real grain does not move
+      relative to the frame. Switch on <b>Animate it</b> if you want the projector-gate drift.</p>
     </div>
     <button class="lab-x" data-lab="close" aria-label="Close grain lab">✕</button>
   </div>
@@ -337,9 +384,10 @@ export function mountLab(root, layer) {
 
   <div class="switches">
     ${toggle('turbOn', 'feTurbulence layer')}
-    ${toggle('filmOn', 'Animated film layer')}
+    ${toggle('filmOn', 'Canvas noise layer')}
+    ${toggle('filmAnimate', 'Animate it (moves like film)')}
     ${toggle('mono', 'Monochrome noise')}
-    ${toggle('react', 'React to scroll speed')}
+    ${toggle('react', 'Pulse with scroll speed')}
     <label class="sw">
       <span>Blend</span>
       <select data-lab="blend">
@@ -416,7 +464,7 @@ export function mountLab(root, layer) {
   }
 
   const COMPARE = ['on', 'opacity', 'blend', 'turbOn', 'turbOpacity', 'baseFrequency', 'numOctaves',
-    'mono', 'filmOn', 'filmOpacity', 'fps', 'tile', 'frames', 'contrast', 'tint', 'react', 'reactMax'];
+    'mono', 'filmOn', 'filmAnimate', 'filmOpacity', 'fps', 'tile', 'frames', 'contrast', 'tint', 'react', 'reactMax'];
 
   function matchesPreset(s, name) {
     const p = PRESETS[name];

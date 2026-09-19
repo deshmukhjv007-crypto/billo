@@ -1,58 +1,95 @@
 #!/usr/bin/env node
 /* ============================================================================
-   build.js — renders index.html from content.js.
+   build.js — renders index.html from content.js, and picks up the artefacts
+   make-pdf.js just wrote.
 
    The page ships as plain, crawlable, works-without-JS HTML (unlike a
    client-rendered SPA), but the copy still lives in exactly one place.
-   Run it whenever content.js changes:
 
-       node build.js          # or: npm run build
+       npm run build      # make-pdf.js (PDF + txt) → build.js (index.html)
+       node build.js      # just the HTML
    ========================================================================== */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as C from './content.js';
+import { PERSON, SUMMARY, SKILLS, EDUCATION, CERTIFICATIONS, ACHIEVEMENTS } from './resume.js';
+import { findPhoto, photoNearMisses, describePhoto } from './photo.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const title = C.HERO.title.map(w => w.t).join('');
 
+/* ---------------------------------------------------- the downloadable CV -- */
+
+const human = n => n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(0)} kB` : `${(n / 1048576).toFixed(1)} MB`;
+
+function artefact(file) {
+  try { return { size: fs.statSync(path.join(__dirname, file)).size, exists: true }; }
+  catch { return { size: 0, exists: false }; }
+}
+
+const pdf = artefact(`${C.FILE_STEM}.pdf`);
+const txt = artefact(`${C.FILE_STEM}.txt`);
+const pdfLabel = pdf.exists ? `PDF · ${human(pdf.size)} · 1 page` : 'PDF';
+
+/* The photo is picked up from disk so swapping in a real one is a file copy,
+   not a code change. Until then an inked monogram stands in. */
+const photo = findPhoto(__dirname, C.ME.photo);
+
+/* With a photograph on disk the hero's artwork IS the photograph — sampled
+   into a halftone and re-inked by the particle field (js/portrait.js). Without
+   one it stays the drawn shape, so the hero is never empty. */
+const heroArt = photo ? 'portrait' : C.HERO.shape;
+
+const monogram = `<svg class="monogram" viewBox="0 0 200 200" role="img" aria-label="${esc(C.ME.name)}">
+      <defs><linearGradient id="mg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="currentColor" stop-opacity=".22"/>
+        <stop offset="1" stop-color="currentColor" stop-opacity=".06"/></linearGradient></defs>
+      <rect width="200" height="200" fill="url(#mg)"/>
+      <text x="100" y="100" text-anchor="middle" dominant-baseline="central">JD</text>
+      <circle cx="100" cy="100" r="88" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-width="1.5"/>
+    </svg>`;
+
+const portrait = photo
+  ? `<img class="portrait-img" src="${esc(photo)}" alt="${esc(C.ME.photoAlt)}" width="800" height="800" loading="eager" decoding="async">`
+  : monogram;
+
 /* ---------------------------------------------------------------- partials */
 
 const nav = C.NAV.map(n =>
   `<a href="#${n.id}" data-spy class="${n.hot ? 'pill' : ''}">${n.label}</a>`).join('\n        ');
 
-const mobileNav = C.NAV.map(n =>
+const mobileNav = C.NAV.filter(n => !n.desktop).map(n =>
   `<a href="#${n.id}" data-spy class="${n.hot ? 'hot' : ''}">${n.label}</a>`).join('');
 
 const heroWords = C.HERO.title
-  .map(w => (w.chaos ? `<button class="chaos-word" data-chaos type="button">${esc(w.t.trim())}</button>` : esc(w.t))
-  ).join(' ');
+  .map(w => (w.chaos ? `<button class="chaos-word" data-chaos type="button">${esc(w.t.trim())}</button>` : esc(w.t)))
+  .join(' ');
 const chaosWord = (C.HERO.title.find(w => w.chaos) || { t: '' }).t.trim();
 
-const project = (p, i) => `
-    <section class="scene piece ${p.flip ? 'flip' : ''} reveal" id="${p.id}" data-shape="${p.art}">
+/* one experience scene: copy on one side, particle drawing on the other */
+const role = (r, i) => `
+    <section class="scene piece ${i % 2 ? 'flip' : ''} reveal" id="${r.id}" data-shape="${r.art}">
       <div class="copy">
-        <p class="meta"><span>${String(i + 1).padStart(2, '0')}</span><span>${esc(p.kicker)}</span></p>
-        <h2 data-wipe>${esc(p.name)}</h2>
-        <p class="sub hand">${esc(p.sub)}</p>
-        <p class="desc">${esc(p.desc)}</p>
-        <ul class="tags">${p.tags.map(t => `<li>${esc(t)}</li>`).join('')}</ul>
-        ${p.href
-          ? `<a class="link" href="${esc(p.href)}" target="_blank" rel="noopener">${esc(p.hrefLabel)} <i aria-hidden="true">↗</i></a>`
-          : `<p class="link static">${esc(p.hrefLabel)}</p>`}
-        ${p.note ? `<p class="note hand">${esc(p.note)}</p>` : ''}
+        <p class="meta"><span>${String(i + 1).padStart(2, '0')}</span><span>${esc(r.kicker)}</span>${r.current ? '<span class="tag-live">current</span>' : ''}</p>
+        <h2 data-wipe>${esc(r.short)}</h2>
+        <p class="sub hand">${esc(r.sub)}</p>
+        <p class="org"><b>${esc(r.role)}</b><span>${esc(r.when)}</span></p>
+        <ul class="achievements">
+          ${r.bullets.map(b => `<li>${esc(b)}</li>`).join('\n          ')}
+        </ul>
+        <ul class="tags">${r.tags.map(t => `<li>${esc(t)}</li>`).join('')}</ul>
+        ${r.note ? `<p class="note hand">${esc(r.note)}</p>` : ''}
       </div>
-      <div class="stage" data-art="${p.art}"></div>
+      <div class="stage" data-art="${r.art}"></div>
     </section>`;
 
-const bench = C.BENCH.map(b => `
-        <li class="reveal">${b.href
-          ? `<a href="${esc(b.href)}" target="_blank" rel="noopener"><b>${esc(b.name)}</b><span>${esc(b.desc)}</span><i aria-hidden="true">↗</i></a>`
-          : `<div><b>${esc(b.name)}</b><span>${esc(b.desc)}</span><i aria-hidden="true">✳</i></div>`}</li>`).join('');
+const stat = s => `
+        <li class="reveal"><b>${esc(s.n)}</b><span>${esc(s.label)}</span></li>`;
 
-const kit = C.ABOUT.kit.map(k => `
+const kit = C.KIT.map(k => `
           <div><dt>${esc(k.k)}</dt><dd>${esc(k.v)}</dd></div>`).join('');
 
 const journey = C.JOURNEY.map((j, i) => `
@@ -65,8 +102,26 @@ const journey = C.JOURNEY.map((j, i) => `
           </div>
         </li>`).join('');
 
+const achievements = ACHIEVEMENTS.map(a => `
+          <li class="reveal">${esc(a)}</li>`).join('');
+
 const socials = C.ME.socials.map(s =>
-  `<li><a href="${esc(s.href)}" ${s.href.startsWith('http') ? 'target="_blank" rel="noopener"' : ''}>${esc(s.label)}</a></li>`).join('');
+  `<li><a href="${esc(s.href)}" ${s.href.startsWith('http') ? 'target="_blank" rel="noopener"' : ''}${s.download ? ' download' : ''}>${esc(s.label)}</a></li>`).join('');
+
+/* The paper preview: the same document the PDF holds, rendered in HTML. It is
+   decorative — the download is the real thing — so it is aria-hidden and the
+   text is duplicated only for people who never open the PDF. */
+const previewSkills = SKILLS.map(g =>
+  `<p class="pv-skill"><b>${esc(g.group)}</b> ${esc(g.items.join(', '))}</p>`).join('\n            ');
+
+const previewRoles = C.ROLES.map(r => `
+            <div class="pv-role">
+              <p class="pv-head"><b>${esc(r.name)}</b><span>${esc(r.when)}</span></p>
+              <p class="pv-role-line">${esc(r.role)} · ${esc(r.place)}</p>
+              <ul>${r.bullets.slice(0, 2).map(b => `<li>${esc(b)}</li>`).join('')}</ul>
+            </div>`).join('');
+
+const resumeNotes = C.RESUME.notes.map(n => `<li>${esc(n)}</li>`).join('\n          ');
 
 /* ------------------------------------------------------------------ page --- */
 
@@ -75,25 +130,44 @@ const html = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>${esc(C.ME.name)} — ${esc(title)}</title>
-<meta name="description" content="${esc(C.ME.role + ' in ' + C.ME.place + '. ' + C.PROJECTS.slice(0, 3).map(p => p.name.replace('.', '')).join(', ') + ' and more.') }">
+<title>${esc(C.ME.name)} — ${esc(C.ME.role)}, Dynamics 365 &amp; Azure</title>
+<meta name="description" content="${esc(`${C.ME.headline}. ${PERSON.years} building Dynamics 365 CRM, Azure Functions and Power Platform automation in ${C.ME.place}. Résumé available as PDF or plain text.`)}">
+<meta name="author" content="${esc(C.ME.name)}">
 <meta name="color-scheme" content="dark light">
 <meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#f4f1ea" media="(prefers-color-scheme: light)">
-<link rel="canonical" href="https://hire.rest/">
-<meta property="og:title" content="${esc(C.ME.name)} — ${esc(title)}">
-<meta property="og:description" content="${esc(C.ME.role + ' in ' + C.ME.place)}">
-<meta property="og:type" content="website">
-<meta property="og:url" content="https://hire.rest/">
+<link rel="canonical" href="https://jayeshdeshmukh.dev/">
+<meta property="og:title" content="${esc(C.ME.name)} — ${esc(C.ME.role)}">
+<meta property="og:description" content="${esc(C.ME.headline)}">
+<meta property="og:type" content="profile">
+<meta property="og:url" content="https://jayeshdeshmukh.dev/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="alternate" type="application/pdf" href="${esc(C.ME.resume)}" title="Résumé (PDF)">
+${photo ? `<link rel="preload" as="image" href="${esc(photo)}">` : ''}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&family=Caveat:wght@600;700&family=Instrument+Sans:ital,wght@0,400..600;1,400..600&family=JetBrains+Mono:wght@400;600&display=swap">
 <link rel="stylesheet" href="./styles.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0a0b'/%3E%3Cpath d='M16 5v22M5 16h22M8 8l16 16M24 8L8 24' stroke='%23ef5024' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+<script type="application/ld+json">
+${JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'Person',
+  name: C.ME.name,
+  jobTitle: C.ME.role,
+  description: C.ME.headline,
+  email: `mailto:${C.ME.email}`,
+  telephone: C.ME.phone,
+  url: 'https://jayeshdeshmukh.dev/',
+  address: { '@type': 'PostalAddress', addressLocality: 'Pune', addressRegion: 'Maharashtra', addressCountry: 'IN' },
+  sameAs: [C.ME.socials.find(s => s.label === 'LinkedIn')?.href].filter(Boolean),
+  knowsAbout: SKILLS.flatMap(g => g.items).slice(0, 20)
+}, null, 2)}
+</script>
 <script>
 document.documentElement.classList.add('js');
 try {
-  var t = localStorage.getItem('hr5-theme');
+  var t = localStorage.getItem('jd-theme');
   if (t) document.documentElement.dataset.theme = t;
   else if (matchMedia('(prefers-color-scheme: light)').matches) document.documentElement.dataset.theme = 'light';
 } catch (e) {}
@@ -122,53 +196,70 @@ try {
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
     </button>
     <button class="ico kbd" data-act="palette" title="Command palette" aria-keyshortcuts="Control+K" aria-label="Open command palette">⌘K</button>
-    <a class="pill" data-magnet="90" href="mailto:${esc(C.ME.email)}">Hire me</a>
+    <a class="pill resume-pill" data-magnet="90" data-act="resume" href="${esc(C.ME.resume)}" download>Résumé <i aria-hidden="true">↓</i></a>
   </div>
 </header>
 
 <main id="main">
 
   <!-- ░░ hero ░░ -->
-  <section class="scene hero" id="home" data-shape="${C.HERO.shape}">
+  <section class="scene hero" id="home" data-shape="${heroArt}">
     <div class="copy">
       <p class="meta reveal"><span>${esc(C.HERO.kicker[0])}</span><span>${esc(C.HERO.kicker[1])}</span></p>
       <h1 data-split data-chaos-word="${esc(chaosWord)}">${heroWords}</h1>
       <p class="lede reveal">${C.HERO.lede}</p>
       <div class="ctas reveal">
-        ${C.HERO.ctas.map(c => `<a class="btn ${c.kind === 'ghost' ? 'ghost' : ''}" href="${esc(c.href)}">${esc(c.label)} <i aria-hidden="true">${c.ico}</i></a>`).join('\n        ')}
+        ${C.HERO.ctas.map(c => `<a class="btn ${c.kind === 'ghost' ? 'ghost' : ''}" href="${esc(c.href)}"${c.download ? ' download' : ''}${c.act ? ` data-act="${c.act}"` : ''}>${esc(c.label)} <i aria-hidden="true">${c.ico}</i></a>`).join('\n        ')}
       </div>
+      <p class="avail reveal">${esc(C.ME.availability)} · ${esc(C.ME.city)}</p>
     </div>
-    <div class="stage" data-art="${C.HERO.shape}">
-      <p class="hint hand">${esc(C.HERO.hint)}</p>
+    <div class="hero-side">
+      <figure class="portrait${photo ? ' has-photo' : ''}" data-magnet-host>
+        <span class="portrait-frame">${portrait}</span>
+        <figcaption class="mono">${esc(PERSON.city)} · IST</figcaption>
+      </figure>
+      <div class="stage" data-art="${heroArt}">
+        <p class="hint hand">${esc(C.HERO.hint)}</p>
+      </div>
     </div>
   </section>
 
   <div class="ticker" aria-hidden="true"><div class="track" data-ticker>${
     C.TICKER.map(t => `<span>${esc(t)}</span><i>✳</i>`).join('')}</div></div>
 
-  <!-- ░░ work ░░ -->
-  <section class="work-head" id="work">
+  <!-- ░░ numbers ░░ -->
+  <section class="stats-sec">
     <div class="wrap">
-      <p class="meta reveal"><span>selected work</span><span>${C.PROJECTS.length} built · ${C.BENCH.length} more</span></p>
-      <h2 class="huge reveal" data-wipe>Things I<br>actually shipped.</h2>
-      <p class="lede reveal">Two of these live in this very repository — <b>Billo</b> and <b>Myna</b> — with their tests. The rest are deployed and clicking.</p>
-    </div>
-  </section>
-${C.PROJECTS.map(project).join('\n')}
-
-  <section class="bench-sec" id="bench">
-    <div class="wrap">
-      <p class="meta reveal"><span>also on the workbench</span></p>
-      <ul class="bench">${bench}
+      <p class="meta reveal"><span>by the numbers</span><span>each one from the CV below</span></p>
+      <ul class="stats">${C.HIGHLIGHTS.map(stat).join('')}
       </ul>
     </div>
   </section>
 
-  <!-- ░░ about ░░ -->
-  <section class="scene about" id="about" data-shape="${C.ABOUT.shape}">
+  <!-- ░░ work ░░ -->
+  <section class="work-head" id="work">
+    <div class="wrap">
+      <p class="meta reveal"><span>experience</span><span>${C.ROLES.length} roles · ${C.ME.place.split(',')[0]}</span></p>
+      <h2 class="huge reveal" data-wipe>Where I've<br>done the work.</h2>
+      <p class="lede reveal">${esc(SUMMARY)}</p>
+    </div>
+  </section>
+${C.ROLES.map(role).join('\n')}
+
+  <!-- ░░ highlights ░░ -->
+  <section class="bench-sec" id="highlights">
+    <div class="wrap">
+      <p class="meta reveal"><span>key achievements</span></p>
+      <ul class="bench highlights">${achievements}
+      </ul>
+    </div>
+  </section>
+
+  <!-- ░░ skills ░░ -->
+  <section class="scene about skills-sec" id="about" data-shape="puzzle">
     <div class="copy">
-      <p class="meta reveal"><span>${esc(C.ABOUT.kicker)}</span></p>
-      <h2 class="reveal" data-wipe>${esc(C.ABOUT.title)}</h2>
+      <p class="meta reveal"><span>technical skills</span><span>${SKILLS.length} groups</span></p>
+      <h2 class="reveal" data-wipe>${C.ABOUT.title.split('\n').map(esc).join('<br>')}</h2>
       <p class="desc reveal">${C.ABOUT.body}</p>
       <dl class="kit reveal">${kit}
       </dl>
@@ -177,16 +268,61 @@ ${C.PROJECTS.map(project).join('\n')}
     <div class="stage" data-art="${C.ABOUT.shape}"></div>
   </section>
 
+  <!-- ░░ résumé ░░ -->
+  <section class="resume-sec" id="resume">
+    <div class="glow" aria-hidden="true"></div>
+    <div class="wrap resume-wrap">
+      <div class="resume-copy">
+        <p class="meta reveal"><span>${esc(C.RESUME.kicker)}</span><span>${pdf.exists ? pdfLabel : 'run npm run build'}</span></p>
+        <h2 class="reveal" data-wipe>${esc(C.RESUME.title)}</h2>
+        <p class="hand reveal">${esc(C.RESUME.hand)}</p>
+        <p class="desc reveal">${C.RESUME.body}</p>
+        <ul class="resume-notes reveal">${resumeNotes}</ul>
+        <div class="ctas reveal resume-ctas" data-magnet-host>
+          <a class="btn big magnet resume-dl" data-magnet="150" data-act="resume" href="${esc(C.ME.resume)}" download>
+            <span class="dl-ico" aria-hidden="true">↓</span>
+            <span class="dl-text"><b>Download résumé</b><em>${esc(pdf.exists ? `${pdfLabel} · selectable text` : 'PDF')}</em></span>
+          </a>
+          <a class="btn ghost small" href="${esc(C.ME.resumeTxt)}" download data-act="resume-txt">Plain text (.txt)</a>
+          <button class="btn ghost small" data-act="print" type="button">Print this page</button>
+        </div>
+        <p class="email reveal"><a href="mailto:${esc(C.ME.email)}">${esc(C.ME.email)}</a> <span class="dot">·</span> <a href="${esc(C.ME.phoneHref)}">${esc(C.ME.phone)}</a></p>
+      </div>
+
+      <div class="paper-wrap reveal" aria-hidden="true">
+        <div class="paper">
+          <div class="paper-sheet">
+          <div class="paper-head">
+            <p class="pv-name">${esc(C.ME.name)}</p>
+            <p class="pv-role">${esc(C.ME.headline)}</p>
+            <p class="pv-contact">${esc(C.ME.phone)} · ${esc(C.ME.email)} · ${esc(C.ME.linkedinShort || C.ME.socials[0].href.replace('https://', ''))}</p>
+          </div>
+          <p class="pv-section">Professional Summary</p>
+          <p class="pv-body">${esc(SUMMARY)}</p>
+          <p class="pv-section">Technical Skills</p>
+          ${previewSkills}
+          <p class="pv-section">Professional Experience</p>${previewRoles}
+          <p class="pv-section">Key Achievements</p>
+          <ul class="pv-certs">${ACHIEVEMENTS.map(a => `<li>${esc(a)}</li>`).join('')}</ul>
+          <p class="pv-section">Education &amp; Certifications</p>
+          <p class="pv-body">${esc(EDUCATION[0].degree)} — ${esc(EDUCATION[0].school)}, ${esc(EDUCATION[0].when)}.</p>
+          <ul class="pv-certs">${CERTIFICATIONS.map(c => `<li>${esc(c.name)} — ${esc(c.org)}</li>`).join('')}</ul>
+          </div>
+        </div>
+        <p class="paper-cap hand">that's the whole thing, one page ↝</p>
+      </div>
+    </div>
+  </section>
+
   <!-- ░░ journey ░░ -->
-  <section class="scene journey" id="journey" data-shape="route">
+  <section class="scene journey" id="journey" data-shape="cap">
     <div class="copy">
-      <p class="meta reveal"><span>a few chapters in</span><span>2020 → now</span></p>
-      <h2 class="reveal" data-wipe>The road so far.</h2>
+      <p class="meta reveal"><span>education &amp; certifications</span><span>2020 → now</span></p>
+      <h2 class="reveal" data-wipe>Still collecting<br>the paperwork.</h2>
       <ol class="timeline">${journey}
       </ol>
-      <p class="edu reveal">${esc(C.EDU)}</p>
     </div>
-    <div class="stage" data-art="route"></div>
+    <div class="stage" data-art="cap"></div>
   </section>
 
   <!-- ░░ contact ░░ -->
@@ -198,9 +334,10 @@ ${C.PROJECTS.map(project).join('\n')}
       <h2 class="reveal">${esc(C.CONTACT.title[0])}<br><em>${esc(C.CONTACT.title[1])}</em></h2>
       <div class="ctas reveal">
         <a class="btn big magnet" data-magnet="150" href="mailto:${esc(C.ME.email)}">${esc(C.CONTACT.cta)} <span class="ico-round" aria-hidden="true">↗</span></a>
+        <a class="btn ghost" href="${esc(C.ME.resume)}" download data-act="resume">Résumé ↓</a>
         <button class="btn ghost" data-copy="${esc(C.ME.email)}" type="button">Copy email</button>
       </div>
-      <p class="email reveal"><a href="mailto:${esc(C.ME.email)}">${esc(C.ME.email)}</a></p>
+      <p class="email reveal"><a href="mailto:${esc(C.ME.email)}">${esc(C.ME.email)}</a> <span class="dot">·</span> <a href="${esc(C.ME.phoneHref)}">${esc(C.ME.phone)}</a></p>
       <ul class="socials reveal">${socials}</ul>
     </div>
     <div class="stage" data-art="${C.CONTACT.shape}"></div>
@@ -211,7 +348,7 @@ ${C.PROJECTS.map(project).join('\n')}
   <div class="wrap foot-in">
     <p>© <span data-year>2026</span> ${esc(C.ME.name)} · ${esc(C.ME.place)}</p>
     <p class="mono">built with 0 dependencies · <span data-hud>— particles · — fps</span> · grain: <span data-grain-label>16mm</span></p>
-    <p><button class="linkish" data-act="lab" type="button">grain lab</button> · <button class="linkish" data-act="smooth" type="button">smooth wheel: <span data-smooth>off</span></button></p>
+    <p><a class="linkish" href="${esc(C.ME.resume)}" download data-act="resume">résumé ↓</a> · <button class="linkish" data-act="lab" type="button">grain lab</button> · <button class="linkish" data-act="smooth" type="button">smooth wheel: <span data-smooth>off</span></button></p>
   </div>
 </footer>
 
@@ -219,7 +356,7 @@ ${C.PROJECTS.map(project).join('\n')}
 
 <div class="palette" id="palette" role="dialog" aria-modal="true" aria-label="Command palette" hidden>
   <div class="palette-box">
-    <input type="search" placeholder="Jump to… (work, grain, theme, email)" aria-label="Command palette" autocomplete="off" spellcheck="false">
+    <input type="search" placeholder="Jump to… (work, résumé, skills, email)" aria-label="Command palette" autocomplete="off" spellcheck="false">
     <ul class="palette-list" role="listbox"></ul>
     <p class="palette-foot mono">↑↓ move · ↵ run · esc close</p>
   </div>
@@ -229,9 +366,10 @@ ${C.PROJECTS.map(project).join('\n')}
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <noscript>
-  <style>.field,.grain,.rail,.hint{display:none}.stage{min-height:0}</style>
+  <style>.field,.grain,.rail,.hint,.paper{display:none}.stage{min-height:0}</style>
   <p style="padding:20px;font-family:ui-monospace,monospace;color:#a5a198">
-    JavaScript is off, so the ink is standing still. Everything below still works.</p>
+    JavaScript is off, so the ink is standing still. Everything still works —
+    including the résumé: <a href="${esc(C.ME.resume)}" download>download the PDF</a>.</p>
 </noscript>
 
 <script type="module" src="./js/app.js"></script>
@@ -240,4 +378,55 @@ ${C.PROJECTS.map(project).join('\n')}
 `;
 
 fs.writeFileSync(path.join(__dirname, 'index.html'), html);
-console.log(`index.html ← content.js  (${(html.length / 1024).toFixed(1)} kB, ${html.split('\n').length} lines)`);
+console.log(`  index.html   ${(html.length / 1024).toFixed(1)} kB · ${C.ROLES.length} roles · ${SKILLS.length} skill groups · ${ACHIEVEMENTS.length} achievements`);
+/**
+ * Say what happened to the photograph, and — when there isn't one — say why the
+ * file sitting in assets/ was ignored. "No photo found" in answer to somebody
+ * who has just dropped a photo in the folder is the worst possible reply.
+ */
+function portraitReport() {
+  if (photo) {
+    const d = describePhoto(path.join(__dirname, photo));
+    const facts = d && d.width
+      ? ` ${d.width}x${d.height}, ${(d.bytes / 1024).toFixed(0)} kB`
+      : '';
+    console.log(`  portrait     ${path.basename(photo)}${facts} — the hero inks it into particles`);
+
+    if (d && d.width) {
+      const short = Math.min(d.width, d.height);
+      const long = Math.max(d.width, d.height);
+      if (short < 320) {
+        console.log(`               note: ${short}px is small for a portrait — the halftone will be coarse`);
+      }
+      if (d.bytes > 1.5 * 1024 * 1024) {
+        console.log(`               note: ${(d.bytes / 1024 / 1024).toFixed(1)} MB is heavy for a hero image;`);
+        console.log(`               resizing to ~1600px on the long edge would not be visible here`);
+      }
+      if (long / short > 1.6) {
+        console.log(`               note: ${(long / short).toFixed(1)}:1 is cropped to a square from the`);
+        console.log(`               upper middle, so a tall photo loses some of its lower half`);
+      }
+      if (d.format && d.format !== 'jpeg' && d.format !== 'png' && d.format !== 'webp') {
+        console.log(`               note: browsers may not decode ${d.format} — jpg is the safe choice`);
+      }
+    }
+    return;
+  }
+
+  console.log('  portrait     inked monogram — the hero becomes your face in dots once there is a photo');
+  const misses = photoNearMisses(__dirname, C.ME.photo);
+  for (const m of misses) {
+    if (m.reason === 'undecodable') {
+      console.log(`               found assets/${m.file}, which no browser can decode.`);
+      console.log(`               Convert it first:  sips -s format jpeg "${m.file}" --out jayesh.jpg`);
+      console.log(`               (on Windows/Linux, any "export as JPEG" will do.)`);
+    } else {
+      console.log(`               found assets/${m.file}, which is not a name the build looks for.`);
+      console.log(`               Rename it to jayesh.jpg, or set PERSON.photo in resume.js.`);
+    }
+  }
+  if (!misses.length) {
+    console.log('               drop one in as assets/jayesh.jpg — see assets/README.md');
+  }
+}
+portraitReport();

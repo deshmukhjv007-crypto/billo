@@ -23,7 +23,8 @@
                                              and when no stage is on screen
    ========================================================================== */
 
-import { ART, TEXT_ART } from '../content.js';
+import { ART, TEXT_ART, IMAGE_ART } from '../content.js';
+import { loadPortrait } from './portrait.js';
 import { bus, state } from './bus.js';
 
 const COLORS = ['#f4f1ea', '#ef5024', '#ffd166'];   // ink · lava · lime
@@ -76,7 +77,7 @@ function fromPaths(paths, S = 260, lw = 7) {
     for (const d of paths) { try { g.stroke(new Path2D(d)); } catch (_) { /* skip bad path */ } }
     g.restore();
   }, S, S);
-  return finish(sampleCanvas(c, S, S), 1);
+  return budgetPoints(sampleCanvas(c, S, S), 1);
 }
 
 function fromText(spec, S = 260) {
@@ -84,22 +85,41 @@ function fromText(spec, S = 260) {
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const g = c.getContext('2d');
-  if (!g) return finish([], W / H);
+  if (!g) return budgetPoints([], W / H);
   g.fillStyle = '#fff';
   g.font = spec.font;
   g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillText(spec.text, W / 2, H / 2);
-  return finish(sampleCanvas(c, W, H), W / H);
+  return budgetPoints(sampleCanvas(c, W, H), W / H);
 }
 
 /** Shuffle, cap to COUNT, then sort into rough scanline order so morphs sweep. */
-function finish(pts, aspect) {
+/**
+ * Fit a raw point set to the particle budget. Pure apart from the shuffle.
+ *
+ * Order matters here, and getting it wrong is visible:
+ *
+ *   shuffle  so a cut is a UNIFORM sample of the whole drawing, not the first
+ *            path / the top of the image
+ *   slice    to the budget, so every particle has a dot of its own
+ *   sort     by scanline, which is what the per-particle stagger in applyShape
+ *            turns into the ink-on sweep
+ *
+ * Skipping the shuffle drops everything past the budget: for path art that
+ * loses whole strokes, for a photograph it silently deletes the bottom of the
+ * face. Skipping the sort leaves the portrait fading in as random scatter.
+ *
+ * @param {Array} pts   candidate points, mutated and consumed
+ * @param {number} aspect  width / height of the intended composition
+ * @param {number} max  particle budget; defaults to this device's COUNT
+ */
+export function budgetPoints(pts, aspect, max = COUNT) {
   if (!pts.length) pts = [{ u: 0.5, v: 0.5, c: 0, w: 1 }];
   for (let i = pts.length - 1; i > 0; i--) {
     const j = (Math.random() * (i + 1)) | 0;
     [pts[i], pts[j]] = [pts[j], pts[i]];
   }
-  const cut = pts.slice(0, Math.max(COUNT, 1200));
+  const cut = pts.slice(0, Math.max(max, 1200));
   cut.sort((a, b) => (a.v * 6 + a.u) - (b.v * 6 + b.u));
   return { pts: cut, aspect };
 }
@@ -110,10 +130,31 @@ function buildShape(name) {
   if (shapeCache.has(name)) return shapeCache.get(name);
   let s = null;
   if (name === 'cloud' || name == null) s = null;
+  /* Image art can't be built synchronously — decoding a photograph is async.
+     See loadImageShape(), which fills the cache and re-morphs when it lands. */
+  else if (IMAGE_ART[name]) s = null;
   else if (TEXT_ART[name]) s = fromText(TEXT_ART[name]);
   else if (ART[name]) s = fromPaths(ART[name].paths);
   shapeCache.set(name, s);
   return s;
+}
+
+/** Sample a photograph, cache it as a shape, and morph into it if it is current. */
+function loadImageShape(name) {
+  if (imageLoading.has(name)) return;
+  imageLoading.add(name);
+  const spec = IMAGE_ART[name];
+  loadPortrait(spec).then(res => {
+    imageLoading.delete(name);
+    if (!res || !res.pts.length) return;                  // no photo → keep the drawn art
+    /* Through the same budget as the drawn art. A photograph arrives with more
+       candidates than this device has particles, and the cut has to be uniform
+       across the whole frame — see budgetPoints(). */
+    const fitted = budgetPoints(res.pts, res.aspect);
+    shapeCache.set(name, fitted);
+    if (currentName === name) { shape = fitted; applyShape(fitted); }
+    bus.emit('art', { name, points: fitted.pts.length, src: res.src });
+  }).catch(() => { imageLoading.delete(name); });
 }
 
 /* --------------------------------------------------------------- engine --- */
@@ -172,7 +213,9 @@ function waitForFont(shorthand) {
     .then(() => document.fonts.ready)
     .catch(() => document.fonts ? document.fonts.ready : undefined);
 }
-let shape = null, stage = null, morph = 1, running = false, raf = 0;
+let shape = null, stage = null, currentName = null, morph = 1, running = false, raf = 0;
+let stillFor = 0, calm = 1;
+const imageLoading = new Set();        // IMAGE_ART names already being sampled
 let shake = 0, stride = 1, frameEMA = 16, t0 = 0, lastStats = 0;
 
 export const field = {
@@ -195,7 +238,16 @@ export const field = {
   setShape(name, stageEl) {
     stage = stageEl || null;
     if (!ctx) return;                       // no 2D context → nothing to draw into
-    if (!name || name === 'cloud') { shape = null; return; }
+    if (!name || name === 'cloud') { shape = null; currentName = null; return; }
+    currentName = name;
+
+    /* Image art: start the sample and keep showing whatever is already there
+       (the drawn fallback) until the dots are ready. Same two-pass pattern the
+       text shapes use for webfonts. */
+    if (IMAGE_ART[name] && !shapeCache.has(name)) {
+      loadImageShape(name);
+      return;
+    }
 
     /* text shapes get built twice: instantly with a fallback face, then again
        once the webfont lands, so "hello" is never rendered in the wrong hand */
@@ -220,7 +272,11 @@ export const field = {
     const step = () => {
       if (i >= names.length) return;
       const n = names[i++];
-      const work = () => { if (!TEXT_ART[n]) buildShape(n); };
+      const work = () => {
+        if (TEXT_ART[n]) return;                      // text shapes handle their own font pass
+        if (IMAGE_ART[n]) { loadImageShape(n); return; }   // async: decode + halftone
+        buildShape(n);
+      };
       if (typeof requestIdleCallback === 'function') requestIdleCallback(work); else work();
       setTimeout(step, 140);
     };
@@ -228,6 +284,8 @@ export const field = {
   },
 
   start, stop,
+  /** How many particles this device gets. */
+  budget: () => COUNT,
   get stats() { return { count: COUNT, drawn: Math.ceil(COUNT / stride), fps: Math.round(1000 / Math.max(1, frameEMA)), stride }; }
 };
 
@@ -266,6 +324,13 @@ function frame(now) {
   shake += (target - shake) * (target > shake ? 0.22 : 0.05);
   const dis = shake * shake;
 
+  /* Everything the field does at rest is now gated on this: full motion while
+     the page is moving, and a genuine standstill after a moment of stillness,
+     so a reader gets a still surface. */
+  stillFor = state.speed < 0.004 ? stillFor + dt : 0;
+  const calmTarget = stillFor > 1400 ? 0 : 1;
+  calm += (calmTarget - calm) * (calmTarget > calm ? 0.06 : 0.02);
+
   /* where the drawing lives right now */
   let ox = 0, oy = 0, w = 0, h = 0, drawing = false;
   if (shape && stage) {
@@ -283,7 +348,7 @@ function frame(now) {
   if (morph < 1) morph = Math.min(1, morph + dt / 900);
   const m = easeOut(morph);
 
-  const spread = Math.max(VW, VH) * 0.4;
+  const spread = Math.max(VW, VH) * 0.26;
   const px = state.pointer.x, py = state.pointer.y;
   const R = state.fine ? 105 : 74, R2 = R * R;
   const step = Math.max(1, stride | 0);
@@ -309,8 +374,13 @@ function frame(now) {
         tx = ox + uu * w + P.sx[i] * spread * dis;
         ty = oy + vv * h + P.sy[i] * spread * dis;
       } else {
-        tx = P.cx[i] * VW + Math.sin(t * 0.28 + P.ph[i]) * 34;
-        ty = P.cy[i] * VH + Math.cos(t * 0.21 + P.ph[i]) * 34;
+        /* Between scenes the particles drift as a cloud. It used to be a
+           perpetual 34px sine at ~0.3 rad/s — never still, never quiet, and
+           always at the edge of your vision. Now it is a slow 11px float, and
+           it eases to a complete standstill while you are actually reading. */
+        const amp = 11 * calm;
+        tx = P.cx[i] * VW + Math.sin(t * 0.14 + P.ph[i]) * amp;
+        ty = P.cy[i] * VH + Math.cos(t * 0.11 + P.ph[i]) * amp;
       }
 
       let ax = (tx - P.x[i]) * P.k[i], ay = (ty - P.y[i]) * P.k[i];

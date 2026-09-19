@@ -4,7 +4,7 @@
    particle field, the command palette, theming and the little conveniences.
    ========================================================================== */
 
-import { ME, ART, TEXT_ART, PROJECTS, BENCH, NAV, TICKER } from '../content.js';
+import { ME, ART, TEXT_ART, IMAGE_ART, ROLES, ACHIEVED, NAV, TICKER } from '../content.js';
 import { grain, mountLab, PRESETS } from './grain.js';
 import { field } from './field.js';
 import { motion } from './motion.js';
@@ -15,7 +15,7 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
 /* ------------------------------------------------------------------ theme */
 
-const THEME_KEY = 'hr5-theme';
+const THEME_KEY = 'jd-theme';
 function applyTheme(t) {
   document.documentElement.dataset.theme = t;
   try { localStorage.setItem(THEME_KEY, t); } catch (_) {}
@@ -79,6 +79,11 @@ function splitHeadings() {
 /* --------------------------------------------------------- blueprint art -- */
 
 function blueprint(name) {
+  /* Image art has no paths to stroke — it is sampled from a file at runtime.
+     The blueprint falls back to the drawn shape, NOT to the photograph: the
+     hero already frames the photo, so drawing it twice reads as a bug. */
+  const img = IMAGE_ART[name];
+  if (img) return img.fallback ? blueprint(img.fallback) : '';
   const art = ART[name];
   if (art) {
     return `<svg class="blueprint" viewBox="0 0 200 200" aria-hidden="true" focusable="false">${
@@ -142,6 +147,13 @@ function initField() {
   }
 
   field.start();
+
+  /* The photograph has finished being inked: let the dots be the portrait, and
+     retire the framed copy beside them (see .hero.inked in styles.css). */
+  bus.on('art', e => {
+    if (e && e.name === 'portrait') $('.hero')?.classList.add('inked');
+  });
+
   bus.on('stats', s => {
     const hud = $('[data-hud]');
     if (hud) hud.textContent = `${s.drawn.toLocaleString('en-IN')} of ${s.count.toLocaleString('en-IN')} particles · ${s.fps} fps`;
@@ -229,16 +241,13 @@ function buildCommands() {
   });
   go('home', 'Hero', 'top of page');
   NAV.forEach(n => go(n.id, n.label, `#${n.id}`));
-  PROJECTS.forEach(p => COMMANDS.push({
-    label: p.name.replace('.', ''), hint: p.kicker, keywords: `${p.name} ${p.kicker} ${p.tags.join(' ')} project work`,
-    run: () => { const el = document.getElementById(p.id); if (el) motion.scrollTo(el); }
+  ROLES.forEach(r => COMMANDS.push({
+    label: r.short, hint: `${r.role} · ${r.when}`, keywords: `${r.name} ${r.short} ${r.role} ${r.tags.join(' ')} work experience`,
+    run: () => { const el = document.getElementById(r.id); if (el) motion.scrollTo(el); }
   }));
-  BENCH.forEach(b => COMMANDS.push({
-    label: b.name, hint: 'on the workbench', keywords: `${b.name} ${b.desc} bench`,
-    run: () => {
-      if (b.href) window.open(b.href, '_blank', 'noopener');
-      else { const el = document.getElementById('bench'); if (el) motion.scrollTo(el); }
-    }
+  ACHIEVED.forEach((a, i) => COMMANDS.push({
+    label: `Achievement ${i + 1}`, hint: a.slice(0, 58), keywords: `achievement ${a} highlights`,
+    run: () => { const el = document.getElementById('highlights'); if (el) motion.scrollTo(el); }
   }));
   COMMANDS.push(
     { label: 'Grain lab', hint: 'tune the film grain · G', keywords: 'grain lab noise turbulence film preset', run: () => openLab(true) },
@@ -251,6 +260,17 @@ function buildCommands() {
     { label: 'Smooth wheel: on ↔ off', hint: 'S', keywords: 'smooth scroll lenis wheel', run: () => setSmooth(!motion.smooth) },
     { label: 'Scatter the ink', hint: 'burst the particle field', keywords: 'chaos burst particles scatter', run: () => motion.kick(1) },
     { label: 'Copy email', hint: ME.email, keywords: `email copy contact ${ME.email}`, run: () => copyEmail() },
+    {
+      label: 'Download résumé (PDF)', hint: 'one page · A4 · R', keywords: 'resume cv pdf download hire curriculum vitae',
+      run: () => { const a = $('.resume-dl') || $('a[download]'); if (a) { a.click(); resumeDone('pdf'); } }
+    },
+    {
+      label: 'Plain-text résumé', hint: 'for ATS portals', keywords: 'resume cv txt plain ats text download',
+      run: () => { const a = document.querySelector(`a[href$=".txt"]`); if (a) { a.click(); resumeDone('txt'); } }
+    },
+    {
+      label: 'Print this page', hint: 'the PDF prints better', keywords: 'print paper save', run: () => printPage()
+    },
     { label: 'View source of this page', hint: 'index.html', keywords: 'source code html', run: () => window.open('./index.html', '_blank') }
   );
 }
@@ -349,20 +369,53 @@ function setSmooth(on) {
   return v;
 }
 
+/* -------------------------------------------------------- résumé download */
+
+/* The file is a plain <a download>, so it works with JS off and with the
+   keyboard. This only adds the feedback around it: a toast, a button that
+   says it happened, and a nudge in the palette for next time. */
+const GOT_RESUME_KEY = 'jd-got-resume';
+
+function resumeDone(which) {
+  toast(which === 'txt' ? 'plain-text résumé — the ATS-safe one' : 'résumé downloaded · 1 page PDF');
+  try { localStorage.setItem(GOT_RESUME_KEY, which); } catch (_) {}
+  const btn = $('.resume-dl');
+  if (btn) {
+    btn.classList.add('done');
+    const label = btn.querySelector('.dl-text b');
+    const sub = btn.querySelector('.dl-text em');
+    if (label) label.textContent = 'Downloaded';
+    if (sub) sub.textContent = 'again? it is the same one-page PDF';
+    setTimeout(() => {
+      btn.classList.remove('done');
+      if (label) label.textContent = 'Download résumé';
+    }, 3200);
+  }
+}
+
 function initButtons() {
   document.addEventListener('click', e => {
     const act = e.target.closest('[data-act]');
     if (act) {
       const kind = act.dataset.act;
       if (kind === 'lab') { e.preventDefault(); openLab(!$('#lab').classList.contains('open')); }
-      if (kind === 'theme') applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
-      if (kind === 'palette') { e.preventDefault(); paletteApi.open(); }
-      if (kind === 'smooth') { e.preventDefault(); setSmooth(!motion.smooth); }
+      else if (kind === 'theme') applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
+      else if (kind === 'palette') { e.preventDefault(); paletteApi.open(); }
+      else if (kind === 'smooth') { e.preventDefault(); setSmooth(!motion.smooth); }
+      else if (kind === 'resume') resumeDone('pdf');          // let the browser follow the link
+      else if (kind === 'resume-txt') resumeDone('txt');
+      else if (kind === 'print') { e.preventDefault(); printPage(); }
       return;
     }
     const cp = e.target.closest('[data-copy]');
     if (cp) { e.preventDefault(); copyEmail(); }
   });
+}
+
+/** Print the page, with a word of warning: the PDF is the better artefact. */
+function printPage() {
+  toast('tip: the PDF is laid out for paper — this page is not');
+  setTimeout(() => window.print(), 700);
 }
 
 function initKeys() {
@@ -375,6 +428,10 @@ function initKeys() {
     else if (k === 't') applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
     else if (k === 's') setSmooth(!motion.smooth);
     else if (k === 'c') copyEmail();
+    else if (k === 'r') {
+      const a = $('.resume-dl') || $('a[download]');
+      if (a) { a.click(); resumeDone('pdf'); }
+    }
     else if (k === 'escape') { openLab(false); paletteApi.close && paletteApi.close(); }
   });
 }
@@ -399,8 +456,9 @@ function boot() {
   requestAnimationFrame(() => document.body.classList.add('ready'));
   if (state.reduce) document.documentElement.classList.add('reduced');
 
+  if (localStorage.getItem(GOT_RESUME_KEY)) console.log('%c thanks for reading the CV ', 'background:#ffd166;color:#14130f;font-weight:700;padding:3px 6px;border-radius:4px');
   console.log(
-    `%c hire.rest v5 %c 0 dependencies · grain engine + particle field · press G for the grain lab, ⌘K for commands `,
+    `%c ${ME.name} %c 0 dependencies · grain engine + particle field · R for the résumé, G for the grain lab, \u2318K for commands `,
     'background:#ef5024;color:#0a0a0b;font-weight:700;padding:3px 6px;border-radius:4px 0 0 4px',
     'background:#121214;color:#f4f1ea;padding:3px 6px;border-radius:0 4px 4px 0');
 }
@@ -408,4 +466,4 @@ function boot() {
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
 else boot();
 
-export { applyTheme, openLab, toast };
+export { applyTheme, openLab, toast, blueprint };
