@@ -137,6 +137,46 @@ test('pdf: the file parses with no structural problems', () => {
   assert.ok(bytes.subarray(-6).toString().startsWith('%%EOF'));
 });
 
+/* The second line of a PDF marks the file as binary: four bytes above 127, so
+   that nothing downstream decides it is a text file and "helpfully" rewrites
+   it. That is not a theoretical worry here — the artifact on disk has been
+   mangled twice (E2 E3 CF D3 replaced by the three-byte UTF-8 encoding of
+   U+FFFD), leaving a file whose first line is perfect and whose high bytes are
+   gone. Reading it as utf8 is exactly how it happens. */
+
+test('pdf: the engine writes the binary marker as bytes, not as text', () => {
+  assert.equal(bytes[9], 0x25, 'expected the comment marker "%" on the second line');
+  const marker = bytes.subarray(10, 14);
+  assert.equal(marker.length, 4, 'the binary marker is missing');
+  for (const byte of marker) {
+    assert.ok(byte > 127, `binary marker byte ${byte} is ASCII — the file looks like text`);
+  }
+  assert.deepEqual([...marker], [0xe2, 0xe3, 0xcf, 0xd3], 'the binary marker was rewritten');
+  assert.ok(!bytes.subarray(0, 64).includes(Buffer.from([0xef, 0xbf, 0xbd])),
+    'the engine emitted U+FFFD where a high byte should be');
+});
+
+test('pdf: the résumé committed to the repo is still intact', () => {
+  /* The engine test above builds into a temp directory. This one checks the
+     artifact that actually ships — the file the download button serves — and is
+     the test that catches a corrupting round-trip before it is pushed. */
+  const artifact = path.join(__dirname, '..', 'Jayesh-Deshmukh-Resume.pdf');
+  assert.ok(fs.existsSync(artifact), 'the downloadable résumé is missing from the repo');
+
+  const shipped = fs.readFileSync(artifact);
+  assert.equal(shipped[9], 0x25, 'expected the comment marker "%" on the second line');
+  assert.deepEqual([...shipped.subarray(10, 14)], [0xe2, 0xe3, 0xcf, 0xd3],
+    'the committed PDF\'s binary marker was rewritten — regenerate it with `npm run build`');
+  assert.ok(!shipped.subarray(0, 64).includes(Buffer.from([0xef, 0xbf, 0xbd])),
+    'the committed PDF has been through a UTF-8 round-trip that replaced high bytes');
+
+  /* and it must still be a readable document, not just a correct header */
+  const shippedPdf = parsePDF(shipped);
+  assert.deepEqual(shippedPdf.problems, [], shippedPdf.problems.join('\n'));
+  assert.equal(shippedPdf.pageCount, stat.pages, 'the shipped PDF is not the page count the engine produces');
+  assert.ok(shippedPdf.pages.length > 0, 'the shipped PDF has no pages');
+});
+
 test('pdf: every font is a non-embedded standard-14 face', () => {
   const names = new Set(pdf.fonts.map(f => `${f.id}:${f.name}`));
   for (const f of pdf.fonts) {
