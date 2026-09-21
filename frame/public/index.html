@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#f7f8fa" />
+    <meta
+      name="description"
+      content="Prolens is your pocket photography coach. Find better light, compose with confidence, and capture the moment. Privately, on your device."
+    />
+    <title>Prolens — Your pocket photographer</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%23e7794c'/%3E%3Cpath d='M17 10h-7v7m13-7h7v7M10 23v7h7m13-7v7h-7' stroke='white' stroke-width='3' fill='none'/%3E%3C/svg%3E"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;450;500;550;600;650;700&family=Manrope:wght@400;500;600;650;700;750;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a href="/" class="brand" aria-label="Prolens home"
+        ><span class="brand-mark" data-icon="focus"></span>Prolens<span
+          class="brand-period"
+          >.</span
+        ></a
+      >
+      <div class="workspace-label">YOUR CREATIVE SPACE</div>
+      <nav aria-label="Main navigation">
+        <button class="nav-item active" data-page="camera">
+          <i data-icon="camera"></i><span>Camera coach</span>
+        </button>
+        <button class="nav-item" data-page="gallery">
+          <i data-icon="image"></i><span>My shots</span><b id="shot-count">0</b>
+        </button>
+        <button class="nav-item" data-page="guide">
+          <i data-icon="book"></i><span>Field guide</span
+          ><span class="nav-dot"></span>
+        </button>
+      </nav>
+      <div class="sidebar-note">
+        <div class="sun-art"><span></span><i></i></div>
+        <h3>A fresh perspective<br />changes everything.</h3>
+        <p>Keep looking. Keep creating.</p>
+        <span class="note-line"></span>
+      </div>
+      <div class="sidebar-bottom">
+        <button class="nav-item" id="settings-open">
+          <i data-icon="settings"></i><span>Preferences</span>
+        </button>
+        <div class="local-status">
+          <span></span>On-device. Just for you.<i data-icon="lock"></i>
+        </div>
+      </div>
+    </aside>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="breadcrumb">
+          <span>Workspace</span><i data-icon="chevron-right"></i
+          ><strong id="breadcrumb-page">Camera coach</strong>
+        </div>
+        <div class="header-right">
+          <span class="privacy-pill"
+            ><i data-icon="shield"></i>Private by design</span
+          ><button class="avatar" id="about-open" aria-label="About Prolens">
+            JD
+          </button>
+        </div>
+      </header>
+      <main>
+        <section id="camera-page" class="page">
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow"><span></span>YOUR POCKET PHOTOGRAPHER</div>
+              <h1>A good shot starts here<span>.</span></h1>
+              <p>
+                You bring the moment. We’ll help you find the best way to
+                capture it.
+              </p>
+            </div>
+            <button class="text-button" id="how-it-works">
+              How it works<i data-icon="arrow-up-right"></i>
+            </button>
+          </div>
+          <div class="studio-layout">
+            <section class="camera-card" aria-label="Camera workspace">
+              <div class="card-topline">
+                <div class="viewfinder-title">
+                  <span class="live-dot"></span><strong>Viewfinder</strong
+                  ><span class="demo-badge" id="source-label">DEMO SCENE</span>
+                </div>
+                <button class="connect-button" id="connect-camera">
+                  <i data-icon="video"></i><span>Enable camera</span
+                  ><i data-icon="chevron-down"></i>
+                </button>
+              </div>
+              <div class="viewfinder" id="viewfinder">
+                <img
+                  id="scene-image"
+                  src="/assets/demo-scene.jpg"
+                  alt="Demo scene: a woman in a linen dress beside a sunlit Mediterranean archway"
+                />
+                <video
+                  id="camera-video"
+                  autoplay
+                  playsinline
+                  muted
+                  hidden
+                ></video>
+                <div class="viewfinder-shade"></div>
+                <div class="viewfinder-tools">
+                  <button id="ratio-toggle" title="Change aspect ratio">
+                    3:2</button
+                  ><button
+                    id="grid-toggle"
+                    class="active"
+                    aria-label="Toggle rule-of-thirds grid"
+                    aria-pressed="true"
+                  >
+                    <i data-icon="grid"></i></button
+                  ><span></span
+                  ><button
+                    id="upload-button"
+                    title="Analyze your own photo"
+                    aria-label="Upload a photo"
+                  >
+                    <i data-icon="upload"></i></button
+                  ><button
+                    id="expand-button"
+                    title="Expand viewfinder"
+                    aria-label="Expand viewfinder"
+                  >
+                    <i data-icon="expand"></i>
+                  </button>
+                </div>
+                <div class="thirds-grid" id="thirds-grid">
+                  <i></i><i></i><b></b><b></b><span class="intersection"></span>
+                </div>
+                <div class="subject-bracket" id="subject-bracket">
+                  <i></i><i></i><i></i><i></i>
+                </div>
+                <div class="level-guide" id="level-guide">
+                  <span></span><i></i><span></span>
+                </div>
+                <div class="frame-hint">
+                  <span data-icon="sparkles"></span
+                  ><span id="frame-hint"
+                    >A little to the right. A lot more story.</span
+                  >
+                </div>
+                <div class="viewfinder-footer">
+                  <span
+                    ><i class="white-dot"></i
+                    ><span id="scene-description"
+                      >Golden hour · Outdoor</span
+                    ></span
+                  ><span id="zoom-indicator">1.0×</span>
+                </div>
+                <div class="capture-flash" id="capture-flash"></div>
+              </div>
+              <div class="camera-console">
+                <div
+                  class="mode-selector"
+                  role="group"
+                  aria-label="Photography mode"
+                >
+                  <button data-mode="Portrait" class="selected">Portrait</button
+                  ><button data-mode="Landscape">Landscape</button
+                  ><button data-mode="Food">Food</button
+                  ><button data-mode="Night">Night</button>
+                </div>
+                <div class="shutter-row">
+                  <button
+                    class="last-shot"
+                    id="last-shot"
+                    aria-label="Open photo library"
+                  >
+                    <i data-icon="image"></i><span id="last-shot-image"></span>
+                  </button>
+                  <div class="capture-wrap">
+                    <button
+                      id="capture"
+                      class="shutter"
+                      aria-label="Capture photo"
+                    >
+                      <span></span>
+                    </button>
+                  </div>
+                  <button
+                    class="round-button"
+                    id="switch-camera"
+                    aria-label="Switch camera"
+                  >
+                    <i data-icon="switch-camera"></i>
+                  </button>
+                </div>
+                <div class="capture-label">Make it a moment</div>
+              </div>
+            </section>
+            <aside class="coach-panel">
+              <div class="coach-title">
+                <div>
+                  <i data-icon="sparkles"></i>
+                  <h2>Your live coach</h2>
+                </div>
+                <span class="listening-dot" title="Demo guidance"></span>
+              </div>
+              <div class="score-card">
+                <div class="score-ring">
+                  <svg viewBox="0 0 100 100">
+                    <circle class="score-track" cx="50" cy="50" r="42" />
+                    <circle id="score-progress" cx="50" cy="50" r="42" />
+                  </svg>
+                  <div>
+                    <strong id="scene-score">86</strong><span>/ 100</span>
+                  </div>
+                </div>
+                <div class="score-copy">
+                  <span id="score-eyebrow">LOOKING GOOD</span>
+                  <h3 id="score-title">
+                    A little closer<br />to a great shot.
+                  </h3>
+                  <p id="score-subtitle">Your scene has real potential.</p>
+                </div>
+              </div>
+              <div class="coach-checks">
+                <article class="check-item">
+                  <div class="check-icon"><i data-icon="sun"></i></div>
+                  <div class="check-body">
+                    <div class="check-heading">
+                      <h3>Lighting</h3>
+                      <span class="status good" id="lighting-status"
+                        >Just right<i data-icon="check"></i
+                      ></span>
+                    </div>
+                    <p id="lighting-tip">
+                      Soft, warm light on your subject. Let’s make the most of
+                      it.
+                    </p>
+                    <div class="light-meter">
+                      <span></span><span></span><span></span><span></span
+                      ><span class="current"></span><span></span><span></span
+                      ><span></span>
+                    </div>
+                    <div class="meter-labels">
+                      <span>Too dark</span><span>Too bright</span>
+                    </div>
+                  </div>
+                </article>
+                <article class="check-item">
+                  <div class="check-icon"><i data-icon="crop"></i></div>
+                  <div class="check-body">
+                    <div class="check-heading">
+                      <h3>Composition</h3>
+                      <span class="status improve" id="composition-status"
+                        >Small tweak<i data-icon="arrow-up-right"></i
+                      ></span>
+                    </div>
+                    <p id="composition-tip">
+                      Place your subject on the right gridline to give the scene
+                      room to breathe.
+                    </p>
+                    <button class="inline-action" id="composition-guide">
+                      Show me how<i data-icon="arrow-right"></i>
+                    </button>
+                  </div>
+                </article>
+                <article class="check-item">
+                  <div class="check-icon"><i data-icon="layers"></i></div>
+                  <div class="check-body">
+                    <div class="check-heading">
+                      <h3>Background</h3>
+                      <span class="status good" id="background-status"
+                        >Nice & clean<i data-icon="check"></i
+                      ></span>
+                    </div>
+                    <p id="background-tip">
+                      A simple backdrop keeps the attention right where it
+                      belongs.
+                    </p>
+                  </div>
+                </article>
+              </div>
+              <div class="coach-note">
+                <i data-icon="bulb"></i>
+                <div>
+                  <strong>A little photographer’s instinct</strong>
+                  <p id="instinct-tip">
+                    Turn your subject slightly toward the light for a softer,
+                    more natural portrait.
+                  </p>
+                </div>
+              </div>
+              <button class="optimize-button" id="auto-optimize">
+                <i data-icon="sliders"></i><span>Auto-tune my shot</span
+                ><i data-icon="sparkles"></i>
+              </button>
+              <p class="optimize-caption" id="optimize-caption">
+                A gentle touch. You’re always in control.
+              </p>
+            </aside>
+          </div>
+          <section class="adjustments-card">
+            <div class="adjustments-heading">
+              <div>
+                <i data-icon="sliders"></i>
+                <h2>The finer details</h2>
+                <span>Make it feel like you.</span>
+              </div>
+              <button class="reset-button" id="reset-adjustments">
+                Reset<i data-icon="reset"></i>
+              </button>
+            </div>
+            <div class="adjustment-controls">
+              <label
+                ><span
+                  ><i data-icon="sun"></i>Exposure<output id="exposure-value"
+                    >0.0 EV</output
+                  ></span
+                ><input
+                  id="exposure"
+                  type="range"
+                  min="-1.5"
+                  max="1.5"
+                  step="0.1"
+                  value="0"
+                /><small>A little lighter. A little moodier.</small></label
+              ><label
+                ><span
+                  ><i data-icon="thermometer"></i>Warmth<output
+                    id="warmth-value"
+                    >Neutral</output
+                  ></span
+                ><input
+                  id="warmth"
+                  type="range"
+                  min="-50"
+                  max="50"
+                  step="1"
+                  value="0"
+                /><small>Find your kind of golden.</small></label
+              ><label
+                ><span
+                  ><i data-icon="zoom"></i>Zoom<output id="zoom-value"
+                    >1.0×</output
+                  ></span
+                ><input
+                  id="zoom"
+                  type="range"
+                  min="1"
+                  max="3"
+                  step="0.1"
+                  value="1"
+                /><small id="zoom-help"
+                  >Get closer without taking a step.</small
+                ></label
+              >
+            </div>
+            <div class="adjustment-footnote">
+              <i data-icon="info"></i
+              ><span id="adjustment-note"
+                >Demo adjustments are applied to the image, not your camera
+                hardware.</span
+              >
+            </div>
+          </section>
+          <footer class="page-footer">
+            <span
+              ><i data-icon="lock"></i>Your moments stay yours. Photos are
+              processed on your device.</span
+            ><span
+              >Less guessing. More creating.<i data-icon="sparkles"></i
+            ></span>
+          </footer>
+        </section>
+        <section id="gallery-page" class="page" hidden>
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow"><span></span>THE MOMENTS YOU MADE</div>
+              <h1>Your own point of view<span>.</span></h1>
+              <p>
+                A little collection of the things worth stopping for. Saved in
+                this browser.
+              </p>
+            </div>
+            <button class="text-button" data-go-camera>
+              Back to camera<i data-icon="arrow-right"></i>
+            </button>
+          </div>
+          <div id="gallery-grid" class="gallery-grid"></div>
+        </section>
+        <section id="guide-page" class="page" hidden>
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">
+                <span></span>A LITTLE KNOW-HOW GOES A LONG WAY
+              </div>
+              <h1>Trust your eye. Train your instinct<span>.</span></h1>
+              <p>
+                Simple ideas to help you see an ordinary moment a little
+                differently.
+              </p>
+            </div>
+          </div>
+          <div class="guide-grid" id="guide-grid"></div>
+        </section>
+      </main>
+    </div>
+    <input type="file" id="photo-upload" accept="image/*" hidden />
+    <dialog id="info-dialog">
+      <button class="dialog-close" aria-label="Close dialog">
+        <i data-icon="close"></i>
+      </button>
+      <div id="dialog-content"></div>
+    </dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>
