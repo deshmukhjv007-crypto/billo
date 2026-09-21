@@ -6,9 +6,9 @@ import {
   Image,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import * as MediaLibrary from 'expo-media-library';
 import type { FrameAnalysis } from '../ai/SceneAnalyzer';
@@ -19,23 +19,46 @@ interface ReviewScreenProps {
   photoPath: string;
   analysis: FrameAnalysis;
   onRetake: () => void;
+  onOpenGallery: () => void;
 }
 
-export function ReviewScreen({ photoPath, analysis, onRetake }: ReviewScreenProps) {
+export function ReviewScreen({
+  photoPath,
+  analysis,
+  onRetake,
+  onOpenGallery,
+}: ReviewScreenProps) {
   const [saved, setSaved] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [saveError, setSaveError] = React.useState<string | null>(null);
 
+  // The live HUD hides numbers on purpose; this is where the score lives.
   const overallScore = Math.round(analysis.composition.overallScore * 100);
 
   const saveToGallery = async () => {
+    if (saving || saved) return;
+    setSaving(true);
+    setSaveError(null);
     try {
-      const permission = await MediaLibrary.requestPermissionsAsync();
-      if (permission.granted) {
-        await MediaLibrary.saveToLibraryAsync(`file://${photoPath}`);
-        setSaved(true);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // writeOnly: saving only needs "add" access, never the whole library
+      // (the Gallery screen asks for read access separately, when opened).
+      const permission = await MediaLibrary.requestPermissionsAsync(true);
+      if (!permission.granted) {
+        setSaveError(
+          permission.canAskAgain
+            ? 'Photo access is needed to save.'
+            : 'Photo access is blocked — enable it in Settings.'
+        );
+        return;
       }
+      await MediaLibrary.saveToLibraryAsync(`file://${photoPath}`);
+      setSaved(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch (err) {
       console.error('Failed to save photo:', err);
+      setSaveError('Could not save the photo. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -92,7 +115,9 @@ export function ReviewScreen({ photoPath, analysis, onRetake }: ReviewScreenProp
             comment={
               Math.abs(analysis.horizon.tilt) < 1.5
                 ? 'Perfectly level'
-                : `Tilted ${analysis.horizon.tilt}°`
+                : `Tilted ${Math.abs(analysis.horizon.tilt).toFixed(1)}° — ${
+                    analysis.horizon.tilt > 0 ? 'tilt left' : 'tilt right'
+                  } next time`
             }
           />
           <MetricRow
@@ -123,20 +148,34 @@ export function ReviewScreen({ photoPath, analysis, onRetake }: ReviewScreenProp
           )}
         </View>
 
-        {/* Action Buttons */}
+        {/* Action Buttons: primary Save · secondary Retake · text View Gallery */}
         <View style={styles.actions}>
           <TouchableOpacity
             style={[styles.saveButton, saved && styles.savedButton]}
             onPress={saveToGallery}
-            disabled={saved}
+            disabled={saved || saving}
+            accessibilityRole="button"
           >
             <Text style={styles.saveText}>
-              {saved ? '✓ Saved to Photos' : 'Save High-Res Photo'}
+              {saved ? '✓ Saved to Photos' : saving ? 'Saving…' : 'Save'}
             </Text>
           </TouchableOpacity>
+          {saveError && <Text style={styles.errorText}>{saveError}</Text>}
 
-          <TouchableOpacity style={styles.secondaryButton} onPress={onRetake}>
-            <Text style={styles.secondaryText}>Take Another Shot</Text>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={onRetake}
+            accessibilityRole="button"
+          >
+            <Text style={styles.secondaryText}>Retake</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.textButton}
+            onPress={onOpenGallery}
+            accessibilityRole="button"
+          >
+            <Text style={styles.textButtonText}>View Gallery</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -254,4 +293,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   secondaryText: { color: 'white', fontSize: 16, fontWeight: '600' },
+  textButton: { paddingVertical: 12, alignItems: 'center' },
+  textButtonText: { color: '#0A84FF', fontSize: 16, fontWeight: '600' },
+  errorText: { color: '#FF453A', fontSize: 13, textAlign: 'center' },
 });
