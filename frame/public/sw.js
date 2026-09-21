@@ -1,6 +1,6 @@
 /* Prolens service worker: offline app shell + installability.
  * Version the cache name when the shell changes. No analytics, no uploads. */
-const CACHE = "prolens-shell-v3";
+const CACHE = "prolens-shell-v4";
 const SHELL = [
   "./",
   "./index.html",
@@ -8,6 +8,8 @@ const SHELL = [
   "./app.js",
   "./analysis.js",
   "./face.js",
+  "./ambient.js",
+  "./permission.js",
   "./manifest.webmanifest",
   "./vendor/facedet/face_detection.js",
   "./vendor/facedet/face_detection_short_range.tflite",
@@ -19,7 +21,6 @@ const SHELL = [
   "./icons/icon-512.png",
   "./icons/maskable-512.png",
   "./icons/apple-touch-icon.png",
-  "./assets/demo-scene.jpg",
 ];
 
 self.addEventListener("install", (event) => {
