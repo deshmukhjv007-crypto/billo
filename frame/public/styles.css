@@ -1000,6 +1000,18 @@ input:focus-visible {
   overflow: hidden;
   background: #101314;
   border: 1px solid var(--line);
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.shot-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.shot-card:active {
+  transform: scale(0.98);
 }
 
 .shot-card img {
@@ -1007,6 +1019,11 @@ input:focus-visible {
   width: 100%;
   aspect-ratio: 4/3;
   object-fit: cover;
+  transition: transform 0.25s ease;
+}
+
+.shot-card:hover img {
+  transform: scale(1.03);
 }
 
 .shot-meta {
@@ -1826,6 +1843,17 @@ input[type="range"]::-moz-range-thumb {
   color: var(--faint);
 }
 
+.adjust-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.adjust-action-btn {
+  margin-top: 0 !important;
+}
+
 .ghost-button {
   background: var(--glass);
   border: 1px solid var(--line);
@@ -2205,3 +2233,85 @@ dialog a {
     transition: none !important;
   }
 }
+
+/* ---------- Shot Viewer (Full-Screen Preview) ---------- */
+
+.shot-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(5, 7, 8, 0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: flex;
+  flex-direction: column;
+  animation: viewer-fade-in 0.22s ease;
+}
+
+@keyframes viewer-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.shot-viewer-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: calc(14px + var(--safe-top)) 18px 14px;
+  background: linear-gradient(rgba(0, 0, 0, 0.7), transparent);
+  z-index: 2;
+}
+
+.shot-viewer-info {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+.shot-viewer-info h3 {
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shot-viewer-info span {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.shot-viewer-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.shot-viewer-stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 16px calc(24px + var(--safe-bottom));
+  overflow: hidden;
+  touch-action: pan-x pan-y pinch-zoom;
+}
+
+.shot-viewer-stage img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7);
+}
+
