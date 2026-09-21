@@ -132,3 +132,15 @@ The app's conservative thresholds are prototype heuristics, not values prescribe
 ## Privacy
 
 No analytics, accounts, API keys or server uploads. Images are analysed in canvas on the device; face detection runs entirely in the browser via the self-hosted MediaPipe model in `public/vendor/facedet/` — no frame, crop or photo is ever sent anywhere. Captures and preferences live in this origin's localStorage and are accessible to scripts served from the same origin. Clearing browser data removes them. Fonts are requested from Google Fonts; self-host them if fully offline operation is required. Do not describe the app as end-to-end encrypted or as a permanent photo backup.
+
+## Native app (Expo)
+
+[`prolens/`](prolens/) is the native build (Steps 1–8): an Expo + TypeScript app
+with a `react-native-vision-camera` viewfinder, the photography rulebook
+(`src/coaching/PhotographyRules.ts`), the suggestion engine, a skin-tone-aware
+exposure optimizer, and HUD overlays (grid, horizon level, readiness score,
+coaching bubbles). Setup and current TODOs are in
+[`prolens/README.md`](prolens/README.md). It needs a development build
+(`npx expo prebuild` + `npx expo run:android/ios`) — it does not run in Expo Go.
+The web prototype above is unchanged; production acceptance gates still live in
+[NATIVE-PLAN.md](NATIVE-PLAN.md).
