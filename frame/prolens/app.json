@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Prolens",
+    "slug": "prolens",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "plugins": [
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "Prolens needs your camera to coach you into perfect shots",
+          "enableMicrophonePermission": false
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Save your professional shots.",
+          "savePhotosPermission": "Save your professional shots."
+        }
+      ]
+    ],
+    "ios": {
+      "infoPlist": {
+        "NSCameraUsageDescription": "Prolens analyzes your camera view to guide you.",
+        "NSPhotoLibraryUsageDescription": "Save your professional shots.",
+        "NSMotionUsageDescription": "Detect tilt and stability for level shots."
+      }
+    },
+    "android": {
+      "permissions": ["CAMERA", "WRITE_EXTERNAL_STORAGE"]
+    }
+  }
+}
