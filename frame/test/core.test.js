@@ -66,6 +66,17 @@ test("server serves app and blocks invalid paths", async (t) => {
   assert.match(css.headers.get("content-type"), /text\/css/);
   const js = await fetch(base + "/analysis.js");
   assert.match(js.headers.get("content-type"), /javascript/);
+  const manifest = await fetch(base + "/manifest.webmanifest");
+  assert.equal(manifest.status, 200);
+  assert.match(manifest.headers.get("content-type"), /manifest\+json/);
+  assert.match(await manifest.text(), /Prolens/);
+  const sw = await fetch(base + "/sw.js");
+  assert.equal(sw.status, 200);
+  assert.match(sw.headers.get("content-type"), /javascript/);
+  assert.match(sw.headers.get("cache-control"), /no-cache/);
+  const icon = await fetch(base + "/icons/icon-192.png");
+  assert.equal(icon.status, 200);
+  assert.match(icon.headers.get("content-type"), /image\/png/);
   assert.equal((await fetch(base + "/missing")).status, 404);
   assert.equal((await fetch(base + "/%2e%2e%2fpackage.json")).status, 403);
   assert.equal((await fetch(base + "/%FF")).status, 404);

@@ -7,9 +7,14 @@ const types = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css",
   ".js": "text/javascript",
+  ".json": "application/json",
+  ".webmanifest": "application/manifest+json",
   ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
   ".png": "image/png",
   ".svg": "image/svg+xml",
+  ".webp": "image/webp",
+  ".ico": "image/x-icon",
 };
 export const server = http.createServer(async (req, res) => {
   try {
@@ -25,10 +30,13 @@ export const server = http.createServer(async (req, res) => {
       return;
     }
     const body = await readFile(file);
-    res.writeHead(200, {
+    const headers = {
       "Content-Type": types[path.extname(file)] || "application/octet-stream",
       "X-Content-Type-Options": "nosniff",
-    });
+    };
+    // Service workers must not be cached stale during development.
+    if (file.endsWith("sw.js")) headers["Cache-Control"] = "no-cache";
+    res.writeHead(200, headers);
     res.end(body);
   } catch {
     res.writeHead(404).end("Not found");

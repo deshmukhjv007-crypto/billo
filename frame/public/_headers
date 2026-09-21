@@ -1,0 +1,3 @@
+# Works for both drag-and-drop and Git deploys on Netlify.
+/sw.js
+  Cache-Control: no-cache

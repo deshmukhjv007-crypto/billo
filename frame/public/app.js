@@ -486,7 +486,7 @@ $("#switch-camera").onclick = () => {
 function restoreDemo() {
   stopCamera();
   source = "demo";
-  img.src = "/assets/demo-scene.jpg";
+  img.src = "./assets/demo-scene.jpg";
   img.alt = "Demo scene: woman beside a sunlit archway";
   img.hidden = false;
   video.hidden = true;

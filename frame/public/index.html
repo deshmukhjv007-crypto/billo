@@ -12,6 +12,18 @@
       content="Prolens is your pocket photography coach. Find better light, compose with confidence, and capture the moment. Privately, on your device."
     />
     <title>Prolens — Your pocket photographer</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="apple-mobile-web-app-title" content="Prolens" />
+    <link
+      rel="apple-touch-icon"
+      href="./icons/apple-touch-icon.png"
+    />
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%23e7794c'/%3E%3Cpath d='M17 10h-7v7m13-7h7v7M10 23v7h7m13-7v7h-7' stroke='white' stroke-width='3' fill='none'/%3E%3C/svg%3E"
@@ -22,12 +34,20 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;450;500;550;600;650;700&family=Manrope:wght@400;500;600;650;700;750;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css" />
-    <script type="module" src="/app.js"></script>
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="module" src="./app.js"></script>
+    <script>
+      // Offline support + "Add to Home Screen" / Install. Silent if unsupported.
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("./sw.js").catch(() => {});
+        });
+      }
+    </script>
   </head>
   <body>
     <aside class="sidebar">
-      <a href="/" class="brand" aria-label="Prolens home"
+      <a href="./" class="brand" aria-label="Prolens home"
         ><span class="brand-mark" data-icon="focus"></span>Prolens<span
           class="brand-period"
           >.</span
@@ -105,7 +125,7 @@
               <div class="viewfinder" id="viewfinder">
                 <img
                   id="scene-image"
-                  src="/assets/demo-scene.jpg"
+                  src="./assets/demo-scene.jpg"
                   alt="Demo scene: a woman in a linen dress beside a sunlit Mediterranean archway"
                 />
                 <video
