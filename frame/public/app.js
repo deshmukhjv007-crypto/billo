@@ -5,9 +5,21 @@ import {
   suggestedExposure,
 } from "./analysis.js";
 import { detectFace, initFaceDetection, faceDetectionFailed } from "./face.js";
+import { createAmbientScene } from "./ambient.js";
+import {
+  CAMERA_CONSENT_KEY,
+  CAMERA_INTENT_KEY,
+  decideCameraStart,
+  describeCameraState,
+} from "./permission.js";
 const $ = (s) => document.querySelector(s);
 const icons = {
   focus: "M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5",
+  aperture:
+    "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18 M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7 M12 3v5.5M18.4 7.4l-4.7 2.7M18.4 16.6l-4.7-2.8M5.6 16.6l4.7-2.8M5.6 7.4l4.7 2.7",
+  "camera-off": "M3 5h3m4 0h8v3.5M21 5v14H8m-5 0V5.5M2 2l20 20",
+  external: "M14 4h6v6M20 4l-8 8M18 14v6H4V6h6",
+  help: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18 M9.6 9.4a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .9-1 1.8M12 17h.01",
   image:
     "M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1 M3 17l6-6 4 4 3-3 5 5 M16 7h.01",
   book: "M12 5C8 2 4 3 2 4v16c4-2 7-1 10 1 3-2 6-3 10-1V4c-4-2-7-1-10 1v16",
@@ -68,10 +80,17 @@ let prefs = {
 };
 let stream = null,
   facing = "environment",
-  source = "demo",
+  source = "ambient", // "ambient" (camera off) | "camera" | "upload"
   mode = "Portrait",
   ratioKey = "3:2",
   cameraBusy = false;
+/* Camera consent — see permission.js for the policy these values feed. */
+let cameraPermissionState = "unknown", // Permissions API: granted|denied|prompt|unknown
+  cameraConsent = readStored(CAMERA_CONSENT_KEY, null), // null = never asked
+  cameraIntent = readStored(CAMERA_INTENT_KEY, null), // "on" | "off" | null
+  standbyState = "idle", // idle | blocked | insecure | unsupported | missing
+  permissionWatch = null,
+  cameraConnectCount = 0;
 const RATIO_PRESETS = [
   { key: "3:2", label: "3:2", val: 3 / 2 },
   { key: "4:3", label: "4:3", val: 4 / 3 },
@@ -115,7 +134,9 @@ let faceBox = null, // face in stage fractions {fx, fy, fw, fh}
   timerCountdown = null;
 const stage = $("#stage");
 const img = $("#scene-image"),
-  video = $("#camera-video");
+  video = $("#camera-video"),
+  ambientCanvas = $("#ambient-canvas");
+const ambientScene = createAmbientScene(ambientCanvas);
 const analysisCanvas = document.createElement("canvas");
 analysisCanvas.width = 128;
 analysisCanvas.height = 96;
@@ -224,7 +245,7 @@ $("#info-dialog").addEventListener("click", (e) => {
 $("#about-open").onclick = () => {
   closeSheets();
   dialog(
-    `<div class="dialog-eyebrow">MEET PROLENS</div><h2>Less guessing. More creating.</h2><p>Your private, on-device photography companion. No account. No photo uploads to a server. The sample scene is AI-generated; your own images stay in this browser unless you download them.</p><p>Face detection, light metering and sharpness checks all run on your phone — frames and photos never leave the device. My shots uses browser storage, not a permanent backup. Download photos you want to keep. This prototype captures preview-resolution images, not full-resolution native camera stills.</p><button class="primary-button" id="mobile-preferences">Camera preferences</button>`,
+    `<div class="dialog-eyebrow">MEET PROLENS</div><h2>Less guessing. More creating.</h2><p>Your private, on-device photography companion. No account, no uploads, no sample scene — the standby field you see is generated live on your device, and your photos stay in this browser unless you download them.</p><p>Face detection, light metering and sharpness checks all run on your phone — frames and photos never leave the device. My shots uses browser storage, not a permanent backup. Download photos you want to keep. This prototype captures preview-resolution images, not full-resolution native camera stills.</p><button class="primary-button" id="mobile-preferences">Camera preferences</button>`,
   );
 };
 
@@ -239,10 +260,61 @@ document
     }),
   );
 $("#menu-camera-off").onclick = () => {
-  restoreDemo();
+  storeIntent("off"); // an explicit choice survives the next launch
+  restoreAmbient("idle");
   closeSheets();
-  toast("Camera off. Back to the demo.");
+  toast("Camera off. Prolens stays in standby until you switch it back on.");
 };
+$("#menu-camera-on").onclick = () => {
+  closeSheets();
+  connectCamera();
+};
+
+/* ---------- Camera help ---------- */
+
+function showCameraHelp() {
+  const blocked = cameraPermissionState === "denied" || cameraConsent === false;
+  dialog(
+    `<div class="dialog-eyebrow">CAMERA ACCESS</div><h2>${
+      blocked ? "How to allow the camera." : "One prompt, then never again."
+    }</h2>
+    <p>Prolens asks for the camera the first time you switch it on. Once you allow it, the app opens straight into the live view — there is no repeat prompt on later launches.</p>
+    <ol>
+      <li>Open your browser’s site settings for this page.</li>
+      <li>Set <strong>Camera</strong> to <strong>Allow</strong>.</li>
+      <li>Reload Prolens. The live view starts on its own.</li>
+    </ol>
+    ${
+      isEmbedded()
+        ? `<p><strong>Viewing this inside another page?</strong> Embedded previews are usually granted camera access for one page load only, so open Prolens in its own tab and the permission is remembered.</p>`
+        : ""
+    }
+    <p>Nothing is uploaded: frames, light readings and faces stay in this browser.</p>
+    <button class="primary-button" id="camera-help-retry">Check again</button>
+    ${
+      blocked
+        ? `<button class="ghost-button" id="camera-consent-reset">Ask me again on next launch</button>`
+        : ""
+    }`,
+  );
+  $("#camera-help-retry").onclick = async () => {
+    $("#info-dialog").close();
+    cameraPermissionState = await readPermissionState();
+    connectCamera();
+  };
+  const reset = $("#camera-consent-reset");
+  if (reset)
+    reset.onclick = () => {
+      storeConsent(null);
+      storeIntent(null);
+      try {
+        localStorage.removeItem(CAMERA_CONSENT_KEY);
+        localStorage.removeItem(CAMERA_INTENT_KEY);
+      } catch {}
+      $("#info-dialog").close();
+      toast("Reset. Prolens will ask once more the next time you enable the camera.");
+    };
+}
 
 /* ---------- Preferences ---------- */
 
@@ -270,13 +342,27 @@ function updateTimerChip() {
   chip.textContent = `${prefs.timer}s`;
 }
 function openSettings() {
+  const access = describeCameraState({
+    permission: cameraPermissionState,
+    consent: cameraConsent,
+  });
   dialog(
-    `<div class="dialog-eyebrow">YOUR CAMERA, YOUR WAY</div><h2>A few personal touches.</h2><label class="preference-row"><div><strong>Smart auto</strong><p>Adapt exposure gently as conditions change.</p></div><input type="checkbox" id="pref-auto" ${prefs.auto ? "checked" : ""}></label><label class="preference-row"><div><strong>Composition grid</strong><p>A little structure. A lot of possibility.</p></div><input type="checkbox" id="pref-grid" ${prefs.grid ? "checked" : ""}></label><label class="preference-row"><div><strong>Burst assist</strong><p>Capture 3 frames and keep the sharpest one.</p></div><input type="checkbox" id="pref-burst" ${prefs.burst ? "checked" : ""}></label><div class="preference-row"><div><strong>Self-timer</strong><p>Countdown before the shutter fires.</p></div><div class="seg" id="pref-timer" role="group" aria-label="Self-timer"><button class="seg-btn" data-timer="0">Off</button><button class="seg-btn" data-timer="3">3s</button><button class="seg-btn" data-timer="10">10s</button></div></div><p>Natural colour first: no skin lightening, skin classification or automatic colour casts. Warmth is always your choice.</p><p id="hardware-info"></p>`,
+    `<div class="dialog-eyebrow">YOUR CAMERA, YOUR WAY</div><h2>A few personal touches.</h2><div class="preference-row camera-access"><div><strong>Camera access <span class="access-state ${access.key}" id="camera-access-state">${access.label}</span></strong><p id="camera-access-note">${access.note}</p></div><button class="seg-btn solid" id="camera-access-action">${
+      access.key === "blocked" ? "How to allow" : access.key === "granted" ? "Manage" : "Allow now"
+    }</button></div><label class="preference-row"><div><strong>Smart auto</strong><p>Adapt exposure gently as conditions change.</p></div><input type="checkbox" id="pref-auto" ${prefs.auto ? "checked" : ""}></label><label class="preference-row"><div><strong>Composition grid</strong><p>A little structure. A lot of possibility.</p></div><input type="checkbox" id="pref-grid" ${prefs.grid ? "checked" : ""}></label><label class="preference-row"><div><strong>Burst assist</strong><p>Capture 3 frames and keep the sharpest one.</p></div><input type="checkbox" id="pref-burst" ${prefs.burst ? "checked" : ""}></label><div class="preference-row"><div><strong>Self-timer</strong><p>Countdown before the shutter fires.</p></div><div class="seg" id="pref-timer" role="group" aria-label="Self-timer"><button class="seg-btn" data-timer="0">Off</button><button class="seg-btn" data-timer="3">3s</button><button class="seg-btn" data-timer="10">10s</button></div></div><p>Natural colour first: no skin lightening, skin classification or automatic colour casts. Warmth is always your choice.</p><p id="hardware-info"></p>`,
   );
   $("#hardware-info").textContent =
     source === "camera"
       ? `Camera controls available: ${Object.keys(capabilities).join(", ") || "standard device automatic controls only"}.`
       : "Enable your camera to check supported hardware controls.";
+  $("#camera-access-action").onclick = () => {
+    if (access.key === "granted") {
+      showCameraHelp();
+      return;
+    }
+    $("#info-dialog").close();
+    connectCamera();
+  };
   $("#pref-auto").onchange = (e) => {
     prefs.auto = e.target.checked;
     updateAuto();
@@ -327,15 +413,17 @@ updateTimerChip();
 /* ---------- Ratio, capture frame & zoom ---------- */
 
 function sourceElement() {
-  return source === "camera" ? video : img;
+  if (source === "camera") return video;
+  if (source === "upload") return img;
+  return ambientCanvas; // standby field (never analysed for a score)
 }
 function stageSize() {
   return { W: stage.clientWidth, H: stage.clientHeight };
 }
 function elementSize(el) {
   return {
-    ew: el.videoWidth || el.naturalWidth,
-    eh: el.videoHeight || el.naturalHeight,
+    ew: el.videoWidth || el.naturalWidth || el.width || 0,
+    eh: el.videoHeight || el.naturalHeight || el.height || 0,
   };
 }
 /** Stage pixels per element pixel, including digital zoom about the centre. */
@@ -399,8 +487,12 @@ $("#ratio-toggle").onclick = () => {
   updateCropFrame();
   toast(`Aspect ratio: ${next.label}`);
 };
-window.addEventListener("resize", updateCropFrame);
-window.addEventListener("orientationchange", updateCropFrame);
+function handleResize() {
+  updateCropFrame();
+  ambientScene.resize();
+}
+window.addEventListener("resize", handleResize);
+window.addEventListener("orientationchange", handleResize);
 video.onloadedmetadata = updateCropFrame;
 img.onload = updateCropFrame;
 
@@ -620,7 +712,7 @@ function updateAdjustmentUI() {
   }
   document.querySelectorAll("input[type=range]").forEach((el) => {
     let pct = ((el.value - el.min) / (el.max - el.min)) * 100;
-    el.style.background = `linear-gradient(to right,#e8825a ${pct}%,rgba(255,255,255,0.14) ${pct}%)`;
+    el.style.background = `linear-gradient(to right,#4dd8ff ${pct}%,rgba(150,205,255,0.16) ${pct}%)`;
   });
   updateCropFrame();
 }
@@ -631,7 +723,7 @@ function updateHardwareNote() {
       ? `Exposure: ${exposureHardware ? "camera hardware" : "image-only correction"}. Zoom: ${zoomHardware ? "camera hardware" : "digital crop"}. `
       : source === "upload"
         ? "Image-only adjustments. "
-        : "Demo adjustments are applied to the image. ") +
+        : "Camera is off — these apply to a live camera or an analysed photo. ") +
     "Warmth is a creative image effect, not calibrated white balance." +
     meter;
 }
@@ -698,7 +790,9 @@ $("#ideal-settings-btn").onclick = async () => {
 /* ---------- Tap to meter ---------- */
 
 stage.addEventListener("pointerdown", (e) => {
-  if (e.target.closest(".topbar, .bottombar, .score-chip, .start-cta")) return;
+  if (e.target.closest(".topbar, .bottombar, .score-chip, .standby")) return;
+  if (source === "ambient") return; // nothing to meter until there is an image
+  
   const r = stage.getBoundingClientRect();
   if (!r.width) return;
   const fx = (e.clientX - r.left) / r.width,
@@ -733,12 +827,154 @@ function setSourcePill(kind, label) {
   const pill = $("#source-pill");
   pill.className = `source-pill pill-${kind}`;
   $("#source-label").textContent = label;
-  $("#chip-label").textContent = kind === "live" ? "score" : "light";
+  $("#chip-label").textContent =
+    kind === "live" ? "score" : kind === "standby" ? "standby" : "light";
 }
 function setStartCta(show, label) {
   const cta = $("#start-camera");
   cta.hidden = !show;
   if (show) $("#start-camera-label").textContent = label;
+}
+
+/* ---------- Camera consent (asked once, remembered after) ---------- */
+
+function storeConsent(granted) {
+  cameraConsent = granted;
+  try {
+    localStorage.setItem(CAMERA_CONSENT_KEY, JSON.stringify(granted));
+  } catch {}
+}
+function storeIntent(intent) {
+  cameraIntent = intent;
+  try {
+    localStorage.setItem(CAMERA_INTENT_KEY, JSON.stringify(intent));
+  } catch {}
+}
+/** Permissions API state, or "unknown" where the browser does not implement it. */
+async function readPermissionState() {
+  try {
+    const status = await navigator.permissions?.query({ name: "camera" });
+    if (!status) return "unknown";
+    permissionWatch?.removeEventListener?.("change", onPermissionChange);
+    permissionWatch = status;
+    status.addEventListener?.("change", onPermissionChange);
+    return status.state;
+  } catch {
+    return "unknown"; // Safari and friends: no camera permission descriptor
+  }
+}
+function onPermissionChange() {
+  const next = permissionWatch?.state || "unknown";
+  if (next === cameraPermissionState) return;
+  cameraPermissionState = next;
+  // The user allowed the camera in browser settings: connect without a prompt.
+  if (next === "granted" && source === "ambient" && cameraIntent !== "off")
+    connectCamera({ auto: true });
+  if (next === "denied" && source === "ambient")
+    setStandbyState("blocked");
+  if ($("#info-dialog").open && $("#camera-access-state")) openSettings();
+}
+function isEmbedded() {
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true; // cross-origin frame access denied ⇒ definitely embedded
+  }
+}
+function currentStartDecision() {
+  return decideCameraStart({
+    supported: !!navigator.mediaDevices?.getUserMedia,
+    secure: window.isSecureContext,
+    permission: cameraPermissionState,
+    consent: cameraConsent,
+    intent: cameraIntent,
+    embedded: isEmbedded(),
+  });
+}
+
+/* ---------- Standby state (camera off) ---------- */
+
+const STANDBY_COPY = {
+  idle: {
+    eyebrow: "Sensor standby",
+    title: "Your pocket photographer is standing by.",
+    copy: "Light, steadiness and framing are read live on your device. Turn on the camera to start coaching — or analyse a photo you already have.",
+    label: "Enable camera",
+    note: "On-device only. Camera permission is requested once, never on every launch.",
+    help: false,
+  },
+  blocked: {
+    eyebrow: "Camera blocked",
+    title: "Your browser is holding the lens shut.",
+    copy: "Camera access is blocked for this site. Allow it in your browser’s site settings, then try again — Prolens never uploads a frame.",
+    label: "Try again",
+    note: "Once you allow it, the camera opens automatically next time. No repeat prompts.",
+    help: true,
+  },
+  insecure: {
+    eyebrow: "Secure connection needed",
+    title: "Camera access needs HTTPS.",
+    copy: "Browsers only hand over the camera on a secure origin. Open Prolens over HTTPS (or localhost), or analyse a photo you already have.",
+    label: "Retry",
+    note: "Everything else — the field guide and photo analysis — keeps working.",
+    help: false,
+  },
+  unsupported: {
+    eyebrow: "No camera access",
+    title: "This browser can’t open the camera.",
+    copy: "Prolens needs a browser with live camera support. Photo analysis, the field guide and your shots library still work fully.",
+    label: "Retry",
+    note: "On-device only. Nothing is uploaded, ever.",
+    help: false,
+  },
+  missing: {
+    eyebrow: "No camera found",
+    title: "No camera is available on this device.",
+    copy: "We couldn’t find a camera to open. You can still analyse a photo you already have, and the coach will read its light and framing.",
+    label: "Try again",
+    note: "On-device only. Nothing is uploaded, ever.",
+    help: false,
+  },
+};
+function setStandbyState(state) {
+  standbyState = STANDBY_COPY[state] ? state : "idle";
+  const copy = STANDBY_COPY[standbyState];
+  $("#standby-eyebrow").textContent = copy.eyebrow;
+  $("#standby-title").textContent = copy.title;
+  $("#standby-copy").textContent = copy.copy;
+  $("#standby").dataset.state = standbyState;
+  $("#standby-note span").textContent = copy.note;
+  $("#standby-note i").innerHTML = icon(copy.help ? "help" : "lock");
+  $("#standby-help").hidden = !(copy.help || isEmbedded());
+  setStartCta(true, copy.label);
+}
+function renderStandbyCoach() {
+  composite = 0;
+  setScoreUI(null, "standby");
+  updateSubBars(null, null, null);
+  $("#chip-label").textContent = "standby";
+  $("#score-eyebrow").textContent = "Standby";
+  $("#score-title").innerHTML = "Camera off.<br>Ready when you are.";
+  $("#score-subtitle").textContent =
+    "Live light, steadiness and framing start as soon as the camera is on.";
+  $("#lighting-status").textContent = "Standby";
+  $("#lighting-status").className = "status idle";
+  $("#lighting-tip").textContent =
+    "Enable the camera and the light meter reads your scene live, on device.";
+  $("#composition-status").textContent = "Framing guide";
+  $("#composition-status").className = "status idle";
+  $("#composition-tip").textContent = modes[mode][0];
+  $("#background-status").textContent = "Check the scene";
+  $("#background-status").className = "status idle";
+  $("#background-tip").textContent =
+    "Avoid bright distractions and hard edges behind your subject.";
+  $("#instinct-tip").textContent = modes[mode][1];
+  $("#optimize-caption").textContent =
+    "Auto-tune works on a live camera or an analysed photo.";
+  $("#capture").classList.add("idle");
+  document
+    .querySelectorAll(".light-meter span")
+    .forEach((el, i) => el.classList.toggle("current", i === 4));
 }
 function resetCoachState() {
   clearInterval(timer);
@@ -762,17 +998,20 @@ function resetCoachState() {
   exposureHardware = false;
   zoomHardware = false;
 }
-async function connectCamera() {
+async function connectCamera({ auto = false } = {}) {
   if (cameraBusy) return;
   if (!navigator.mediaDevices?.getUserMedia) {
-    toast(
-      "Camera access needs a supported browser and a secure HTTPS connection. Try uploading a photo.",
+    setStandbyState(
+      window.isSecureContext ? "unsupported" : "insecure",
     );
+    if (!auto) toast("Camera access needs a supported browser and HTTPS. Upload a photo instead.");
     return;
   }
   cameraBusy = true;
+  cameraConnectCount++;
+  $(".standby-actions").classList.add("connecting");
+  setStartCta(true, "Connecting…");
   $("#start-camera").disabled = true;
-  $("#start-camera-label").textContent = "Connecting…";
   resetCoachState();
   initFaceDetection().catch(() => {}); // warm the model while the camera opens
   try {
@@ -788,25 +1027,36 @@ async function connectCamera() {
     await video.play();
     const track = stream.getVideoTracks()[0];
     capabilities = track.getCapabilities?.() || {};
-    const auto = {};
+    const autoSettings = {};
     for (const key of ["exposureMode", "whiteBalanceMode", "focusMode"])
-      if (capabilities[key]?.includes("continuous")) auto[key] = "continuous";
-    if (Object.keys(auto).length)
+      if (capabilities[key]?.includes("continuous"))
+        autoSettings[key] = "continuous";
+    if (Object.keys(autoSettings).length)
       try {
-        await track.applyConstraints({ advanced: [auto] });
+        await track.applyConstraints({ advanced: [autoSettings] });
       } catch {}
     source = "camera";
-    try {
-      localStorage.setItem("frame-camera-prompted", "true");
-    } catch {}
+    // Permission was granted: remember it so no later launch asks again.
+    storeConsent(true);
+    storeIntent("on");
+    cameraPermissionState = "granted";
+    ambientScene.stop();
+    ambientCanvas.hidden = true;
     img.hidden = true;
     video.hidden = false;
+    $("#standby").hidden = true;
+    $("#use-camera-float").hidden = true;
     $("#subject-bracket").hidden = true;
     setSourcePill("live", "Live");
     setStartCta(false, "");
+    $("#capture").classList.remove("idle");
+    $(".standby-actions").classList.remove("connecting");
     $("#menu-camera-off").hidden = false;
+    $("#menu-camera-on").hidden = true;
     $("#lighting-tip").textContent =
       "Reading the light now. The score blends light, steady hands and framing.";
+    $("#lighting-status").className = "status good";
+    $("#composition-status").className = "status improve";
     $("#composition-status").textContent = "Framing guide";
     $("#background-status").textContent = "Check the scene";
     $("#background-status").className = "status improve";
@@ -816,6 +1066,7 @@ async function connectCamera() {
     $("#score-eyebrow").textContent = "Shot score";
     $("#score-subtitle").textContent =
       "Light, steady hands and framing — updated as you frame.";
+    $("#optimize-caption").textContent = "A gentle touch. You’re always in control.";
     exposureHardware = !!capabilities.exposureCompensation;
     zoomHardware = !!capabilities.zoom;
     for (const [id, key, defaults] of [
@@ -839,52 +1090,83 @@ async function connectCamera() {
     analyzeLive();
     track.addEventListener("ended", () => {
       if (source === "camera") {
-        restoreDemo();
-        toast("Camera disconnected. Your demo scene is ready.");
+        restoreAmbient();
+        toast("Camera disconnected. Standing by.");
       }
     });
-    toast("Camera ready. Point, pause, and let the light settle.");
+    if (!auto) toast("Camera ready. Point, pause, and let the light settle.");
   } catch (error) {
-    restoreDemo();
-    toast(
-      error.name === "NotAllowedError"
-        ? "Camera permission was not granted. Allow it in your browser or upload a photo."
+    const denied = error.name === "NotAllowedError";
+    // Only a real, permanent refusal is stored. Inside an embedded frame the
+    // grant can be session-scoped, and guessing "denied" there would lock the
+    // camera out for good.
+    const permanent = denied && (await readPermissionState()) === "denied";
+    if (permanent) storeConsent(false);
+    restoreAmbient(
+      denied
+        ? permanent
+          ? "blocked"
+          : "idle"
         : error.name === "NotFoundError"
-          ? "No camera found. Try the demo or upload your own photo."
-          : "Camera could not start. Close other camera apps and try again.",
+          ? "missing"
+          : "idle",
     );
+    if (denied && !permanent) {
+      setStartCta(true, "Enable camera");
+      if (!auto)
+        toast(
+          "The camera stayed closed. Tap Enable camera when you’re ready — nothing is recorded until then.",
+        );
+    } else if (!auto) {
+      toast(
+        denied
+          ? "Camera access is blocked. Allow it in your browser settings, then try again."
+          : error.name === "NotFoundError"
+            ? "No camera found. Analyse a photo instead — the coach still works."
+            : "Camera could not start. Close other camera apps and try again.",
+      );
+    }
   } finally {
     cameraBusy = false;
+    $(".standby-actions").classList.remove("connecting");
     $("#start-camera").disabled = false;
-    if (source !== "camera") {
-      $("#start-camera-label").textContent =
-        source === "upload" ? "Use camera" : "Enable camera";
-    }
+    if (source !== "camera" && !$("#standby").hidden)
+      setStartCta(true, STANDBY_COPY[standbyState].label);
   }
 }
 $("#start-camera").onclick = () => {
   if (source === "camera") return;
+  if (!window.isSecureContext) setStandbyState("insecure");
   connectCamera();
 };
+$("#standby-upload").onclick = () => $("#photo-upload").click();
+$("#use-camera-float").onclick = () => connectCamera();
 $("#switch-camera").onclick = () => {
   if (source !== "camera") {
     toast("Enable your camera first to switch between front and back.");
     return;
   }
   facing = facing === "environment" ? "user" : "environment";
-  connectCamera();
+  connectCamera({ auto: true });
 };
-function restoreDemo() {
+$("#standby-help").onclick = () => showCameraHelp();
+function restoreAmbient(state = standbyState) {
   resetCoachState();
-  source = "demo";
-  img.src = "./assets/demo-scene.jpg";
-  img.alt = "Demo scene: woman beside a sunlit archway";
-  img.hidden = false;
+  source = "ambient";
+  img.hidden = true;
+  img.removeAttribute("src");
   video.hidden = true;
-  setSourcePill("demo", "Demo");
-  setStartCta(true, "Enable camera");
+  ambientCanvas.hidden = false;
+  ambientScene.resize();
+  ambientScene.start();
+  $("#standby").hidden = false;
+  $("#use-camera-float").hidden = true;
+  setSourcePill("standby", "Standby");
+  setStandbyState(state);
+  renderStandbyCoach();
   $("#menu-camera-off").hidden = true;
-  $("#subject-bracket").hidden = mode !== "Portrait";
+  $("#menu-camera-on").hidden = false;
+  $("#subject-bracket").hidden = true;
   $("#exposure").min = -1.5;
   $("#exposure").max = 1.5;
   $("#exposure").step = 0.1;
@@ -894,38 +1176,9 @@ function restoreDemo() {
   $("#zoom").step = 0.1;
   $("#zoom").value = 1;
   $("#warmth").value = 0;
-  $("#score-eyebrow").textContent = "Demo light check";
-  $("#score-subtitle").textContent = "Illustrative scene guidance.";
-  $("#composition-status").textContent = "Framing guide";
-  $("#background-status").textContent = "Demo backdrop";
-  $("#background-status").className = "status good";
-  $("#background-tip").textContent =
-    "A simple backdrop keeps the attention right where it belongs.";
-  $("#lighting-tip").textContent =
-    "Soft, warm light in this demo scene. Let’s make the most of it.";
-  $("#lighting-status").textContent = "Just right";
-  $("#lighting-status").className = "status good";
-  setScoreUI(86, "good");
-  updateSubBars(86, null, null);
   updateAdjustmentUI();
   updateHardwareNote();
   updateCropFrame();
-  // If the model is already loaded (from a previous camera session),
-  // snap the bracket to the demo subject's face for real.
-  detectFace(img)
-    .then((bbox) => {
-      if (!bbox || source !== "demo") return;
-      const box = faceBoxToStage(bbox);
-      if (!box) return;
-      faceBox = box;
-      if (mode === "Portrait") positionBracket(box);
-      const stats = sample();
-      if (stats) {
-        lastStats = stats;
-        renderAnalysis(stats, regionStats());
-      }
-    })
-    .catch(() => {});
 }
 
 /* ---------- Analysis ---------- */
@@ -978,16 +1231,20 @@ function regionStats() {
   return analyzePixels(regionContext.getImageData(0, 0, 64, 64).data);
 }
 function setScoreUI(score, state) {
-  $("#scene-score").textContent = score;
-  $("#score-progress").style.strokeDasharray = `${score * 2.2} 264`;
-  $("#chip-score").textContent = score;
-  $("#chip-progress").style.strokeDasharray = `${score * 1.26} 126`;
+  const shown = score == null ? "—" : score;
+  const fill = score == null ? 0 : score;
+  $("#scene-score").textContent = shown;
+  $("#score-progress").style.strokeDasharray = `${fill * 2.2} 264`;
+  $("#chip-score").textContent = shown;
+  $("#chip-progress").style.strokeDasharray = `${fill * 1.26} 126`;
   $("#score-title").innerHTML =
-    score >= 75
-      ? "A little closer<br>to a great shot."
-      : score >= 45
-        ? "A little light<br>goes a long way."
-        : "Let’s find<br>a little more light.";
+    score == null
+      ? "Camera off.<br>Ready when you are."
+      : score >= 75
+        ? "A little closer<br>to a great shot."
+        : score >= 45
+          ? "A little light<br>goes a long way."
+          : "Let’s find<br>a little more light.";
   if (state) {
     $("#score-chip").className = `score-chip ${state}`;
     $("#score-card").className = `score-card ${state}`;
@@ -1072,6 +1329,13 @@ async function analyzeLive() {
 }
 async function autoTune(notify = true) {
   if (tuning) return;
+  if (source === "ambient") {
+    if (notify)
+      toast(
+        "Auto-tune needs light to work with. Turn on the camera or analyse a photo first.",
+      );
+    return;
+  }
   tuning = true;
   const start = performance.now();
   try {
@@ -1113,7 +1377,7 @@ async function autoTune(notify = true) {
         2200,
       );
     }
-    if (source !== "demo") renderAnalysis(stats, region);
+    if (source !== "ambient") renderAnalysis(stats, region);
   } finally {
     tuning = false;
   }
@@ -1146,9 +1410,15 @@ $("#photo-upload").onchange = async (e) => {
     img.alt = "Your uploaded photo";
     img.hidden = false;
     video.hidden = true;
+    ambientScene.stop();
+    ambientCanvas.hidden = true;
+    $("#standby").hidden = true;
+    $("#use-camera-float").hidden = false;
     setSourcePill("photo", "Your photo");
-    setStartCta(true, "Use camera");
+    setStartCta(false, "");
+    $("#capture").classList.remove("idle");
     $("#menu-camera-off").hidden = true;
+    $("#menu-camera-on").hidden = false;
     $("#subject-bracket").hidden = true;
     $("#exposure").min = -1.5;
     $("#exposure").max = 1.5;
@@ -1159,9 +1429,10 @@ $("#photo-upload").onchange = async (e) => {
     $("#exposure").value = 0;
     $("#warmth").value = 0;
     $("#zoom").value = 1;
-    $("#score-eyebrow").textContent = "Light check";
+    $("#score-eyebrow").textContent = "Photo analysis";
     $("#score-subtitle").textContent =
       "Brightness estimate, not aesthetic quality.";
+    $("#lighting-status").className = "status good";
     $("#composition-status").textContent = "Framing guide";
     $("#composition-tip").textContent = modes[mode][0];
     $("#background-status").textContent = "Check the scene";
@@ -1300,8 +1571,8 @@ async function capture() {
     toast(
       burstUsed
         ? "Kept the sharpest of 3 frames. Find it in My shots."
-        : source === "demo"
-          ? "Demo moment saved. Find it in My shots."
+        : source === "upload"
+          ? "Photo study saved. Find it in My shots."
           : "Moment saved on this device. Find it in My shots.",
     );
   } catch {
@@ -1313,6 +1584,14 @@ async function capture() {
   }
 }
 $("#capture").onclick = () => {
+  if (source === "ambient") {
+    setStandbyState(standbyState);
+    $("#standby").classList.remove("nudge");
+    void $("#standby").offsetWidth;
+    $("#standby").classList.add("nudge");
+    toast("Turn on the camera to capture — or analyse a photo you already have.");
+    return;
+  }
   if (countdownActive) {
     cancelCountdown();
     toast("Self-timer cancelled.");
@@ -1368,7 +1647,7 @@ document.querySelectorAll("[data-mode]").forEach(
       $("#composition-tip").textContent = modes[mode][0];
       $("#instinct-tip").textContent = modes[mode][1];
       if (source !== "camera") $("#frame-hint-text").textContent = modes[mode][2];
-      if (source === "demo") $("#subject-bracket").hidden = mode !== "Portrait";
+      if (source === "ambient") $("#subject-bracket").hidden = true;
       toast(`${mode} guidance selected. No simulated camera lens effects.`);
     }),
 );
@@ -1430,7 +1709,7 @@ function renderGallery() {
     meta.className = "shot-meta";
     const text = document.createElement("div");
     const title = document.createElement("h3");
-    title.textContent = `${shot.mode} · ${shot.source === "demo" ? "Demo moment" : shot.source === "upload" ? "Photo study" : "A moment worth keeping"}`;
+    title.textContent = `${shot.mode} · ${shot.source === "upload" ? "Photo study" : "A moment worth keeping"}`;
     const date = document.createElement("p");
     date.textContent = new Date(shot.date).toLocaleString(undefined, {
       month: "short",
@@ -1489,7 +1768,7 @@ function openShotViewer(shot) {
   const img = $("#viewer-img");
   img.src = shot.image;
   img.alt = `Captured ${shot.mode.toLowerCase()} photo`;
-  $("#viewer-title").textContent = `${shot.mode} · ${shot.source === "demo" ? "Demo moment" : shot.source === "upload" ? "Photo study" : "A moment worth keeping"}`;
+  $("#viewer-title").textContent = `${shot.mode} · ${shot.source === "upload" ? "Photo study" : "A moment worth keeping"}`;
   $("#viewer-date").textContent = new Date(shot.date).toLocaleString(undefined, {
     month: "short",
     day: "numeric",
@@ -1593,23 +1872,47 @@ renderIcons($("#guide-grid"));
 
 window.addEventListener("pagehide", () => resetCoachState());
 window.addEventListener("pageshow", (e) => {
-  if (e.persisted && source === "camera") restoreDemo();
+  if (e.persisted && source === "camera") restoreAmbient();
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) ambientScene.stop();
+  else if (source === "ambient") ambientScene.start();
 });
 
 /* ---------- Init ---------- */
 
-setScoreUI(86, "good");
-updateSubBars(86, null, null);
+restoreAmbient("idle");
 updateAdjustmentUI();
 updateHardwareNote();
 requestAnimationFrame(updateCropFrame);
 
-// If the user hasn't explicitly been prompted before (first time), prompt to enable camera.
-// If previously prompted/declined or camera was turned off, keep demo mode with manual enable option.
-const cameraEverPrompted = readStored("frame-camera-prompted", false);
-if (!cameraEverPrompted && navigator.mediaDevices?.getUserMedia) {
-  try {
-    localStorage.setItem("frame-camera-prompted", "true");
-  } catch {}
-  connectCamera().catch(() => {});
+/**
+ * The whole consent story in one place: ask on first run, connect silently
+ * afterwards, and never nag a user who already said no.
+ */
+async function initCameraAccess() {
+  cameraPermissionState = await readPermissionState();
+  const decision = currentStartDecision();
+  switch (decision.mode) {
+    case "auto":
+      // Permission already granted (or remembered): no prompt will appear.
+      connectCamera({ auto: true });
+      break;
+    case "first-run":
+      // The one and only time the browser prompt appears.
+      connectCamera({ auto: true });
+      break;
+    case "blocked":
+      setStandbyState("blocked");
+      break;
+    case "insecure":
+      setStandbyState("insecure");
+      break;
+    case "unsupported":
+      setStandbyState("unsupported");
+      break;
+    default:
+      setStandbyState("idle");
+  }
 }
+initCameraAccess().catch(() => setStandbyState("idle"));

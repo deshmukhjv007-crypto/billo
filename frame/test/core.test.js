@@ -7,6 +7,11 @@ import {
   sharpness,
   suggestedExposure,
 } from "../public/analysis.js";
+import {
+  CAMERA_CONSENT_KEY,
+  decideCameraStart,
+  describeCameraState,
+} from "../public/permission.js";
 import { server } from "../server.js";
 const pixels = (...rgb) =>
   new Uint8ClampedArray(rgb.flatMap((v) => [v, v, v, 255]));
@@ -79,6 +84,12 @@ test("server serves app and blocks invalid paths", async (t) => {
   const icon = await fetch(base + "/icons/icon-192.png");
   assert.equal(icon.status, 200);
   assert.match(icon.headers.get("content-type"), /image\/png/);
+  for (const file of ["/ambient.js", "/permission.js"]) {
+    const res = await fetch(base + file);
+    assert.equal(res.status, 200, file + " should be served");
+    assert.match(res.headers.get("content-type"), /javascript/);
+  }
+  assert.equal((await fetch(base + "/assets/demo-scene.jpg")).status, 404);
   assert.equal((await fetch(base + "/missing")).status, 404);
   assert.equal((await fetch(base + "/%2e%2e%2fpackage.json")).status, 403);
   assert.equal((await fetch(base + "/%FF")).status, 404);
@@ -105,4 +116,74 @@ test("sharpness is zero for flat frames and higher for detailed ones", () => {
     for (let x = 0; x < 96; x++) edge[y * 96 + x] = x % 8 < 4 ? 0 : 1;
   assert.ok(sharpness(edge, 96, 72) > 0.1);
   assert.equal(sharpness(null, 96, 72), 0);
+});
+
+test("camera consent: the first run asks, later runs never prompt again", () => {
+  const base = { supported: true, secure: true };
+  // Very first launch: one request, which is the one browser prompt.
+  assert.equal(
+    decideCameraStart({ ...base, permission: "prompt", consent: null, intent: null }).mode,
+    "first-run",
+  );
+  // Browser remembers the grant.
+  assert.deepEqual(
+    decideCameraStart({ ...base, permission: "granted", consent: true, intent: "on" }),
+    { mode: "auto", silent: true, reason: "permission-granted" },
+  );
+  // Browser does not expose permission state (Safari) but the user allowed it.
+  assert.deepEqual(
+    decideCameraStart({ ...base, permission: "unknown", consent: true, intent: "on" }),
+    { mode: "auto", silent: true, reason: "consent-remembered" },
+  );
+});
+
+test("camera consent: a refusal is remembered and never retried", () => {
+  const base = { supported: true, secure: true };
+  const denied = decideCameraStart({
+    ...base,
+    permission: "denied",
+    consent: false,
+    intent: "on",
+  });
+  assert.equal(denied.mode, "blocked");
+  assert.equal(denied.silent, false);
+  // Consent alone (browser does not report permission) is enough to stay blocked.
+  assert.equal(
+    decideCameraStart({ ...base, permission: "unknown", consent: false }).mode,
+    "blocked",
+  );
+});
+
+test("camera consent: the user's own off switch wins, and frames never auto-prompt", () => {
+  const base = { supported: true, secure: true };
+  assert.equal(
+    decideCameraStart({ ...base, permission: "granted", consent: true, intent: "off" })
+      .mode,
+    "tap",
+  );
+  // Embedded previews get a session-scoped grant: do not consume the one prompt.
+  assert.equal(
+    decideCameraStart({
+      ...base,
+      permission: "prompt",
+      consent: null,
+      embedded: true,
+    }).mode,
+    "tap",
+  );
+});
+
+test("camera consent: unsupported and insecure contexts are named, not attempted", () => {
+  assert.equal(decideCameraStart({ supported: false }).mode, "unsupported");
+  assert.equal(decideCameraStart({ secure: false }).mode, "insecure");
+  // A secure context with an already-granted permission still connects.
+  assert.equal(decideCameraStart({ secure: true, permission: "granted" }).mode, "auto");
+});
+
+test("camera state wording matches the remembered consent", () => {
+  assert.equal(describeCameraState({ permission: "granted" }).key, "granted");
+  assert.equal(describeCameraState({ consent: true }).key, "granted");
+  assert.equal(describeCameraState({ consent: false }).key, "blocked");
+  assert.equal(describeCameraState({}).key, "prompt");
+  assert.equal(CAMERA_CONSENT_KEY, "frame-camera-consent");
 });

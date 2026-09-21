@@ -34,5 +34,6 @@ An equivalent native AVFoundation capture pipeline needs a separate implementati
 - No progressive exposure drift or flicker across stable scenes; repeatability when moving between scenes; hardware failure and permission recovery; rotation, suspend/resume and incoming-call interruption.
 - Test full-resolution capture versus preview appearance, orientation, colour space, HDR output, optional location metadata and local deletion.
 - Privacy review: explicit permissions, no hidden uploads or persistent biometric templates, inspect model licences and network activity, clear retention controls.
+- Permission UX review: the web build asks for camera access exactly once and remembers the answer (`public/permission.js`). A native shell should hold the same promise — one system prompt on first launch, silent start afterwards, and a visible state (Allowed / Blocked / Not requested) in preferences.
 
 This plan describes follow-on work; it is not a claim that native integration or subject recognition is already delivered.

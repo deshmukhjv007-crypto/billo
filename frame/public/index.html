@@ -6,7 +6,8 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
     />
-    <meta name="theme-color" content="#0a0c0d" />
+    <meta name="theme-color" content="#04070d" />
+    <meta name="color-scheme" content="dark" />
     <meta
       name="description"
       content="Prolens is your pocket photography coach. Find better light, compose with confidence, and capture the moment. Privately, on your device."
@@ -26,12 +27,12 @@
     />
     <link
       rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%23e7794c'/%3E%3Cpath d='M17 10h-7v7m13-7h7v7M10 23v7h7m13-7v7h-7' stroke='white' stroke-width='3' fill='none'/%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%234dd8ff'/%3E%3Cstop offset='1' stop-color='%238b7bff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='40' height='40' rx='11' fill='%23060a12'/%3E%3Crect x='0.75' y='0.75' width='38.5' height='38.5' rx='10.5' fill='none' stroke='url(%23g)' stroke-opacity='0.55'/%3E%3Cg fill='none' stroke='url(%23g)' stroke-width='2.6' stroke-linecap='round'%3E%3Cpath d='M17 11h-6v6M23 11h6v6M11 23v6h6M29 23v6h-6'/%3E%3C/g%3E%3Ccircle cx='20' cy='20' r='3.4' fill='none' stroke='url(%23g)' stroke-width='2.2'/%3E%3C/svg%3E"
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./styles.css" />
@@ -49,11 +50,14 @@
     <!-- ================= Camera screen ================= -->
     <section class="screen active" id="camera-screen" aria-label="Camera">
       <div class="stage" id="stage">
-        <img
-          id="scene-image"
-          src="./assets/demo-scene.jpg"
-          alt="Demo scene: a woman in a linen dress beside a sunlit Mediterranean archway"
-        />
+        <!-- Standby field: the futuristic sensor view shown while the camera is off. -->
+        <canvas
+          id="ambient-canvas"
+          class="ambient-canvas"
+          aria-hidden="true"
+        ></canvas>
+        <!-- Uploaded photo stage (hidden until a photo is analysed). -->
+        <img id="scene-image" hidden alt="" />
         <video
           id="camera-video"
           autoplay
@@ -87,13 +91,13 @@
 
         <header class="topbar">
           <button class="brand" id="menu-open" aria-label="Open Prolens menu">
-            <span class="brand-mark" data-icon="focus"></span
+            <span class="brand-mark" data-icon="aperture"></span
             ><span class="brand-name">Prolens</span>
           </button>
           <span
-            class="source-pill pill-demo"
+            class="source-pill pill-standby"
             id="source-pill"
-          ><i aria-hidden="true"></i><span id="source-label">Demo</span></span>
+          ><i aria-hidden="true"></i><span id="source-label">Standby</span></span>
           <div class="topbar-tools">
             <button
               class="tool"
@@ -125,7 +129,7 @@
 
         <!-- Live coach score, corner badge. Tap for the full coach sheet. -->
         <button
-          class="score-chip good"
+          class="score-chip standby"
           id="score-chip"
           aria-label="Open live coach"
           title="Live coach"
@@ -135,15 +139,46 @@
             <circle class="ring-progress" id="chip-progress" cx="24" cy="24" r="20" />
           </svg>
           <span class="chip-value"
-            ><strong id="chip-score">86</strong
-            ><em id="chip-label">light</em></span
+            ><strong id="chip-score">—</strong
+            ><em id="chip-label">standby</em></span
           >
         </button>
 
-        <button class="start-cta" id="start-camera">
-          <i data-icon="video"></i><span id="start-camera-label"
-            >Enable camera</span
-          >
+        <!-- Standby card: the only thing standing between the user and a live view. -->
+        <div class="standby-screen" id="standby">
+          <div class="standby-card">
+            <span class="standby-badge" data-icon="aperture" aria-hidden="true"></span>
+            <p class="standby-eyebrow" id="standby-eyebrow">Sensor standby</p>
+            <h2 id="standby-title">Your pocket photographer is standing by.</h2>
+            <p class="standby-copy" id="standby-copy">
+              Light, steadiness and framing are read live on your device. Turn on
+              the camera to start coaching — or analyse a photo you already have.
+            </p>
+            <div class="standby-actions">
+              <button class="start-cta" id="start-camera">
+                <i data-icon="video"></i><span id="start-camera-label"
+                  >Enable camera</span
+                >
+              </button>
+              <button class="ghost-button standby-secondary" id="standby-upload">
+                <i data-icon="upload"></i><span>Analyse a photo</span>
+              </button>
+            </div>
+            <p class="standby-note" id="standby-note">
+              <i data-icon="lock"></i
+              ><span
+                >On-device only. Camera permission is requested once, never on
+                every launch.</span
+              >
+            </p>
+            <button class="standby-help" id="standby-help" hidden>
+              <i data-icon="help"></i><span>How to allow the camera</span>
+            </button>
+          </div>
+        </div>
+
+        <button class="use-camera-float" id="use-camera-float" hidden>
+          <i data-icon="switch-camera"></i><span>Use camera</span>
         </button>
 
         <div class="capture-flash" id="capture-flash" aria-hidden="true"></div>
@@ -159,7 +194,8 @@
           <div class="frame-hint" id="frame-hint">
             <span data-icon="sparkles"></span
             ><span id="frame-hint-text"
-              >A little to the right. A lot more story.</span
+              >Switch on the camera and the coach reads your scene. Nothing
+              leaves this device.</span
             >
           </div>
           <div class="mode-row" role="group" aria-label="Photography mode">
@@ -249,7 +285,7 @@
         </div>
       </div>
       <div class="sheet-body">
-        <div class="score-card" id="score-card">
+        <div class="score-card standby" id="score-card">
           <div class="score-ring">
             <svg viewBox="0 0 100 100" aria-hidden="true">
               <circle class="score-track" cx="50" cy="50" r="42" />
@@ -262,22 +298,24 @@
               />
             </svg>
             <div class="score-num"
-              ><strong id="scene-score">86</strong><span>/ 100</span></div
+              ><strong id="scene-score">—</strong><span>/ 100</span></div
             >
           </div>
           <div class="score-copy">
-            <span id="score-eyebrow">Looking good</span>
+            <span id="score-eyebrow">Standby</span>
             <h3 id="score-title">
-              A little closer<br />to a great shot.
+              Camera off.<br />Ready when you are.
             </h3>
-            <p id="score-subtitle">Your scene has real potential.</p>
+            <p id="score-subtitle">
+              Live light, steadiness and framing start as soon as the camera is on.
+            </p>
           </div>
         </div>
         <div class="sub-scores" aria-label="Score breakdown">
           <div class="sub-score">
             <span>Light</span>
             <div class="sub-bar"><i id="sub-light"></i></div>
-            <b id="sub-light-val">86</b>
+            <b id="sub-light-val">–</b>
           </div>
           <div class="sub-score">
             <span>Steady</span>
@@ -296,12 +334,11 @@
             <div class="check-body">
               <div class="check-heading">
                 <h3>Lighting</h3>
-                <span class="status good" id="lighting-status"
-                  >Just right</span
-                >
+                <span class="status idle" id="lighting-status">Standby</span>
               </div>
               <p id="lighting-tip">
-                Soft, warm light on your subject. Let’s make the most of it.
+                Enable the camera and the light meter reads your scene live, on
+                device.
               </p>
               <div class="light-meter" aria-hidden="true"
                 ><span></span><span></span><span></span><span></span
@@ -318,13 +355,10 @@
             <div class="check-body">
               <div class="check-heading">
                 <h3>Composition</h3>
-                <span class="status improve" id="composition-status"
-                  >Small tweak</span
-                >
+                <span class="status idle" id="composition-status">Framing guide</span>
               </div>
               <p id="composition-tip">
-                Place your subject on the right gridline to give the scene room
-                to breathe.
+                Place your subject on a gridline to give the scene room to breathe.
               </p>
               <button class="inline-action" id="composition-guide">
                 Show me how<i data-icon="arrow-right"></i>
@@ -336,12 +370,10 @@
             <div class="check-body">
               <div class="check-heading">
                 <h3>Background</h3>
-                <span class="status good" id="background-status"
-                  >Nice &amp; clean</span
-                >
+                <span class="status idle" id="background-status">Check the scene</span>
               </div>
               <p id="background-tip">
-                A simple backdrop keeps the attention right where it belongs.
+                Avoid bright distractions and hard edges behind your subject.
               </p>
             </div>
           </article>
@@ -434,8 +466,8 @@
         <p class="soft-note">
           <i data-icon="info"></i
           ><span id="adjustment-note"
-            >Demo adjustments are applied to the image, not your camera
-            hardware.</span
+            >Adjustments apply to a live camera or an analysed photo, not to a
+            camera that is switched off.</span
           >
         </p>
       </div>
@@ -450,7 +482,7 @@
     >
       <div class="grab" aria-hidden="true"></div>
       <div class="sheet-head">
-        <h2><span class="brand-mark small" data-icon="focus"></span>Prolens</h2>
+        <h2><span class="brand-mark small" data-icon="aperture"></span>Prolens</h2>
         <div class="sheet-head-actions">
           <button
             class="sheet-close"
@@ -463,6 +495,11 @@
         <button class="menu-row" id="menu-camera-off" hidden>
           <span class="menu-icon"><i data-icon="power"></i></span
           ><span>Turn off camera</span
+          ><i data-icon="chevron-right" class="menu-chevron"></i>
+        </button>
+        <button class="menu-row" id="menu-camera-on">
+          <span class="menu-icon"><i data-icon="video"></i></span
+          ><span>Turn on camera</span
           ><i data-icon="chevron-right" class="menu-chevron"></i>
         </button>
         <button class="menu-row" data-open="gallery">
