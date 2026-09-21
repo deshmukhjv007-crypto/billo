@@ -1,25 +1,43 @@
 import { FrameAnalysis } from '../ai/SceneAnalyzer';
 import { COMPOSITION_RULES, EXPOSURE_RULES } from './PhotographyRules';
 
+/**
+ * Visual direction attached to a suggestion. The HUD turns these into big
+ * chevrons / rotate arrows (DirectionOverlay) and a glyph on the pill.
+ *
+ * Convention: every cue is the direction to MOVE THE PHONE — the same way
+ * "tilt phone left" is phrased. `arrow-left` = pan the phone left,
+ * `rotate-ccw` = tilt the phone left (counter-clockwise), and so on.
+ */
+export type VisualCue =
+  | 'arrow-left'
+  | 'arrow-right'
+  | 'arrow-up'
+  | 'arrow-down'
+  | 'rotate-cw'
+  | 'rotate-ccw'
+  | 'step-back'
+  | 'step-closer'
+  | 'tap-to-focus'
+  | 'wait'
+  | 'shoot-now';
+
+export type SuggestionPriority = 'critical' | 'high' | 'medium' | 'low' | 'praise';
+
 export type Suggestion = {
   id: string;
-  priority: 'critical' | 'high' | 'medium' | 'low' | 'praise';
+  priority: SuggestionPriority;
   category: 'composition' | 'lighting' | 'focus' | 'motion' | 'timing' | 'pro-tip';
+  /**
+   * Short action (≤ 3 words) shown on the HUD pill and spoken by VoiceCoach,
+   * e.g. "Tilt left", "Pan right", "Hold steady", "Shoot now".
+   */
+  label: string;
+  /** Longer explanation — used by the review screen / debugging, never read aloud. */
   message: string;
   icon: string;
   action?: SuggestionAction;
-  visualCue?:
-    | 'arrow-left'
-    | 'arrow-right'
-    | 'arrow-up'
-    | 'arrow-down'
-    | 'rotate-cw'
-    | 'rotate-ccw'
-    | 'step-back'
-    | 'step-closer'
-    | 'tap-to-focus'
-    | 'wait'
-    | 'shoot-now';
+  visualCue?: VisualCue;
 };
 
 export type SuggestionAction = {
@@ -30,10 +48,46 @@ export type SuggestionAction = {
 
 type Point = { x: number; y: number };
 
-export class SuggestionEngine {
-  private lastSuggestions: Map<string, number> = new Map();
-  private readonly COOLDOWN_MS = 3000; // Don't repeat same tip within 3s
+const PRIORITY_WEIGHT: Record<SuggestionPriority, number> = {
+  critical: 100,
+  high: 80,
+  medium: 60,
+  low: 40,
+  praise: 30,
+};
 
+/** Priorities that are informational — shown briefly, then rested for a while. */
+const TRANSIENT_PRIORITIES: ReadonlySet<SuggestionPriority> = new Set(['low', 'praise']);
+
+export class SuggestionEngine {
+  /** Ids currently surfaced on the HUD. */
+  private active = new Set<string>();
+  /** When each active id first surfaced (transient tips have a display budget). */
+  private activeSince = new Map<string, number>();
+  /** Earliest time an id may surface again after it cleared / was bumped. */
+  private cooldownUntil = new Map<string, number>();
+  /** Ids whose last surfaced priority was transient (picks the cooldown length). */
+  private transientIds = new Set<string>();
+
+  /** Action tips: brief rest after they clear so a borderline reading can't strobe. */
+  private readonly RESURFACE_COOLDOWN_MS = 1500;
+  /** Pro-tips / praise: how long they stay on screen… */
+  private readonly TRANSIENT_SHOW_MS = 4000;
+  /** …and how long before the same one is allowed to repeat. */
+  private readonly TRANSIENT_COOLDOWN_MS = 20000;
+
+  private readonly MAX_VISIBLE = 2;
+
+  /**
+   * Returns the suggestions that should be on screen right now, highest
+   * priority first (max 2).
+   *
+   * Semantics: an action tip (critical/high/medium) stays surfaced for as
+   * long as its condition holds and disappears the moment it clears — the
+   * spirit level, chevrons and pills therefore track the live scene instead
+   * of flashing once and going quiet. Transient tips (low/praise) get a
+   * short display budget and a long cooldown so they never nag.
+   */
   generate(analysis: FrameAnalysis): Suggestion[] {
     const all: Suggestion[] = [];
 
@@ -48,21 +102,54 @@ export class SuggestionEngine {
     all.push(...this.checkDecisiveMoment(analysis));
     all.push(...this.checkPraise(analysis));
 
-    // Filter by cooldown
     const now = Date.now();
-    const fresh = all.filter((s) => {
-      const last = this.lastSuggestions.get(s.id) ?? 0;
-      return now - last > this.COOLDOWN_MS;
+
+    const eligible = all.filter((s) => {
+      if (this.active.has(s.id)) {
+        // Transient tips expire after their display budget.
+        if (TRANSIENT_PRIORITIES.has(s.priority)) {
+          const since = this.activeSince.get(s.id) ?? now;
+          return now - since < this.TRANSIENT_SHOW_MS;
+        }
+        return true;
+      }
+      return now >= (this.cooldownUntil.get(s.id) ?? 0);
     });
 
-    // Sort by priority + take top 2
-    const sorted = fresh.sort(
-      (a, b) => this.priorityWeight(b.priority) - this.priorityWeight(a.priority)
+    const sorted = eligible.sort(
+      (a, b) => PRIORITY_WEIGHT[b.priority] - PRIORITY_WEIGHT[a.priority]
     );
+    const top = sorted.slice(0, this.MAX_VISIBLE);
 
-    const top = sorted.slice(0, 2);
-    top.forEach((s) => this.lastSuggestions.set(s.id, now));
+    // Book-keeping: ids that dropped out start their cooldown.
+    const nextActive = new Set(top.map((s) => s.id));
+    for (const s of top) {
+      if (!this.active.has(s.id)) this.activeSince.set(s.id, now);
+    }
+    for (const id of this.active) {
+      if (nextActive.has(id)) continue;
+      const wasTransient = this.transientIds.has(id);
+      this.cooldownUntil.set(
+        id,
+        now + (wasTransient ? this.TRANSIENT_COOLDOWN_MS : this.RESURFACE_COOLDOWN_MS)
+      );
+      this.activeSince.delete(id);
+    }
+    for (const s of top) {
+      if (TRANSIENT_PRIORITIES.has(s.priority)) this.transientIds.add(s.id);
+      else this.transientIds.delete(s.id);
+    }
+    this.active = nextActive;
+
     return top;
+  }
+
+  /** Forget all cooldowns/active state (e.g. after a capture or camera flip). */
+  reset() {
+    this.active.clear();
+    this.activeSince.clear();
+    this.cooldownUntil.clear();
+    this.transientIds.clear();
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -73,14 +160,17 @@ export class SuggestionEngine {
     const tilt = a.horizon.tilt;
 
     if (Math.abs(tilt) > COMPOSITION_RULES.HORIZON_LEVEL.maxTilt) {
+      // tilt > 0 → phone is rolled clockwise → rotate it counter-clockwise ("tilt left").
+      const tiltLeft = tilt > 0;
       return [
         {
           id: 'horizon-tilt',
           priority: Math.abs(tilt) > 5 ? 'critical' : 'high',
           category: 'composition',
-          message: `Level horizon (${tilt > 0 ? 'tilt left' : 'tilt right'} ${Math.abs(tilt).toFixed(1)}°)`,
+          label: tiltLeft ? 'Tilt left' : 'Tilt right',
+          message: `Level horizon (${tiltLeft ? 'tilt left' : 'tilt right'} ${Math.abs(tilt).toFixed(1)}°)`,
           icon: '📐',
-          visualCue: tilt > 0 ? 'rotate-ccw' : 'rotate-cw',
+          visualCue: tiltLeft ? 'rotate-ccw' : 'rotate-cw',
           action: { type: 'rotate', magnitude: -tilt },
         },
       ];
@@ -108,16 +198,20 @@ export class SuggestionEngine {
       const offsetX = centerX - nearestX;
 
       if (Math.abs(offsetX) > COMPOSITION_RULES.RULE_OF_THIRDS.tolerance) {
+        // Subject sits right of the line → pan the phone right (the subject
+        // drifts left in frame onto the line), and vice versa.
+        const panRight = offsetX > 0;
         tips.push({
           id: 'rot-x',
           priority: 'medium',
           category: 'composition',
-          message:
-            offsetX > 0
-              ? 'Pan right to align subject with grid line'
-              : 'Pan left to align subject with grid line',
+          label: panRight ? 'Pan right' : 'Pan left',
+          message: panRight
+            ? 'Pan right to align subject with grid line'
+            : 'Pan left to align subject with grid line',
           icon: '🎯',
-          visualCue: offsetX > 0 ? 'arrow-right' : 'arrow-left',
+          visualCue: panRight ? 'arrow-right' : 'arrow-left',
+          action: { type: 'move', magnitude: offsetX },
         });
       }
 
@@ -128,6 +222,7 @@ export class SuggestionEngine {
           id: 'headroom-tight',
           priority: 'high',
           category: 'composition',
+          label: 'Tilt up',
           message: 'Too tight above head — tilt up slightly',
           icon: '👤',
           visualCue: 'arrow-up',
@@ -137,6 +232,7 @@ export class SuggestionEngine {
           id: 'headroom-loose',
           priority: 'medium',
           category: 'composition',
+          label: 'Tilt down',
           message: 'Too much headroom — get closer or tilt down',
           icon: '👤',
           visualCue: 'arrow-down',
@@ -151,29 +247,44 @@ export class SuggestionEngine {
             : face.bounds.x;
 
         if (spaceInDirection < 0.3) {
+          // Subject looks right → they need room on the right → pan the phone
+          // right so the subject shifts left and opens space ahead of them.
+          const panRight = face.eyeDirection === 'right';
           tips.push({
             id: 'looking-room',
             priority: 'medium',
             category: 'composition',
-            message: `Leave more space where subject is looking`,
+            label: panRight ? 'Pan right' : 'Pan left',
+            message: 'Leave more space where subject is looking',
             icon: '👀',
-            visualCue: face.eyeDirection === 'right' ? 'arrow-left' : 'arrow-right',
+            visualCue: panRight ? 'arrow-right' : 'arrow-left',
           });
         }
       }
-    }
 
-    // Fill the frame check
-    if (a.scene === 'portrait' && a.faces[0]) {
-      const faceArea = a.faces[0].bounds.width * a.faces[0].bounds.height;
-      if (faceArea < 0.08) {
+      // Fill the frame — too far / too close
+      const faceArea = face.bounds.width * face.bounds.height;
+      if (a.scene === 'portrait' && faceArea < 0.08) {
         tips.push({
           id: 'get-closer',
           priority: 'medium',
           category: 'composition',
+          label: 'Step closer',
           message: 'Get closer — fill the frame with your subject',
           icon: '🔍',
           visualCue: 'step-closer',
+          action: { type: 'move' },
+        });
+      } else if (faceArea > COMPOSITION_RULES.FILL_THE_FRAME.minSubjectArea + 0.15) {
+        tips.push({
+          id: 'too-close',
+          priority: 'medium',
+          category: 'composition',
+          label: 'Step back',
+          message: 'Too close — step back so the face isn’t cropped',
+          icon: '↔️',
+          visualCue: 'step-back',
+          action: { type: 'move' },
         });
       }
     }
@@ -194,6 +305,7 @@ export class SuggestionEngine {
         id: 'backlit',
         priority: 'critical',
         category: 'lighting',
+        label: 'Tap the face',
         message: 'Subject is backlit — tap face to expose properly',
         icon: '☀️',
         visualCue: 'tap-to-focus',
@@ -213,6 +325,7 @@ export class SuggestionEngine {
         id: 'blown-highlights',
         priority: 'high',
         category: 'lighting',
+        label: 'Too bright',
         message: `Highlights blown (${(L.clippedHighlights * 100).toFixed(0)}%) — reduce exposure`,
         icon: '⚠️',
       });
@@ -224,6 +337,7 @@ export class SuggestionEngine {
         id: 'harsh-shadows',
         priority: 'high',
         category: 'lighting',
+        label: 'Find shade',
         message: 'Harsh shadows on face — move to shade or open shade',
         icon: '🌥️',
       });
@@ -235,6 +349,7 @@ export class SuggestionEngine {
         id: 'golden-hour',
         priority: 'praise',
         category: 'lighting',
+        label: 'Golden hour',
         message: '✨ Golden hour magic — shoot everything now!',
         icon: '🌅',
       });
@@ -246,6 +361,7 @@ export class SuggestionEngine {
         id: 'blue-hour',
         priority: 'praise',
         category: 'lighting',
+        label: 'Blue hour',
         message: '💙 Blue hour — cinematic mood perfect for this scene',
         icon: '🌆',
       });
@@ -257,8 +373,10 @@ export class SuggestionEngine {
         id: 'low-light',
         priority: 'medium',
         category: 'lighting',
+        label: 'Brace the phone',
         message: 'Low light — brace against something stable',
         icon: '🌙',
+        visualCue: 'wait',
       });
     }
 
@@ -281,6 +399,7 @@ export class SuggestionEngine {
           id: 'uneven-face-light',
           priority: 'high',
           category: 'lighting',
+          label: 'Even the light',
           message: 'Uneven lighting on faces — reposition group',
           icon: '👥',
         });
@@ -293,6 +412,7 @@ export class SuggestionEngine {
         id: 'face-blurry',
         priority: 'high',
         category: 'focus',
+        label: 'Tap the eyes',
         message: 'Face is soft — tap to focus on the eyes',
         icon: '👁️',
         visualCue: 'tap-to-focus',
@@ -312,8 +432,11 @@ export class SuggestionEngine {
           id: 'shaky',
           priority: 'high',
           category: 'motion',
+          label: 'Hold steady',
           message: 'Too shaky — brace elbows against your body',
           icon: '🤳',
+          visualCue: 'wait',
+          action: { type: 'wait' },
         },
       ];
     }
@@ -323,8 +446,11 @@ export class SuggestionEngine {
           id: 'shaky-low-light',
           priority: 'critical',
           category: 'motion',
+          label: 'Hold steady',
           message: 'Low light + movement = blur. Hold steady!',
           icon: '⚠️',
+          visualCue: 'wait',
+          action: { type: 'wait' },
         },
       ];
     }
@@ -352,6 +478,7 @@ export class SuggestionEngine {
           id: 'food-angle',
           priority: 'low',
           category: 'pro-tip',
+          label: 'Try 45°',
           message: 'Try 45° angle or straight-down flat lay',
           icon: '🍽️',
         });
@@ -363,6 +490,7 @@ export class SuggestionEngine {
             id: 'landscape-foreground',
             priority: 'medium',
             category: 'pro-tip',
+            label: 'Add foreground',
             message: 'Add foreground interest for depth',
             icon: '🏔️',
           });
@@ -375,6 +503,7 @@ export class SuggestionEngine {
             id: 'arch-symmetry',
             priority: 'low',
             category: 'pro-tip',
+            label: 'Center it',
             message: 'Center for symmetry or use leading lines',
             icon: '🏛️',
           });
@@ -386,8 +515,10 @@ export class SuggestionEngine {
           id: 'street-moment',
           priority: 'low',
           category: 'pro-tip',
+          label: 'Wait for a subject',
           message: 'Wait for a subject to enter the frame',
           icon: '🚶',
+          visualCue: 'wait',
         });
         break;
 
@@ -396,8 +527,10 @@ export class SuggestionEngine {
           id: 'macro-focus',
           priority: 'medium',
           category: 'pro-tip',
+          label: 'Tap to focus',
           message: 'Focus stack: tap different points for depth',
           icon: '🌸',
+          visualCue: 'tap-to-focus',
         });
         break;
 
@@ -406,8 +539,10 @@ export class SuggestionEngine {
           id: 'night-tripod',
           priority: 'medium',
           category: 'pro-tip',
+          label: 'Rest the phone',
           message: 'Rest phone on stable surface for long exposure',
           icon: '🌃',
+          visualCue: 'wait',
         });
         break;
     }
@@ -430,9 +565,11 @@ export class SuggestionEngine {
           id: 'shoot-now',
           priority: 'critical',
           category: 'timing',
+          label: 'Shoot now',
           message: '📸 SHOOT NOW — everything is aligned!',
           icon: '⚡',
           visualCue: 'shoot-now',
+          action: { type: 'capture' },
         },
       ];
     }
@@ -449,15 +586,12 @@ export class SuggestionEngine {
           id: 'praise-comp',
           priority: 'praise',
           category: 'composition',
+          label: 'Nice frame',
           message: '🎨 Beautiful composition!',
           icon: '⭐',
         },
       ];
     }
     return [];
-  }
-
-  private priorityWeight(p: Suggestion['priority']): number {
-    return { critical: 100, high: 80, medium: 60, low: 40, praise: 30 }[p];
   }
 }

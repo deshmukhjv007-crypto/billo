@@ -1,24 +1,41 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, BackHandler, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
   Camera,
   useCameraDevice,
   useCameraPermission,
   useFrameProcessor,
 } from 'react-native-vision-camera';
+import type { CameraPosition, PhysicalCameraDeviceType } from 'react-native-vision-camera';
 import { Worklets } from 'react-native-worklets-core';
 import * as Haptics from 'expo-haptics';
+import * as MediaLibrary from 'expo-media-library';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SuggestionEngine, Suggestion } from '../coaching/SuggestionEngine';
 import { VoiceCoach } from '../coaching/VoiceCoach';
 import { ExposureOptimizer } from '../ai/ExposureOptimizer';
-import { HUDOverlay } from '../hud/HUDOverlay';
 import { SuggestionBubble } from '../hud/SuggestionBubble';
 import { GridOverlay } from '../hud/GridOverlay';
 import { HorizonLevel } from '../hud/HorizonLevel';
-import { ControlsBar } from '../hud/ControlsBar';
+import { DirectionOverlay } from '../hud/DirectionOverlay';
+import { TopBar, FLASH_CYCLE, FlashMode } from '../hud/TopBar';
+import { BottomBar } from '../hud/BottomBar';
+import { SettingsSheet } from '../hud/SettingsSheet';
+import type { GridType } from '../hud/ControlsBar';
 import { useFrameAnalyzer } from './useFrameAnalyzer';
 import { ReviewScreen } from '../screens/ReviewScreen';
-import type { FrameAnalysis } from '../ai/SceneAnalyzer';
+import { GalleryScreen } from '../screens/GalleryScreen';
+import type { FrameAnalysis, SceneType } from '../ai/SceneAnalyzer';
+
+/** Composition score above which the shutter ring turns green. */
+const READY_THRESHOLD = 0.85;
+
+/** Prefer the multi-cam so 0.5× / 2× switch lenses instead of cropping. */
+const BACK_CAMERA_FILTER: { physicalDevices: PhysicalCameraDeviceType[] } = {
+  physicalDevices: ['ultra-wide-angle-camera', 'wide-angle-camera', 'telephoto-camera'],
+};
+
+type Screen = 'camera' | 'review' | 'gallery';
 
 /**
  * Neutral stand-in for the review screen if the shutter beats the first
@@ -61,25 +78,81 @@ function fallbackAnalysis(): FrameAnalysis {
   };
 }
 
+function toFileUri(path: string): string {
+  return path.startsWith('file://') ? path : `file://${path}`;
+}
+
+/** Cheap identity for a suggestion list so we only re-render on real changes. */
+function signature(list: Suggestion[]): string {
+  return list.map((s) => `${s.id}|${s.priority}|${s.label}`).join(',');
+}
+
+function useAppActive(): boolean {
+  const [active, setActive] = useState(AppState.currentState === 'active');
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => setActive(s === 'active'));
+    return () => sub.remove();
+  }, []);
+  return active;
+}
+
 export default function ProlensCamera() {
-  const device = useCameraDevice('back');
+  const insets = useSafeAreaInsets();
+  const appActive = useAppActive();
   const { hasPermission, requestPermission } = useCameraPermission();
   const cameraRef = useRef<Camera>(null);
 
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [readyScore, setReadyScore] = useState(0);
-  const [tilt, setTilt] = useState(0);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [gridType, setGridType] = useState<'thirds' | 'golden' | 'off'>('thirds');
+  // ── Navigation ────────────────────────────────────────────
+  const [screen, setScreen] = useState<Screen>('camera');
+  const [galleryFrom, setGalleryFrom] = useState<Exclude<Screen, 'gallery'>>('camera');
   const [capturedPhoto, setCapturedPhoto] = useState<{
     path: string;
     analysis: FrameAnalysis;
   } | null>(null);
+  const [lastPhotoUri, setLastPhotoUri] = useState<string | undefined>(undefined);
+
+  // ── Camera hardware state ─────────────────────────────────
+  const [position, setPosition] = useState<CameraPosition>('back');
+  const device = useCameraDevice(position, position === 'back' ? BACK_CAMERA_FILTER : undefined);
+  const frontDevice = useCameraDevice('front');
+  const backDevice = useCameraDevice('back');
+  const flipAvailable = frontDevice != null && backDevice != null;
+  const [flashMode, setFlashMode] = useState<FlashMode>('off');
+  const flashAvailable = device?.hasFlash ?? false;
+  const [zoomFactor, setZoomFactor] = useState(1);
+  const [capturing, setCapturing] = useState(false);
+
+  // User-facing chips → real zoom values (relative to the device's 1× point).
+  const zoomOptions = useMemo(() => {
+    if (!device) return [1];
+    const opts: number[] = [];
+    if (device.minZoom <= device.neutralZoom * 0.5 + 1e-3) opts.push(0.5);
+    opts.push(1);
+    if (device.maxZoom >= device.neutralZoom * 2 - 1e-3) opts.push(2);
+    return opts;
+  }, [device]);
+  const zoom = useMemo(() => {
+    if (!device) return undefined;
+    const target = device.neutralZoom * zoomFactor;
+    return Math.min(device.maxZoom, Math.max(device.minZoom, target));
+  }, [device, zoomFactor]);
+
+  // ── HUD state ─────────────────────────────────────────────
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [ready, setReady] = useState(false);
+  const [tilt, setTilt] = useState(0);
+  const [scene, setScene] = useState<SceneType | null>(null);
+  const [voiceEnabled, setVoiceEnabled] = useState(false); // voice is opt-in
+  const [gridType, setGridType] = useState<GridType>('thirds');
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const engineRef = useRef(new SuggestionEngine());
   const optimizerRef = useRef(new ExposureOptimizer());
-  const voiceCoachRef = useRef(new VoiceCoach(true));
+  const voiceCoachRef = useRef(new VoiceCoach(false)); // silent on cold launch
   const latestAnalysisRef = useRef<FrameAnalysis | null>(null);
+  const suggestionSigRef = useRef('');
+  const prevTopIdRef = useRef<string | undefined>(undefined);
+  const capturingRef = useRef(false);
   const { processFrame } = useFrameAnalyzer();
 
   useEffect(() => {
@@ -92,28 +165,60 @@ export default function ProlensCamera() {
     return () => coach.stop();
   }, []);
 
+  // Seed the gallery thumbnail from the library — but only if photo access
+  // was already granted; never prompt on launch.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const perm = await MediaLibrary.getPermissionsAsync(false, ['photo']);
+        if (!perm.granted || cancelled) return;
+        const page = await MediaLibrary.getAssetsAsync({
+          first: 1,
+          mediaType: MediaLibrary.MediaType.photo,
+          sortBy: [[MediaLibrary.SortBy.creationTime, false]],
+        });
+        const uri = page.assets[0]?.uri;
+        if (uri && !cancelled) setLastPhotoUri((prev) => prev ?? uri);
+      } catch {
+        // Thumbnail is a nicety; ignore failures.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Bridge from worklet to JS thread. Memoized (closure only touches stable
   // refs and setState) so the frame processor registers once.
   const handleAnalysis = useMemo(
     () =>
       Worklets.createRunOnJS((analysis: FrameAnalysis) => {
         latestAnalysisRef.current = analysis;
-        const newSuggestions = engineRef.current.generate(analysis);
-        setSuggestions(newSuggestions);
-        setReadyScore(analysis.composition.overallScore);
-        setTilt(analysis.horizon.tilt);
-        voiceCoachRef.current.speakSuggestion(newSuggestions);
 
-        // Haptic when ready to shoot
-        if (analysis.composition.overallScore > 0.9) {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        const next = engineRef.current.generate(analysis);
+        const sig = signature(next);
+        if (sig !== suggestionSigRef.current) {
+          suggestionSigRef.current = sig;
+          setSuggestions(next);
         }
+        setTilt(analysis.horizon.tilt);
+        setReady(analysis.composition.overallScore > READY_THRESHOLD);
+        setScene(analysis.scene);
+
+        // Voice is a no-op unless the user switched it on.
+        voiceCoachRef.current.speakSuggestion(next);
+
+        // Success haptic once when the decisive moment lights up (edge, not
+        // every frame).
+        const topId = next[0]?.id;
+        if (topId === 'shoot-now' && prevTopIdRef.current !== 'shoot-now') {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        }
+        prevTopIdRef.current = topId;
 
         // Apply optimal exposure
-        const exposure = optimizerRef.current.optimize(
-          analysis.faces,
-          analysis.lighting
-        );
+        const exposure = optimizerRef.current.optimize(analysis.faces, analysis.lighting);
         // TODO: apply to camera via cameraRef
         void exposure;
       }),
@@ -133,23 +238,81 @@ export default function ProlensCamera() {
     [processFrame, handleAnalysis]
   );
 
-  const capturePhoto = async () => {
-    if (!cameraRef.current) return;
+  // ── Actions ───────────────────────────────────────────────
+  const capturePhoto = useCallback(async () => {
+    const cam = cameraRef.current;
+    if (!cam || capturingRef.current) return;
+    capturingRef.current = true;
+    setCapturing(true);
     try {
-      const photo = await cameraRef.current.takePhoto({
-        flash: 'off',
+      const photo = await cam.takePhoto({
+        flash: flashAvailable ? flashMode : 'off',
         enableShutterSound: true,
       });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      voiceCoachRef.current.stop();
+      setLastPhotoUri(toFileUri(photo.path));
       setCapturedPhoto({
         path: photo.path,
         analysis: latestAnalysisRef.current ?? fallbackAnalysis(),
       });
+      setScreen('review');
     } catch (e) {
       console.error(e);
+    } finally {
+      capturingRef.current = false;
+      setCapturing(false);
     }
-  };
+  }, [flashAvailable, flashMode]);
 
+  const resetHud = useCallback(() => {
+    engineRef.current.reset();
+    suggestionSigRef.current = '';
+    prevTopIdRef.current = undefined;
+    setSuggestions([]);
+  }, []);
+
+  const flipCamera = useCallback(() => {
+    setPosition((p) => (p === 'back' ? 'front' : 'back'));
+    setZoomFactor(1);
+    resetHud();
+  }, [resetHud]);
+
+  const cycleFlash = useCallback(() => setFlashMode((m) => FLASH_CYCLE[m]), []);
+  const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+
+  const toggleVoice = useCallback(() => {
+    const next = !voiceCoachRef.current.getIsEnabled();
+    voiceCoachRef.current.setEnabled(next);
+    setVoiceEnabled(next);
+  }, []);
+
+  const openGallery = useCallback(() => {
+    setGalleryFrom(screen === 'review' ? 'review' : 'camera');
+    setScreen('gallery');
+  }, [screen]);
+
+  const closeGallery = useCallback(() => setScreen(galleryFrom), [galleryFrom]);
+
+  const retake = useCallback(() => {
+    setCapturedPhoto(null);
+    resetHud();
+    setScreen('camera');
+  }, [resetHud]);
+
+  // Android hardware back: gallery → where it came from, review → camera.
+  useEffect(() => {
+    if (screen === 'camera') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (screen === 'gallery') closeGallery();
+      else retake();
+      return true;
+    });
+    return () => sub.remove();
+  }, [closeGallery, retake, screen]);
+
+  // ── Screens ───────────────────────────────────────────────
   if (!hasPermission) {
     return (
       <View style={styles.center}>
@@ -161,6 +324,21 @@ export default function ProlensCamera() {
     );
   }
 
+  if (screen === 'gallery') {
+    return <GalleryScreen onClose={closeGallery} />;
+  }
+
+  if (screen === 'review' && capturedPhoto) {
+    return (
+      <ReviewScreen
+        photoPath={capturedPhoto.path}
+        analysis={capturedPhoto.analysis}
+        onRetake={retake}
+        onOpenGallery={openGallery}
+      />
+    );
+  }
+
   if (!device) {
     return (
       <View style={styles.center}>
@@ -169,15 +347,7 @@ export default function ProlensCamera() {
     );
   }
 
-  if (capturedPhoto) {
-    return (
-      <ReviewScreen
-        photoPath={capturedPhoto.path}
-        analysis={capturedPhoto.analysis}
-        onRetake={() => setCapturedPhoto(null)}
-      />
-    );
-  }
+  const top = suggestions[0];
 
   return (
     <View style={styles.container}>
@@ -185,46 +355,55 @@ export default function ProlensCamera() {
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         device={device}
-        isActive={true}
+        isActive={appActive && screen === 'camera'}
         photo={true}
+        zoom={zoom}
         // Required: PixelAnalyzer walks RGB(A) bytes; YUV is planar.
         pixelFormat="rgb"
         frameProcessor={frameProcessor}
       />
 
-      {/* HUD Overlays */}
+      {/* Viewfinder layers (non-interactive) */}
       {gridType !== 'off' && <GridOverlay type={gridType} />}
       <HorizonLevel tilt={tilt} />
-      <HUDOverlay readyScore={readyScore} />
-      <ControlsBar
-        voiceEnabled={voiceEnabled}
-        onToggleVoice={() => {
-          const next = !voiceEnabled;
-          setVoiceEnabled(next);
-          voiceCoachRef.current.setEnabled(next);
-        }}
-        gridType={gridType}
-        onCycleGrid={() => {
-          setGridType((prev) =>
-            prev === 'thirds' ? 'golden' : prev === 'golden' ? 'off' : 'thirds'
-          );
-        }}
+      <DirectionOverlay
+        cue={top?.visualCue}
+        priority={top?.priority}
+        target={top?.action?.target}
+      />
+      <SuggestionBubble suggestions={suggestions} />
+
+      {/* Native-style chrome (a faint band keeps the top icons legible over bright skies) */}
+      <View style={[styles.topScrim, { height: insets.top + 52 }]} pointerEvents="none" />
+      <TopBar
+        flashMode={flashMode}
+        flashAvailable={flashAvailable}
+        onCycleFlash={cycleFlash}
+        sceneLabel={scene ?? undefined}
+        onOpenSettings={openSettings}
+      />
+      <BottomBar
+        lastPhotoUri={lastPhotoUri}
+        onOpenGallery={openGallery}
+        onFlipCamera={flipCamera}
+        flipAvailable={flipAvailable}
+        onShutter={capturePhoto}
+        ready={ready}
+        capturing={capturing}
+        zoomOptions={zoomOptions}
+        zoom={zoomFactor}
+        onSelectZoom={setZoomFactor}
       />
 
-      {/* Coaching Suggestions */}
-      <View style={styles.suggestionsContainer}>
-        {suggestions.map((s) => (
-          <SuggestionBubble key={s.id} suggestion={s} />
-        ))}
-      </View>
-
-      {/* Shutter Button */}
-      <View style={styles.controls}>
-        <TouchableOpacity
-          style={[styles.shutter, readyScore > 0.85 && styles.shutterReady]}
-          onPress={capturePhoto}
-        />
-      </View>
+      {/* Settings tray: grid + voice live here, off the viewfinder */}
+      <SettingsSheet
+        visible={settingsOpen}
+        onClose={closeSettings}
+        voiceEnabled={voiceEnabled}
+        onToggleVoice={toggleVoice}
+        gridType={gridType}
+        onSelectGrid={setGridType}
+      />
     </View>
   );
 }
@@ -240,32 +419,11 @@ const styles = StyleSheet.create({
   text: { color: 'white', fontSize: 16, marginBottom: 20 },
   button: { backgroundColor: '#fff', padding: 15, borderRadius: 30 },
   buttonText: { color: 'black', fontWeight: '600' },
-  suggestionsContainer: {
+  topScrim: {
     position: 'absolute',
-    top: 60,
-    left: 20,
-    right: 20,
-    gap: 8,
-  },
-  controls: {
-    position: 'absolute',
-    bottom: 50,
+    top: 0,
     left: 0,
     right: 0,
-    alignItems: 'center',
-  },
-  shutter: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'white',
-    borderWidth: 5,
-    borderColor: 'rgba(255,255,255,0.5)',
-  },
-  shutterReady: {
-    borderColor: '#00ff88',
-    shadowColor: '#00ff88',
-    shadowOpacity: 0.8,
-    shadowRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.18)',
   },
 });
