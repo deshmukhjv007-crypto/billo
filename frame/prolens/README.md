@@ -122,6 +122,66 @@ npx expo run:android            # or: npx expo run:ios
 npm run typecheck               # tsc --noEmit --strict (must be 0 errors)
 ```
 
+`android/` and `ios/` are generated, not committed — `npx expo prebuild`
+recreates them (CI does this on every run).
+
+### Why `expo-asset` / `expo-font` / `expo-file-system` / `expo-keep-awake` are direct dependencies
+
+These are `expo`'s own dependencies, but they peer-depend on `expo`, so npm
+nests them at `node_modules/expo/node_modules/…`. Metro resolves imports from
+the *importing file's* directory upwards — e.g. `@expo/vector-icons` imports
+`expo-font` — and never looks inside `node_modules/expo/node_modules/`. Left
+nested, bundling fails with `Unable to resolve module expo-font` and Metro
+cannot even start (`The required package 'expo-asset' cannot be found`), which
+breaks `expo start`, `expo run:android` and any release build. Declaring them
+directly hoists them to the top level. Versions match the Expo SDK 52 set in
+`expo/bundledNativeModules.json` exactly, so nothing changes at runtime.
+
+## Building an installable APK
+
+**Use the release variant.** `npx expo run:android` and `./gradlew
+assembleDebug` produce a *development* APK: React Native's Gradle plugin skips
+JS bundling for debuggable variants (`react { debuggableVariants }`, default
+`['debug']`), so the APK holds native code but **no JavaScript** and loads it
+from a Metro dev server on `localhost:8081`. Copied to a phone with no dev
+server it dies on launch — "Prolens keeps stopping" — because the RN error
+screen is itself JavaScript that never loaded.
+
+```sh
+cd frame/prolens/android
+./gradlew assembleRelease                    # app/build/outputs/apk/release/app-release.apk
+```
+
+Release builds embed the Hermes-compiled bundle and assets, and are signed with
+the generated `android/app/debug.keystore`, so the APK can be sideloaded
+directly. It is **not** Play-Store signed — generate a real upload keystore
+before any store release. ProGuard/R8 and resource shrinking stay off
+(`android.enableProguardInReleaseBuilds` is unset), which is what the
+`worklets-core` + Reanimated frame processors need.
+
+CI (`.github/workflows/build-android.yml`) builds the release APK on every push
+and PR to `main` and uploads it as the **`prolens-android-apk`** artifact. The
+artifact is a zip: download it, extract, then install `app-release.apk`
+(`adb install -r app-release.apk`, or copy it to the phone and allow "install
+unknown apps"). Tapping the `.zip` itself will fail to parse.
+
+The workflow also asserts the finished APK really contains
+`assets/index.android.bundle`, the native libraries for each target ABI, and a
+verifiable signature — so a JS-less or unsigned APK fails the build instead of
+reaching a phone. ABI list is `arm64-v8a,armeabi-v7a` (every physical phone);
+add `x86_64` to `REACT_NATIVE_ARCHITECTURES` for emulator testing.
+
+A debug APK remains available on demand: run the workflow manually
+(`workflow_dispatch`) with **include_debug** checked. It is only useful
+alongside `adb reverse tcp:8081 tcp:8081` and a running Metro server.
+
+If a release build still misbehaves on a device, capture the real stack:
+
+```sh
+adb logcat -b crash -d > crash.txt           # last crash
+adb logcat "*:E" | grep -i "prolens\|AndroidRuntime\|expo"
+```
+
 Camera permissions are declared in `app.json`:
 
 - iOS: `NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`,

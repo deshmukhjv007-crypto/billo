@@ -6,10 +6,25 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      include_debug:
+        description: 'Also build app-debug.apk (developer build — only runs against a Metro dev server)'
+        type: boolean
+        default: false
+
+env:
+  # ARM covers every physical Android phone. Add x86_64 (and x86) if you need an
+  # emulator build; each extra ABI roughly doubles the APK size because Hermes,
+  # Skia and Vision Camera all ship native libraries per ABI.
+  REACT_NATIVE_ARCHITECTURES: arm64-v8a,armeabi-v7a
+  KOTLIN_VERSION: '1.9.25'
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frame/prolens
 
     steps:
       - name: Checkout repository
@@ -34,27 +49,106 @@ jobs:
           packages: platform-tools platforms;android-35 build-tools;35.0.0 ndk;26.1.10909125 cmake;3.22.1
 
       - name: Install dependencies
-        working-directory: frame/prolens
         run: npm ci
 
       - name: Expo Prebuild
-        working-directory: frame/prolens
         run: npx expo prebuild --platform android --no-install
 
       - name: Pin Kotlin version for Expo modules
         working-directory: frame/prolens/android
         run: |
-          printf '\nandroid.kotlinVersion=1.9.25\n' >> gradle.properties
+          printf '\nandroid.kotlinVersion=%s\n' "$KOTLIN_VERSION" >> gradle.properties
           grep -n 'kotlinVersion' build.gradle gradle.properties
 
-      - name: Build Android Debug APK
+      # The release variant is the ONLY one that embeds the JavaScript bundle.
+      # React Native's Gradle plugin skips bundling for "debuggable variants"
+      # (default: ['debug']), so app-debug.apk ships native code with no JS and
+      # expects to load it from a Metro dev server on localhost:8081. Sideloaded
+      # on a phone it dies at launch ("Prolens keeps stopping") because the RN
+      # error screen is itself JS that never loaded.
+      - name: Build Android release APK
         working-directory: frame/prolens/android
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon --stacktrace -Pandroid.kotlinVersion=1.9.25 assembleDebug
+          ./gradlew --no-daemon --stacktrace \
+            -Pandroid.kotlinVersion="$KOTLIN_VERSION" \
+            -PreactNativeArchitectures="$REACT_NATIVE_ARCHITECTURES" \
+            assembleRelease
 
-      - name: Upload APK Artifact
+      - name: Verify the APK is self-contained and installable
+        working-directory: frame/prolens/android
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/release/app-release.apk
+
+          if [ ! -f "$APK" ]; then
+            echo "::error::Release APK not found at $APK"
+            exit 1
+          fi
+
+          # Dump the entry listing once, to a file. Piping `unzip -l` straight
+          # into `grep -q` can SIGPIPE-kill unzip on a large listing, which
+          # under `pipefail` reports a false failure.
+          unzip -l "$APK" >/tmp/apk-listing.txt
+
+          # Guard against ever shipping a JS-less APK again.
+          if ! grep -q 'assets/index.android.bundle' /tmp/apk-listing.txt; then
+            echo "::error::$APK contains no JS bundle - it cannot run standalone."
+            echo "The release variant must embed the bundle; check react { debuggableVariants }."
+            exit 1
+          fi
+          echo "OK: JS bundle embedded."
+
+          # Native libraries for the ABIs we claim to support.
+          for abi in $(echo "$REACT_NATIVE_ARCHITECTURES" | tr ',' ' '); do
+            if grep -q "lib/$abi/" /tmp/apk-listing.txt; then
+              echo "OK: native libs for $abi"
+            else
+              echo "::error::no native libraries for $abi"
+              exit 1
+            fi
+          done
+
+          # An unsigned/mis-signed APK installs as "App not installed".
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          if [ -n "$SDK_ROOT" ] && ls -d "$SDK_ROOT"/build-tools/*/ >/dev/null 2>&1; then
+            BUILD_TOOLS=$(ls -d "$SDK_ROOT"/build-tools/*/ | sort -V | tail -1)
+            if "$BUILD_TOOLS/apksigner" verify --print-certs "$APK" >/tmp/sig.txt 2>&1; then
+              echo "OK: APK signature verifies."
+              cat /tmp/sig.txt
+            else
+              echo "::error::APK signature verification failed"
+              cat /tmp/sig.txt
+              exit 1
+            fi
+            "$BUILD_TOOLS/aapt2" dump badging "$APK" >/tmp/badging.txt 2>&1 || true
+            grep -E "^(package|sdkVersion|targetSdkVersion|application-label|native-code)" /tmp/badging.txt || true
+          else
+            echo "::warning::Android build-tools not found; skipped signature and badging checks"
+          fi
+
+          ls -lh "$APK"
+
+      - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
-          name: prolens-camera-app
+          name: prolens-android-apk
+          path: frame/prolens/android/app/build/outputs/apk/release/app-release.apk
+
+      # Opt-in only: a debug APK is for `adb reverse` + Metro development, not
+      # for handing to someone to install.
+      - name: Build Android debug APK
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.include_debug }}
+        working-directory: frame/prolens/android
+        run: |
+          ./gradlew --no-daemon --stacktrace \
+            -Pandroid.kotlinVersion="$KOTLIN_VERSION" \
+            -PreactNativeArchitectures="$REACT_NATIVE_ARCHITECTURES" \
+            assembleDebug
+
+      - name: Upload debug APK
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.include_debug }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: prolens-android-debug-apk-needs-metro
           path: frame/prolens/android/app/build/outputs/apk/debug/app-debug.apk

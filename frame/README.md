@@ -142,5 +142,9 @@ exposure optimizer, and HUD overlays (grid, horizon level, readiness score,
 coaching bubbles). Setup and current TODOs are in
 [`prolens/README.md`](prolens/README.md). It needs a development build
 (`npx expo prebuild` + `npx expo run:android/ios`) — it does not run in Expo Go.
+To install on a phone without a dev server, use the **release** APK that CI
+uploads as the `prolens-android-apk` artifact (a debug APK contains no
+JavaScript and crashes on launch when sideloaded); see
+[Building an installable APK](prolens/README.md#building-an-installable-apk).
 The web prototype above is unchanged; production acceptance gates still live in
 [NATIVE-PLAN.md](NATIVE-PLAN.md).

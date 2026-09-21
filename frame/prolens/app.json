@@ -23,6 +23,7 @@
       ]
     ],
     "ios": {
+      "bundleIdentifier": "com.prolens.app",
       "infoPlist": {
         "NSCameraUsageDescription": "Prolens analyzes your camera view to guide you.",
         "NSPhotoLibraryUsageDescription": "Save your professional shots.",
@@ -30,6 +31,8 @@
       }
     },
     "android": {
+      "package": "com.prolens.app",
+      "versionCode": 1,
       "permissions": ["CAMERA", "WRITE_EXTERNAL_STORAGE"]
     }
   }
