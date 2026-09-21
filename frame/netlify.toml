@@ -1,0 +1,4 @@
+# Used when "frame" is the base directory (or deployed on its own).
+# No build step: publish the static files in public/.
+[build]
+  publish = "public"

@@ -1,0 +1,4 @@
+# Git deploys of this repo: Prolens is a static site, no build step.
+# The app lives in frame/public — that is the publish directory.
+[build]
+  publish = "frame/public"

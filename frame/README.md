@@ -12,6 +12,40 @@ npm test        # dependency-free analysis and HTTP tests
 
 Node.js 20+; no runtime dependencies. Set `PORT` to override 4173. Camera access needs HTTPS (or localhost) and permission. The Arena HTTPS preview works without host allowlists. If an embedded browser blocks camera permission, open the preview in its own tab. Demo and photo upload work without a camera.
 
+## Host on Netlify (fix for “Page not found”)
+
+The app is a static site: everything the browser needs is inside **`frame/public/`**.
+Netlify shows a broken/“Page not found” page when the publish directory does not
+contain `index.html` — so **do not publish the `frame/` folder itself**.
+
+Pick one method:
+
+**Option A — Drag & drop (simplest).** Open
+[app.netlify.com/drop](https://app.netlify.com/drop) and drop the
+**`frame/public` folder** (the one containing `index.html`), not `frame/`.
+
+**Option B — Git (auto-deploys on push).** Connect the repo and set:
+
+| Setting | Value |
+|---|---|
+| Base directory | *(empty)* |
+| Build command | *(empty — no build step)* |
+| Publish directory | `frame/public` |
+
+A [`netlify.toml`](../netlify.toml) with these settings is already in the repo,
+plus [`frame/netlify.toml`](netlify.toml) if you set the base directory to `frame`.
+
+## Install on a smartphone
+
+Netlify serves HTTPS, so the app is installable once deployed:
+
+- **Android (Chrome):** open the Netlify URL → tap ⋮ → **Add to Home screen**
+  (or **Install app**). The icon, splash screen and offline support come from
+  `manifest.webmanifest` + `sw.js`.
+- **iPhone (Safari):** open the Netlify URL → tap Share → **Add to Home Screen**.
+
+Grant camera permission when asked — analysis and photos stay on the device.
+
 ## Working now
 
 - Camera permission, front/back camera requests, local live preview and camera shutdown.
