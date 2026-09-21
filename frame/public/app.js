@@ -1,30 +1,29 @@
-import { analyzePixels, cropRect, suggestedExposure } from "./analysis.js";
+import {
+  analyzePixels,
+  lumaDiff,
+  sharpness,
+  suggestedExposure,
+} from "./analysis.js";
+import { detectFace, initFaceDetection, faceDetectionFailed } from "./face.js";
 const $ = (s) => document.querySelector(s);
 const icons = {
   focus: "M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5",
-  camera:
-    "M8 5l1-2h6l1 2h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
   image:
     "M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1 M3 17l6-6 4 4 3-3 5 5 M16 7h.01",
   book: "M12 5C8 2 4 3 2 4v16c4-2 7-1 10 1 3-2 6-3 10-1V4c-4-2-7-1-10 1v16",
   settings:
     "M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1z M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
   lock: "M6 10h12v11H6z M8 10V6a4 4 0 0 1 8 0v4",
-  shield: "M12 2l8 3v7c0 5-8 10-8 10S4 17 4 12V5z M8 12l3 3 5-6",
   "chevron-right": "M9 5l7 7-7 7",
-  "chevron-down": "M6 9l6 6 6-6",
-  "arrow-up-right": "M6 18L18 6M6 6h12v12",
   "arrow-right": "M4 12h16m-6-6 6 6-6 6",
   video: "M3 5h12v14H3z M15 9l6-4v14l-6-4",
   grid: "M3 3h18v18H3z M9 3v18m6-18v18M3 9h18M3 15h18",
   upload: "M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6",
-  expand: "M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5",
   sparkles:
     "M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z M20 2v4m-2-2h4",
   sun: "M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5",
   crop: "M6 2v16h16M2 6h16v16",
   layers: "M12 3l10 5-10 5L2 8z M2 12l10 5 10-5M2 16l10 5 10-5",
-  check: "M5 12l4 4L19 6",
   bulb: "M9 18h6m-6 3h6M8 15c-6-5-2-13 4-13s10 8 4 13v2H8z",
   sliders:
     "M4 3v5m0 4v9m8-18v11m0 4v3m8-18v3m0 4v11 M1 8h6v4H1z M9 14h6v4H9z M17 6h6v4h-6z",
@@ -33,6 +32,10 @@ const icons = {
   zoom: "M15 10a6 6 0 1 1-12 0 6 6 0 0 1 12 0 M14 15l7 7M6 10h6M9 7v6",
   info: "M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0 M12 11v6m0-10h.01",
   close: "M5 5l14 14M5 19L19 5",
+  back: "M15 19l-7-7 7-7",
+  power: "M12 3v9 M6.3 6.3a8 8 0 1 0 11.4 0",
+  download: "M12 3v12m0 0 4-4m-4 4-4-4M4 19h16",
+  trash: "M4 7h16 M10 4h4 M6 7l1 13h10l1-13 M10 11v6 M14 11v6",
   "switch-camera":
     "M3 8a9 9 0 0 1 16-3l2 3m0-6v6h-6M21 16a9 9 0 0 1-16 3l-2-3m0 6v-6h6",
   moon: "M20 15A9 9 0 0 1 9 3a9 9 0 1 0 11 12",
@@ -52,9 +55,17 @@ const readStored = (key, fallback) => {
     return fallback;
   }
 };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
 let shots = readStored("frame-shots", []);
 if (!Array.isArray(shots)) shots = [];
-let prefs = { auto: true, grid: true, ...readStored("frame-prefs", {}) };
+let prefs = {
+  auto: true,
+  grid: true,
+  burst: true,
+  timer: 0,
+  ...readStored("frame-prefs", {}),
+};
 let stream = null,
   facing = "environment",
   source = "demo",
@@ -71,13 +82,47 @@ let capabilities = {},
 let manualUntil = 0,
   stableFrames = 0,
   lastTune = 0,
-  currentPage = "camera";
+  currentScreen = "camera";
+/* Live coach state */
+let faceBox = null, // face in stage fractions {fx, fy, fw, fh}
+  faceSeenAt = 0,
+  faceDetBusy = false,
+  faceFailedNotified = false,
+  meterPoint = null, // tap-to-meter {fx, fy}
+  meterNotified = false,
+  steadyEma = 0.01,
+  prevLuma = null,
+  lastStats = null,
+  composite = 86,
+  currentHint = "",
+  tick = 0,
+  countdownActive = false,
+  timerCountdown = null;
+const stage = $("#stage");
 const img = $("#scene-image"),
   video = $("#camera-video");
 const analysisCanvas = document.createElement("canvas");
 analysisCanvas.width = 128;
 analysisCanvas.height = 96;
 const analysisContext = analysisCanvas.getContext("2d", {
+  willReadFrequently: true,
+});
+const motionCanvas = document.createElement("canvas");
+motionCanvas.width = 48;
+motionCanvas.height = 36;
+const motionContext = motionCanvas.getContext("2d", {
+  willReadFrequently: true,
+});
+const regionCanvas = document.createElement("canvas");
+regionCanvas.width = 64;
+regionCanvas.height = 64;
+const regionContext = regionCanvas.getContext("2d", {
+  willReadFrequently: true,
+});
+const sharpCanvas = document.createElement("canvas");
+sharpCanvas.width = 96;
+sharpCanvas.height = 72;
+const sharpContext = sharpCanvas.getContext("2d", {
   willReadFrequently: true,
 });
 function toast(text) {
@@ -91,28 +136,53 @@ function savePrefs() {
     localStorage.setItem("frame-prefs", JSON.stringify(prefs));
   } catch {}
 }
+
+/* ---------- Screens ---------- */
+
 function showPage(page) {
-  currentPage = page;
-  document
-    .querySelectorAll(".page")
-    .forEach((el) => (el.hidden = el.id !== `${page}-page`));
-  document
-    .querySelectorAll("[data-page]")
-    .forEach((el) => el.classList.toggle("active", el.dataset.page === page));
-  $("#breadcrumb-page").textContent = {
-    camera: "Camera coach",
-    gallery: "My shots",
-    guide: "Field guide",
-  }[page];
+  currentScreen = page;
+  cancelCountdown();
+  document.querySelectorAll(".screen").forEach((el) => {
+    el.classList.toggle("active", el.id === `${page}-screen`);
+  });
   if (page === "gallery") renderGallery();
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  if (page !== "camera") closeSheets();
 }
-document
-  .querySelectorAll("[data-page]")
-  .forEach((el) => (el.onclick = () => showPage(el.dataset.page)));
 document
   .querySelectorAll("[data-go-camera]")
   .forEach((el) => (el.onclick = () => showPage("camera")));
+
+/* ---------- Sheets ---------- */
+
+const sheetElements = {
+  "coach-sheet": $("#coach-sheet"),
+  "adjust-sheet": $("#adjust-sheet"),
+  "menu-sheet": $("#menu-sheet"),
+};
+const backdrop = $("#sheet-backdrop");
+let openSheetId = null;
+function openSheet(id) {
+  Object.values(sheetElements).forEach((s) => s.classList.remove("open"));
+  sheetElements[id].classList.add("open");
+  backdrop.classList.add("open");
+  openSheetId = id;
+}
+function closeSheets() {
+  if (!openSheetId) return;
+  sheetElements[openSheetId].classList.remove("open");
+  openSheetId = null;
+  backdrop.classList.remove("open");
+}
+backdrop.onclick = closeSheets;
+document
+  .querySelectorAll("[data-close-sheet]")
+  .forEach((el) => (el.onclick = closeSheets));
+$("#score-chip").onclick = () => openSheet("coach-sheet");
+$("#adjust-open").onclick = () => openSheet("adjust-sheet");
+$("#menu-open").onclick = () => openSheet("menu-sheet");
+
+/* ---------- Dialog ---------- */
+
 function dialog(html) {
   $("#dialog-content").innerHTML = html;
   renderIcons($("#dialog-content"));
@@ -130,19 +200,39 @@ $("#info-dialog").addEventListener("click", (e) => {
     )
       e.target.close();
   }
+  if (e.target.id === "mobile-preferences") {
+    $("#info-dialog").close();
+    openSettings();
+  }
 });
-const howHtml = `<div class="dialog-eyebrow">POINT. PAUSE. CAPTURE.</div><h2>Your eye, with a little backup.</h2><ol><li><strong>Let the light in.</strong> Enable your camera. Prolens measures brightness, contrast and clipped highlights locally, roughly once a second.</li><li><strong>Let Smart auto help.</strong> Your device handles automatic focus, exposure and white balance where available. Prolens gently adjusts exposure when supported, or labels its image-only fallback.</li><li><strong>Make it yours.</strong> Try the framing grid, adjust the details, then capture. Download your favourites from My shots.</li></ol><p>This is a working browser prototype, not a replacement for native CameraX or AVFoundation. Framing, skin-tone and clothing tips are educational, not automatic person or outfit recognition. Demo guidance is illustrative. A photo cannot be guaranteed perfect.</p>`;
-$("#how-it-works").onclick = () => dialog(howHtml);
-$("#about-open").onclick = () =>
+$("#about-open").onclick = () => {
+  closeSheets();
   dialog(
-    `<div class="dialog-eyebrow">MEET PROLENS</div><h2>Less guessing. More creating.</h2><p>Your private, on-device photography companion. No account. No photo uploads to a server. The sample scene is AI-generated; your own images stay in this browser unless you download them.</p><p>My shots uses browser storage, not a permanent backup. Download photos you want to keep. This prototype captures preview-resolution images, not full-resolution native camera stills.</p><button class="optimize-button" id="mobile-preferences">Camera preferences</button>`,
+    `<div class="dialog-eyebrow">MEET PROLENS</div><h2>Less guessing. More creating.</h2><p>Your private, on-device photography companion. No account. No photo uploads to a server. The sample scene is AI-generated; your own images stay in this browser unless you download them.</p><p>Face detection, light metering and sharpness checks all run on your phone — frames and photos never leave the device. My shots uses browser storage, not a permanent backup. Download photos you want to keep. This prototype captures preview-resolution images, not full-resolution native camera stills.</p><button class="primary-button" id="mobile-preferences">Camera preferences</button>`,
   );
-const autoButton = document.createElement("button");
-autoButton.id = "auto-toggle";
-autoButton.className = "auto-toggle";
-$(".listening-dot").replaceWith(autoButton);
+};
+
+/* ---------- Menu ---------- */
+
+document
+  .querySelectorAll(".menu-row[data-open]")
+  .forEach((el) =>
+    (el.onclick = () => {
+      closeSheets();
+      showPage(el.dataset.open);
+    }),
+  );
+$("#menu-camera-off").onclick = () => {
+  restoreDemo();
+  closeSheets();
+  toast("Camera off. Back to the demo.");
+};
+
+/* ---------- Preferences ---------- */
+
+const autoButton = $("#auto-toggle");
 function updateAuto() {
-  autoButton.textContent = `Smart auto ${prefs.auto ? "on" : "off"}`;
+  autoButton.textContent = `Smart auto · ${prefs.auto ? "on" : "off"}`;
   autoButton.classList.toggle("off", !prefs.auto);
   autoButton.setAttribute("aria-pressed", String(prefs.auto));
   savePrefs();
@@ -158,9 +248,14 @@ autoButton.onclick = () => {
   );
 };
 updateAuto();
-$("#settings-open").onclick = () => {
+function updateTimerChip() {
+  const chip = $("#timer-chip");
+  chip.hidden = !(prefs.timer > 0);
+  chip.textContent = `${prefs.timer}s`;
+}
+function openSettings() {
   dialog(
-    `<div class="dialog-eyebrow">YOUR CAMERA, YOUR WAY</div><h2>A few personal touches.</h2><label class="preference-row"><div><strong>Smart auto</strong><p>Adapt exposure gently as conditions change.</p></div><input type="checkbox" id="pref-auto" ${prefs.auto ? "checked" : ""}></label><label class="preference-row"><div><strong>Composition grid</strong><p>A little structure. A lot of possibility.</p></div><input type="checkbox" id="pref-grid" ${prefs.grid ? "checked" : ""}></label><p>Natural colour first: no skin lightening, skin classification or automatic colour casts. Warmth is always your choice.</p><p id="hardware-info"></p>`,
+    `<div class="dialog-eyebrow">YOUR CAMERA, YOUR WAY</div><h2>A few personal touches.</h2><label class="preference-row"><div><strong>Smart auto</strong><p>Adapt exposure gently as conditions change.</p></div><input type="checkbox" id="pref-auto" ${prefs.auto ? "checked" : ""}></label><label class="preference-row"><div><strong>Composition grid</strong><p>A little structure. A lot of possibility.</p></div><input type="checkbox" id="pref-grid" ${prefs.grid ? "checked" : ""}></label><label class="preference-row"><div><strong>Burst assist</strong><p>Capture 3 frames and keep the sharpest one.</p></div><input type="checkbox" id="pref-burst" ${prefs.burst ? "checked" : ""}></label><div class="preference-row"><div><strong>Self-timer</strong><p>Countdown before the shutter fires.</p></div><div class="seg" id="pref-timer" role="group" aria-label="Self-timer"><button class="seg-btn" data-timer="0">Off</button><button class="seg-btn" data-timer="3">3s</button><button class="seg-btn" data-timer="10">10s</button></div></div><p>Natural colour first: no skin lightening, skin classification or automatic colour casts. Warmth is always your choice.</p><p id="hardware-info"></p>`,
   );
   $("#hardware-info").textContent =
     source === "camera"
@@ -174,6 +269,31 @@ $("#settings-open").onclick = () => {
     prefs.grid = e.target.checked;
     updateGrid();
   };
+  $("#pref-burst").onchange = (e) => {
+    prefs.burst = e.target.checked;
+    savePrefs();
+  };
+  const seg = $("#pref-timer");
+  seg.querySelectorAll(".seg-btn").forEach((b) => {
+    b.classList.toggle("selected", Number(b.dataset.timer) === prefs.timer);
+    b.onclick = () => {
+      prefs.timer = Number(b.dataset.timer);
+      savePrefs();
+      seg
+        .querySelectorAll(".seg-btn")
+        .forEach((x) => x.classList.toggle("selected", x === b));
+      updateTimerChip();
+      toast(
+        prefs.timer
+          ? `Self-timer on — ${prefs.timer} second countdown.`
+          : "Self-timer off.",
+      );
+    };
+  });
+}
+$("#settings-open").onclick = () => {
+  closeSheets();
+  openSettings();
 };
 function updateGrid() {
   $("#thirds-grid").hidden = !prefs.grid;
@@ -186,6 +306,74 @@ $("#grid-toggle").onclick = () => {
   prefs.grid = !prefs.grid;
   updateGrid();
 };
+updateTimerChip();
+
+/* ---------- Ratio, capture frame & zoom ---------- */
+
+function sourceElement() {
+  return source === "camera" ? video : img;
+}
+function stageSize() {
+  return { W: stage.clientWidth, H: stage.clientHeight };
+}
+function elementSize(el) {
+  return {
+    ew: el.videoWidth || el.naturalWidth,
+    eh: el.videoHeight || el.naturalHeight,
+  };
+}
+/** Stage pixels per element pixel, including digital zoom about the centre. */
+function stageScale(el) {
+  const { W, H } = stageSize(),
+    { ew, eh } = elementSize(el);
+  if (!ew || !eh || !W || !H) return 0;
+  return (
+    Math.max(W / ew, H / eh) * (zoomHardware ? 1 : Number($("#zoom").value))
+  );
+}
+/**
+ * Capture region in *source* pixels: the view is object-fit:cover on the
+ * stage, digitally zoomed about the centre, then cropped to the ratio.
+ * Sampling and capture both use this so what you see is what you get.
+ */
+function frameRect() {
+  const el = sourceElement(),
+    { ew, eh } = elementSize(el),
+    { W, H } = stageSize();
+  if (!ew || !eh || !W || !H) return null;
+  const scale = Math.max(W / ew, H / eh);
+  const dw = W / scale,
+    dh = H / scale,
+    z = zoomHardware ? 1 : Number($("#zoom").value);
+  const w = Math.min(dw / z, (dh / z) * ratio),
+    h = w / ratio;
+  return { x: ew / 2 - w / 2, y: eh / 2 - h / 2, width: w, height: h };
+}
+function updateCropFrame() {
+  const el = sourceElement(),
+    { ew, eh } = elementSize(el),
+    { W, H } = stageSize(),
+    frame = $("#crop-frame");
+  const r = frameRect();
+  if (!r || !W || !H || !ew) return;
+  const scale = Math.max(W / ew, H / eh);
+  const z = zoomHardware ? 1 : Number($("#zoom").value);
+  const w = r.width * scale * z,
+    h = r.height * scale * z;
+  if (w >= W - 2 && h >= H - 2) {
+    frame.classList.remove("shown");
+    frame.style.left = "0px";
+    frame.style.top = "0px";
+    frame.style.width = "100%";
+    frame.style.height = "100%";
+    return;
+  }
+  frame.classList.add("shown");
+  frame.style.left = (W - w) / 2 + "px";
+  frame.style.top = (H - h) / 2 + "px";
+  frame.style.width = w + "px";
+  frame.style.height = h + "px";
+}
 $("#ratio-toggle").onclick = () => {
   ratio =
     ratio === 3 / 2
@@ -203,78 +391,200 @@ $("#ratio-toggle").onclick = () => {
         : ratio === 16 / 9
           ? "16:9"
           : "1:1";
-  $("#viewfinder").style.aspectRatio = String(ratio);
+  updateCropFrame();
 };
-$("#expand-button").onclick = () => {
-  const expanded = $("#viewfinder").classList.toggle("expanded");
-  $("#expand-button").setAttribute(
-    "aria-label",
-    expanded ? "Close expanded viewfinder" : "Expand viewfinder",
-  );
-};
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") $("#viewfinder").classList.remove("expanded");
-  if (
-    e.code === "Space" &&
-    currentPage === "camera" &&
-    !$("#info-dialog").open &&
-    !["INPUT", "BUTTON", "TEXTAREA"].includes(document.activeElement.tagName)
-  ) {
-    e.preventDefault();
-    capture();
-  }
-});
-const modes = {
-  Portrait: [
-    "Place your subject on a gridline to give the scene room to breathe.",
-    "Turn your subject slightly toward the light for a softer, more natural portrait.",
-    "A little to the right. A lot more story.",
-  ],
-  Landscape: [
-    "Place the horizon on the upper or lower third. Keep vertical lines straight.",
-    "Include a foreground detail to give a wide view a sense of depth.",
-    "Find your horizon. Leave a little wonder.",
-  ],
-  Food: [
-    "Try a 45° angle for depth, or shoot overhead for a flat arrangement.",
-    "Use side light from a window. Turn off overhead bulbs to avoid mixed colour.",
-    "Follow the light. Savour the details.",
-  ],
-  Night: [
-    "Brace your phone against something steady and keep bright signs away from faces.",
-    "Ask your subject to stay still. More light helps more than digital brightening.",
-    "Steady hands. A little patience.",
-  ],
-};
-document.querySelectorAll("[data-mode]").forEach(
-  (el) =>
-    (el.onclick = () => {
-      mode = el.dataset.mode;
-      document
-        .querySelectorAll("[data-mode]")
-        .forEach((b) => b.classList.toggle("selected", b === el));
-      $("#composition-tip").textContent = modes[mode][0];
-      $("#instinct-tip").textContent = modes[mode][1];
-      $("#frame-hint").textContent = modes[mode][2];
-      $("#subject-bracket").hidden = source !== "demo" || mode !== "Portrait";
-      toast(`${mode} guidance selected. No simulated camera lens effects.`);
-    }),
-);
-$("#composition-guide").onclick = () => {
-  prefs.grid = true;
-  updateGrid();
-  $("#subject-bracket").hidden = false;
-  $("#subject-bracket").classList.toggle("teaching");
-  $("#frame-hint").textContent = $("#subject-bracket").classList.contains(
-    "teaching",
-  )
-    ? "Try this area for your subject. Keep space around them."
-    : modes[mode][2];
-  toast("The bracket is a framing guide, not detected subject tracking.");
-};
-function sourceElement() {
-  return source === "camera" ? video : img;
+window.addEventListener("resize", updateCropFrame);
+window.addEventListener("orientationchange", updateCropFrame);
+video.onloadedmetadata = updateCropFrame;
+img.onload = updateCropFrame;
+
+/* ---------- Face tracking (on-device) ---------- */
+
+function elPointToStage(el, px, py) {
+  const { ew, eh } = elementSize(el),
+    { W, H } = stageSize();
+  if (!ew || !W) return null;
+  const scale = stageScale(el);
+  return {
+    fx: 0.5 + ((px - ew / 2) * scale) / W,
+    fy: 0.5 + ((py - eh / 2) * scale) / H,
+  };
 }
+function faceBoxToStage(bbox) {
+  const el = sourceElement(),
+    { ew, eh } = elementSize(el),
+    { W, H } = stageSize();
+  if (!ew || !W) return null;
+  const scale = stageScale(el);
+  const c = elPointToStage(el, bbox.x + bbox.w / 2, bbox.y + bbox.h / 2);
+  if (!c) return null;
+  const fw = (bbox.w * scale) / W,
+    fh = (bbox.h * scale) / H;
+  return {
+    fx: c.fx - fw / 2,
+    fy: c.fy - fh / 2,
+    fw,
+    fh,
+  };
+}
+function positionBracket(box) {
+  const b = $("#subject-bracket");
+  b.hidden = false;
+  b.style.left = box.fx * 100 + "%";
+  b.style.top = box.fy * 100 + "%";
+  b.style.width = box.fw * 100 + "%";
+  b.style.height = box.fh * 100 + "%";
+}
+function clearBracketInline() {
+  const b = $("#subject-bracket");
+  b.style.left = b.style.top = b.style.width = b.style.height = "";
+}
+function framingScore(box) {
+  const cx = box.fx + box.fw / 2,
+    cy = box.fy + box.fh / 2;
+  if (cx < -0.02 || cx > 1.02 || cy < -0.02 || cy > 1.02) return 0;
+  const d = Math.min(Math.abs(cx - 1 / 3), Math.abs(cx - 2 / 3));
+  let s = clamp01((0.15 - d) / (0.15 - 0.035)) * 100;
+  // Penalty when the subject is being cropped by the frame edge.
+  if (box.fx < 0.01 || box.fy < 0.01 || box.fx + box.fw > 0.99 || box.fy + box.fh > 0.99)
+    s *= 0.6;
+  return Math.round(s);
+}
+function framingHint() {
+  const cx = faceBox.fx + faceBox.fw / 2;
+  const dL = Math.abs(cx - 1 / 3),
+    dR = Math.abs(cx - 2 / 3);
+  if (Math.min(dL, dR) <= 0.035) return "On the line — nice. Hold it.";
+  const line = dL < dR ? 1 / 3 : 2 / 3;
+  const dir = cx > line ? "left" : "right";
+  return `Slide a little ${dir} to bring the face onto the gridline.`;
+}
+function handleFace(bbox) {
+  const box = faceBoxToStage(bbox);
+  if (!box) return;
+  faceBox = box;
+  faceSeenAt = Date.now();
+  positionBracket(box);
+  refreshScores();
+}
+function handleNoFace() {
+  if (!faceBox) return;
+  if (Date.now() - faceSeenAt > 1200) {
+    faceBox = null;
+    $("#subject-bracket").hidden = true;
+    refreshScores();
+  }
+}
+function refreshScores() {
+  if (!lastStats) return;
+  const steady = source === "camera" ? steadyScore() : null;
+  const framing = faceBox ? framingScore(faceBox) : null;
+  const comp = computeComposite(lastStats.score, steady, framing);
+  composite = comp;
+  const low = lastStats.luminance < 0.22,
+    high = lastStats.highlights > 0.1;
+  setScoreUI(comp, low || high ? "improve" : "good");
+  updateSubBars(lastStats.score, steady, framing);
+}
+function steadyScore() {
+  return Math.round(clamp01(1 - steadyEma / 0.05) * 100);
+}
+function computeComposite(light, steady, framing) {
+  const parts = [[light, 0.5]];
+  if (steady != null) parts.push([steady, 0.25]);
+  if (framing != null) parts.push([framing, 0.25]);
+  const tw = parts.reduce((s, p) => s + p[1], 0);
+  return Math.round(parts.reduce((s, p) => s + p[0] * p[1], 0) / tw);
+}
+
+/* ---------- Coach loop (live camera) ---------- */
+
+function sampleMotion() {
+  const el = sourceElement(),
+    { ew, eh } = elementSize(el),
+    { W, H } = stageSize();
+  if (!ew || !W) return null;
+  const scale = Math.max(W / ew, H / eh);
+  const dw = W / scale,
+    dh = H / scale;
+  motionContext.filter = "none";
+  motionContext.drawImage(el, (ew - dw) / 2, (eh - dh) / 2, dw, dh, 0, 0, 48, 36);
+  const d = motionContext.getImageData(0, 0, 48, 36).data;
+  const luma = new Float32Array(48 * 36);
+  for (let i = 0; i < luma.length; i++)
+    luma[i] =
+      (0.2126 * d[i * 4] + 0.7152 * d[i * 4 + 1] + 0.0722 * d[i * 4 + 2]) /
+      255;
+  return luma;
+}
+function updateSteadyUI() {
+  const chip = $("#steady-chip");
+  if (source !== "camera") {
+    chip.hidden = true;
+    $("#capture").classList.remove("ready");
+    return;
+  }
+  chip.hidden = false;
+  const steady = steadyEma < 0.025;
+  chip.textContent = steady ? "Steady" : "Moving";
+  chip.className = `indicator ${steady ? "steady" : "moving"}`;
+  $("#capture").classList.toggle(
+    "ready",
+    composite >= 82 && steady && source === "camera",
+  );
+}
+function updateLiveHint() {
+  if (source !== "camera" || !lastStats) return;
+  const low = lastStats.luminance < 0.22,
+    high = lastStats.highlights > 0.1;
+  let text;
+  if (low) text = "A little more real light will help.";
+  else if (high) text = "Protect the bright details. Try softer light.";
+  else if (steadyEma > 0.03) text = "Hold steady — a little shake softens the shot.";
+  else if (faceBox && mode === "Portrait") text = framingHint();
+  else if (faceBox) text = "Nice frame. Find your light, then make it a moment.";
+  else text = modes[mode][2];
+  if (text !== currentHint) {
+    currentHint = text;
+    $("#frame-hint-text").textContent = text;
+  }
+}
+async function coachLoop() {
+  if (source !== "camera" || document.hidden || !stage.clientWidth) return;
+  tick++;
+  const luma = sampleMotion();
+  if (luma) {
+    if (prevLuma) steadyEma = steadyEma * 0.6 + lumaDiff(prevLuma, luma) * 0.4;
+    prevLuma = luma;
+  }
+  updateSteadyUI();
+  if (faceBox && Date.now() - faceSeenAt > 1500) {
+    faceBox = null;
+    $("#subject-bracket").hidden = true;
+    refreshScores();
+  }
+  if (tick % 2 === 0 && !faceDetBusy) {
+    faceDetBusy = true;
+    detectFace(video)
+      .then((bbox) => (bbox ? handleFace(bbox) : handleNoFace()))
+      .catch(() => {
+        if (!faceFailedNotified && faceDetectionFailed()) {
+          faceFailedNotified = true;
+          toast(
+            "Face tracking isn’t available in this browser. Light, steady and framing checks stay on.",
+          );
+        }
+      })
+      .finally(() => {
+        faceDetBusy = false;
+      });
+  }
+  updateLiveHint();
+  if (tick % 5 === 0) analyzeLive();
+}
+
+/* ---------- Adjustments ---------- */
+
 function imageFilter() {
   const exp = exposureHardware ? 0 : Number($("#exposure").value),
     warm = Number($("#warmth").value);
@@ -288,23 +598,36 @@ function updateAdjustmentUI() {
   $("#warmth-value").textContent =
     w === 0 ? "Neutral" : `${Math.abs(w)} ${w > 0 ? "warmer" : "cooler"}`;
   $("#zoom-value").textContent = `${z.toFixed(1)}×`;
-  $("#zoom-indicator").textContent = `${z.toFixed(1)}×`;
   [img, video].forEach((el) => {
     el.style.filter = imageFilter();
     el.style.transform = `scale(${zoomHardware ? 1 : z})`;
   });
+  const chips = [
+    ["#ev-chip", Math.abs(e) > 0.001, `${e > 0 ? "+" : ""}${e.toFixed(1)} EV`],
+    ["#warm-chip", w !== 0, `${w > 0 ? "Warm" : "Cool"} ${Math.abs(w)}`],
+    ["#zoom-chip", z > 1.001, `${z.toFixed(1)}×`],
+  ];
+  for (const [id, show, text] of chips) {
+    const el = $(id);
+    el.hidden = !show;
+    if (show) el.textContent = text;
+  }
   document.querySelectorAll("input[type=range]").forEach((el) => {
     let pct = ((el.value - el.min) / (el.max - el.min)) * 100;
-    el.style.background = `linear-gradient(to right,#d1c0a5 ${pct}%,#eeeeea ${pct}%)`;
+    el.style.background = `linear-gradient(to right,#e8825a ${pct}%,rgba(255,255,255,0.14) ${pct}%)`;
   });
+  updateCropFrame();
 }
 function updateHardwareNote() {
+  const meter = meterPoint ? " Tap-to-meter is active — tap the viewfinder to move it, tap it again to clear." : "";
   $("#adjustment-note").textContent =
-    source === "camera"
-      ? `Exposure: ${exposureHardware ? "camera hardware" : "image-only correction"}. Zoom: ${zoomHardware ? "camera hardware" : "digital crop"}. Warmth is a creative image effect, not calibrated white balance.`
+    (source === "camera"
+      ? `Exposure: ${exposureHardware ? "camera hardware" : "image-only correction"}. Zoom: ${zoomHardware ? "camera hardware" : "digital crop"}. `
       : source === "upload"
-        ? "Image-only adjustments. Warmth is a creative effect, not calibrated white balance."
-        : "Demo adjustments are applied to the image, not your camera hardware.";
+        ? "Image-only adjustments. "
+        : "Demo adjustments are applied to the image. ") +
+    "Warmth is a creative image effect, not calibrated white balance." +
+    meter;
 }
 function bounded(value, cap) {
   let v = Math.min(cap.max, Math.max(cap.min, value));
@@ -361,10 +684,67 @@ $("#reset-adjustments").onclick = async () => {
   updateHardwareNote();
   toast("Back to a natural starting point. Smart auto pauses for 15 seconds.");
 };
-updateAdjustmentUI();
-function stopCamera() {
+
+/* ---------- Tap to meter ---------- */
+
+stage.addEventListener("pointerdown", (e) => {
+  if (e.target.closest(".topbar, .bottombar, .score-chip, .start-cta")) return;
+  const r = stage.getBoundingClientRect();
+  if (!r.width) return;
+  const fx = (e.clientX - r.left) / r.width,
+    fy = (e.clientY - r.top) / r.height;
+  if (
+    meterPoint &&
+    Math.hypot((meterPoint.fx - fx) * r.width, (meterPoint.fy - fy) * r.height) < 18
+  ) {
+    meterPoint = null;
+    $("#meter-ring").hidden = true;
+  } else {
+    meterPoint = { fx, fy };
+    const ring = $("#meter-ring");
+    ring.hidden = false;
+    ring.style.left = fx * 100 + "%";
+    ring.style.top = fy * 100 + "%";
+    if (!meterNotified) {
+      meterNotified = true;
+      toast("Tap-to-meter on. Exposure now follows that spot. Tap again to move, tap it once more to clear.");
+    }
+  }
+  updateHardwareNote();
+});
+function clearMeter() {
+  meterPoint = null;
+  $("#meter-ring").hidden = true;
+}
+
+/* ---------- Camera lifecycle ---------- */
+
+function setSourcePill(kind, label) {
+  const pill = $("#source-pill");
+  pill.className = `source-pill pill-${kind}`;
+  $("#source-label").textContent = label;
+  $("#chip-label").textContent = kind === "live" ? "score" : "light";
+}
+function setStartCta(show, label) {
+  const cta = $("#start-camera");
+  cta.hidden = !show;
+  if (show) $("#start-camera-label").textContent = label;
+}
+function resetCoachState() {
   clearInterval(timer);
   timer = null;
+  cancelCountdown();
+  faceBox = null;
+  faceSeenAt = 0;
+  prevLuma = null;
+  lastStats = null;
+  steadyEma = 0.01;
+  tick = 0;
+  currentHint = "";
+  clearMeter();
+  clearBracketInline();
+  $("#steady-chip").hidden = true;
+  $("#capture").classList.remove("ready");
   stream?.getTracks().forEach((t) => t.stop());
   stream = null;
   video.srcObject = null;
@@ -381,9 +761,10 @@ async function connectCamera() {
     return;
   }
   cameraBusy = true;
-  $("#connect-camera").disabled = true;
-  $("#connect-camera span").textContent = "Connecting…";
-  stopCamera();
+  $("#start-camera").disabled = true;
+  $("#start-camera-label").textContent = "Connecting…";
+  resetCoachState();
+  initFaceDetection().catch(() => {}); // warm the model while the camera opens
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       video: {
@@ -408,18 +789,20 @@ async function connectCamera() {
     img.hidden = true;
     video.hidden = false;
     $("#subject-bracket").hidden = true;
-    $("#source-label").textContent = "LIVE CAMERA";
-    $("#scene-description").textContent = "On-device light analysis";
-    $("#connect-camera span").textContent = "Camera on";
+    setSourcePill("live", "Live");
+    setStartCta(false, "");
+    $("#menu-camera-off").hidden = false;
+    $("#lighting-tip").textContent =
+      "Reading the light now. The score blends light, steady hands and framing.";
     $("#composition-status").textContent = "Framing guide";
     $("#background-status").textContent = "Check the scene";
     $("#background-status").className = "status improve";
     $("#background-tip").textContent =
       "Look for objects behind the head, bright distractions, and colours reflecting onto skin.";
     $("#composition-tip").textContent = modes[mode][0];
-    $("#score-eyebrow").textContent = "LIGHT CHECK";
+    $("#score-eyebrow").textContent = "Shot score";
     $("#score-subtitle").textContent =
-      "Brightness estimate, not aesthetic quality.";
+      "Light, steady hands and framing — updated as you frame.";
     exposureHardware = !!capabilities.exposureCompensation;
     zoomHardware = !!capabilities.zoom;
     for (const [id, key, defaults] of [
@@ -438,7 +821,8 @@ async function connectCamera() {
     stableFrames = 0;
     latest = null;
     lastTune = 0;
-    timer = setInterval(analyzeLive, 1000);
+    timer = setInterval(coachLoop, 200);
+    coachLoop();
     analyzeLive();
     track.addEventListener("ended", () => {
       if (source === "camera") {
@@ -458,23 +842,17 @@ async function connectCamera() {
     );
   } finally {
     cameraBusy = false;
-    $("#connect-camera").disabled = false;
+    $("#start-camera").disabled = false;
+    if (source !== "camera") {
+      $("#start-camera-label").textContent =
+        source === "upload" ? "Use camera" : "Enable camera";
+    }
   }
 }
-$("#connect-camera").onclick = () =>
-  source === "camera"
-    ? dialog(
-        `<div class="dialog-eyebrow">CAMERA CONNECTED</div><h2>You’re in control.</h2><p>The camera is active only in this tab. Smart auto can use the controls your browser exposes.</p><button class="optimize-button" id="stop-camera-button">Turn off camera & return to demo</button>`,
-      )
-    : connectCamera();
-$("#info-dialog").addEventListener("click", (e) => {
-  if (e.target.id === "mobile-preferences") $("#settings-open").click();
-  if (e.target.id === "stop-camera-button") {
-    restoreDemo();
-    $("#info-dialog").close();
-    toast("Camera off. Back to the demo.");
-  }
-});
+$("#start-camera").onclick = () => {
+  if (source === "camera") return;
+  connectCamera();
+};
 $("#switch-camera").onclick = () => {
   if (source !== "camera") {
     toast("Enable your camera first to switch between front and back.");
@@ -484,15 +862,15 @@ $("#switch-camera").onclick = () => {
   connectCamera();
 };
 function restoreDemo() {
-  stopCamera();
+  resetCoachState();
   source = "demo";
   img.src = "./assets/demo-scene.jpg";
   img.alt = "Demo scene: woman beside a sunlit archway";
   img.hidden = false;
   video.hidden = true;
-  $("#source-label").textContent = "DEMO SCENE";
-  $("#connect-camera span").textContent = "Enable camera";
-  $("#scene-description").textContent = "Golden hour · Outdoor";
+  setSourcePill("demo", "Demo");
+  setStartCta(true, "Enable camera");
+  $("#menu-camera-off").hidden = true;
   $("#subject-bracket").hidden = mode !== "Portrait";
   $("#exposure").min = -1.5;
   $("#exposure").max = 1.5;
@@ -503,36 +881,53 @@ function restoreDemo() {
   $("#zoom").step = 0.1;
   $("#zoom").value = 1;
   $("#warmth").value = 0;
-  $("#score-eyebrow").textContent = "DEMO LIGHT CHECK";
+  $("#score-eyebrow").textContent = "Demo light check";
   $("#score-subtitle").textContent = "Illustrative scene guidance.";
   $("#composition-status").textContent = "Framing guide";
   $("#background-status").textContent = "Demo backdrop";
+  $("#background-status").className = "status good";
   $("#background-tip").textContent =
     "A simple backdrop keeps the attention right where it belongs.";
   $("#lighting-tip").textContent =
     "Soft, warm light in this demo scene. Let’s make the most of it.";
   $("#lighting-status").textContent = "Just right";
   $("#lighting-status").className = "status good";
-  setScore(86);
+  setScoreUI(86, "good");
+  updateSubBars(86, null, null);
   updateAdjustmentUI();
   updateHardwareNote();
+  updateCropFrame();
+  // If the model is already loaded (from a previous camera session),
+  // snap the bracket to the demo subject's face for real.
+  detectFace(img)
+    .then((bbox) => {
+      if (!bbox || source !== "demo") return;
+      const box = faceBoxToStage(bbox);
+      if (!box) return;
+      faceBox = box;
+      if (mode === "Portrait") positionBracket(box);
+      const stats = sample();
+      if (stats) {
+        lastStats = stats;
+        renderAnalysis(stats, regionStats());
+      }
+    })
+    .catch(() => {});
 }
+
+/* ---------- Analysis ---------- */
+
 function sample() {
-  const el = sourceElement(),
-    width = el.videoWidth || el.naturalWidth,
-    height = el.videoHeight || el.naturalHeight;
-  if (!width || !height) return null;
-  const crop = cropRect(width, height, ratio),
-    zoom = zoomHardware ? 1 : Number($("#zoom").value);
-  const w = crop.width / zoom,
-    h = crop.height / zoom;
+  const el = sourceElement();
+  const r = frameRect();
+  if (!r) return null;
   analysisContext.filter = "none";
   analysisContext.drawImage(
     el,
-    crop.x + (crop.width - w) / 2,
-    crop.y + (crop.height - h) / 2,
-    w,
-    h,
+    r.x,
+    r.y,
+    r.width,
+    r.height,
     0,
     0,
     128,
@@ -540,37 +935,93 @@ function sample() {
   );
   return analyzePixels(analysisContext.getImageData(0, 0, 128, 96).data);
 }
-function setScore(score) {
+/**
+ * Subject-region stats for metering. Priority: tap-to-meter > face > null.
+ * This is where "meter on the subject, not the sky" happens.
+ */
+function regionStats() {
+  const el = sourceElement(),
+    { ew, eh } = elementSize(el),
+    { W, H } = stageSize();
+  if (!ew || !W) return null;
+  const scale = stageScale(el);
+  if (!scale) return null;
+  let cx, cy, sizeFrac;
+  if (meterPoint) {
+    cx = ew / 2 + (meterPoint.fx - 0.5) * (W / scale);
+    cy = eh / 2 + (meterPoint.fy - 0.5) * (H / scale);
+    sizeFrac = 0.3;
+  } else if (faceBox) {
+    cx = ew / 2 + (faceBox.fx + faceBox.fw / 2 - 0.5) * (W / scale);
+    cy = eh / 2 + (faceBox.fy + faceBox.fh / 2 - 0.5) * (H / scale);
+    sizeFrac = Math.min(0.6, faceBox.fw * 2.4 * (W / Math.min(W, H)));
+  } else return null;
+  let size = (sizeFrac * Math.min(W, H)) / scale;
+  size = Math.min(size, ew, eh);
+  const x = Math.max(0, Math.min(ew - size, cx - size / 2)),
+    y = Math.max(0, Math.min(eh - size, cy - size / 2));
+  regionContext.filter = "none";
+  regionContext.drawImage(el, x, y, size, size, 0, 0, 64, 64);
+  return analyzePixels(regionContext.getImageData(0, 0, 64, 64).data);
+}
+function setScoreUI(score, state) {
   $("#scene-score").textContent = score;
   $("#score-progress").style.strokeDasharray = `${score * 2.2} 264`;
+  $("#chip-score").textContent = score;
+  $("#chip-progress").style.strokeDasharray = `${score * 1.26} 126`;
   $("#score-title").innerHTML =
     score >= 75
       ? "A little closer<br>to a great shot."
       : score >= 45
         ? "A little light<br>goes a long way."
         : "Let’s find<br>a little more light.";
+  if (state) {
+    $("#score-chip").className = `score-chip ${state}`;
+    $("#score-card").className = `score-card ${state}`;
+  }
 }
-function renderAnalysis(stats) {
-  setScore(stats.score);
-  const low = stats.luminance < 0.22,
-    high = stats.highlights > 0.1;
+function updateSubBars(light, steady, framing) {
+  const set = (barSel, valSel, v) => {
+    const bar = $(barSel),
+      val = $(valSel),
+      row = bar.closest(".sub-score");
+    if (v == null) {
+      bar.style.width = "0%";
+      val.textContent = "–";
+      row.classList.remove("good");
+      return;
+    }
+    bar.style.width = v + "%";
+    val.textContent = v;
+    row.classList.toggle("good", v >= 70);
+  };
+  set("#sub-light", "#sub-light-val", light);
+  set("#sub-steady", "#sub-steady-val", steady);
+  set("#sub-framing", "#sub-framing-val", framing);
+}
+function renderAnalysis(stats, region = null) {
+  const ref = region || stats;
+  const low = ref.luminance < 0.22,
+    high = ref.highlights > 0.1;
+  const light = stats.score;
+  const steady = source === "camera" ? steadyScore() : null;
+  const framing = faceBox ? framingScore(faceBox) : null;
+  composite = computeComposite(light, steady, framing);
+  setScoreUI(composite, low || high ? "improve" : "good");
+  updateSubBars(light, steady, framing);
+  $("#chip-label").textContent =
+    source === "camera" || framing != null ? "score" : "light";
   $("#lighting-status").textContent = low
     ? "Needs light"
     : high
       ? "Bright highlights"
       : "Balanced";
-  $("#lighting-status").className =
-    `status ${low || high ? "improve" : "good"}`;
+  $("#lighting-status").className = `status ${low || high ? "improve" : "good"}`;
   $("#lighting-tip").textContent = low
     ? "Move closer to a window or soft light. Keep the phone steady; edits cannot recover lost detail."
     : high
       ? "Very bright areas are losing detail. Try a little shade, especially around pale clothing."
       : "Light levels are workable. Check the face and clothing for detail before you capture.";
-  $("#frame-hint").textContent = low
-    ? "A little more real light will help."
-    : high
-      ? "Protect the bright details. Try softer light."
-      : modes[mode][2];
   document
     .querySelectorAll(".light-meter span")
     .forEach((el, i) =>
@@ -579,17 +1030,25 @@ function renderAnalysis(stats) {
         i === Math.min(7, Math.floor(stats.luminance * 8)),
       ),
     );
+  if (source !== "camera") {
+    $("#frame-hint-text").textContent = low
+      ? "A little more real light will help."
+      : high
+        ? "Protect the bright details. Try softer light."
+        : modes[mode][2];
+  }
 }
 async function analyzeLive() {
   if (source !== "camera" || document.hidden || tuning) return;
   const stats = sample();
   if (!stats) return;
+  lastStats = stats;
   stableFrames =
     latest && Math.abs(stats.luminance - latest.luminance) < 0.06
       ? stableFrames + 1
       : 0;
   latest = stats;
-  renderAnalysis(stats);
+  renderAnalysis(stats, regionStats());
   if (
     prefs.auto &&
     stableFrames >= 1 &&
@@ -609,7 +1068,8 @@ async function autoTune(notify = true) {
       return;
     }
     latest = stats;
-    let adjustment = suggestedExposure(stats);
+    const region = regionStats();
+    let adjustment = suggestedExposure(region || stats);
     let current = Number($("#exposure").value);
     let next = exposureHardware
       ? Math.max(-0.7, Math.min(0.7, current + adjustment))
@@ -640,12 +1100,15 @@ async function autoTune(notify = true) {
         2200,
       );
     }
-    if (source !== "demo") renderAnalysis(stats);
+    if (source !== "demo") renderAnalysis(stats, region);
   } finally {
     tuning = false;
   }
 }
 $("#auto-optimize").onclick = () => autoTune();
+
+/* ---------- Upload ---------- */
+
 $("#upload-button").onclick = () => $("#photo-upload").click();
 $("#photo-upload").onchange = async (e) => {
   const file = e.target.files[0];
@@ -663,17 +1126,17 @@ $("#photo-upload").onchange = async (e) => {
   probe.src = url;
   try {
     await probe.decode();
-    stopCamera();
+    resetCoachState();
     source = "upload";
     img.src = url;
     await img.decode();
     img.alt = "Your uploaded photo";
     img.hidden = false;
     video.hidden = true;
-    $("#source-label").textContent = "YOUR PHOTO";
-    $("#connect-camera span").textContent = "Enable camera";
+    setSourcePill("photo", "Your photo");
+    setStartCta(true, "Use camera");
+    $("#menu-camera-off").hidden = true;
     $("#subject-bracket").hidden = true;
-    $("#scene-description").textContent = "Private photo analysis";
     $("#exposure").min = -1.5;
     $("#exposure").max = 1.5;
     $("#exposure").step = 0.1;
@@ -683,7 +1146,7 @@ $("#photo-upload").onchange = async (e) => {
     $("#exposure").value = 0;
     $("#warmth").value = 0;
     $("#zoom").value = 1;
-    $("#score-eyebrow").textContent = "LIGHT CHECK";
+    $("#score-eyebrow").textContent = "Light check";
     $("#score-subtitle").textContent =
       "Brightness estimate, not aesthetic quality.";
     $("#composition-status").textContent = "Framing guide";
@@ -693,7 +1156,19 @@ $("#photo-upload").onchange = async (e) => {
       "Check for distracting edges and bright objects behind your subject.";
     updateAdjustmentUI();
     updateHardwareNote();
-    renderAnalysis(sample());
+    // If the face model is already in memory, meter and frame the subject.
+    detectFace(img)
+      .then((bbox) => {
+        if (!bbox || source !== "upload") return;
+        const box = faceBoxToStage(bbox);
+        if (!box) return;
+        faceBox = box;
+        positionBracket(box);
+        refreshScores();
+        renderAnalysis(sample(), regionStats());
+      })
+      .catch(() => {});
+    renderAnalysis(sample(), regionStats());
     if (prefs.auto) await autoTune(false);
     toast("Your photo is ready. Analysis stays on your device.");
   } catch {
@@ -703,37 +1178,90 @@ $("#photo-upload").onchange = async (e) => {
     e.target.value = "";
   }
 };
-async function capture() {
+
+/* ---------- Capture (burst-assist + self-timer) ---------- */
+
+function grabFrame() {
   const el = sourceElement(),
-    w = el.videoWidth || el.naturalWidth,
-    h = el.videoHeight || el.naturalHeight;
-  if (!w || !h) {
-    toast("Your scene is still loading. Try again in a moment.");
-    return;
-  }
-  const crop = cropRect(w, h, ratio),
-    z = zoomHardware ? 1 : Number($("#zoom").value),
-    sw = crop.width / z,
-    sh = crop.height / z;
+    r = frameRect();
+  if (!r) return null;
   const canvas = document.createElement("canvas");
-  canvas.width = Math.min(1400, Math.round(sw));
+  canvas.width = Math.min(1400, Math.round(r.width));
   canvas.height = Math.round(canvas.width / ratio);
   const ctx = canvas.getContext("2d");
   ctx.filter = imageFilter();
-  ctx.drawImage(
-    el,
-    crop.x + (crop.width - sw) / 2,
-    crop.y + (crop.height - sh) / 2,
-    sw,
-    sh,
-    0,
-    0,
-    canvas.width,
-    canvas.height,
-  );
+  ctx.drawImage(el, r.x, r.y, r.width, r.height, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+function sharpnessOfCanvas(c) {
+  sharpContext.filter = "none";
+  sharpContext.drawImage(c, 0, 0, 96, 72);
+  const d = sharpContext.getImageData(0, 0, 96, 72).data;
+  const luma = new Float32Array(96 * 72);
+  for (let i = 0; i < luma.length; i++)
+    luma[i] =
+      (0.2126 * d[i * 4] + 0.7152 * d[i * 4 + 1] + 0.0722 * d[i * 4 + 2]) /
+      255;
+  return sharpness(luma, 96, 72);
+}
+function cancelCountdown() {
+  countdownActive = false;
+  clearTimeout(timerCountdown);
+  const el = $("#countdown");
+  el.hidden = true;
+  el.classList.remove("pop");
+}
+function startCountdown() {
+  if (countdownActive) return;
+  countdownActive = true;
+  const el = $("#countdown");
+  let n = prefs.timer;
+  const step = () => {
+    if (!countdownActive) return;
+    if (n <= 0) {
+      cancelCountdown();
+      capture();
+      return;
+    }
+    el.textContent = n;
+    el.hidden = false;
+    el.classList.remove("pop");
+    void el.offsetWidth;
+    el.classList.add("pop");
+    n--;
+    timerCountdown = setTimeout(step, 1000);
+  };
+  step();
+}
+async function capture() {
+  const el = sourceElement();
+  if (!frameRect()) {
+    toast("Your scene is still loading. Try again in a moment.");
+    return;
+  }
+  let best = null,
+    burstUsed = false,
+    bestScore = -1;
+  if (source === "camera" && prefs.burst) {
+    for (let i = 0; i < 3; i++) {
+      const c = grabFrame();
+      if (c) {
+        const s = sharpnessOfCanvas(c);
+        if (s > bestScore) {
+          bestScore = s;
+          best = c;
+        }
+      }
+      if (i < 2) await sleep(220);
+    }
+    burstUsed = true;
+  } else {
+    best = grabFrame();
+  }
+  if (!best) return;
   const shot = {
     id: crypto.randomUUID(),
-    image: canvas.toDataURL("image/jpeg", 0.87),
+    image: best.toDataURL("image/jpeg", 0.87),
     date: new Date().toISOString(),
     mode,
     source,
@@ -753,27 +1281,113 @@ async function capture() {
     void $("#capture-flash").offsetWidth;
     $("#capture-flash").classList.add("flash");
     toast(
-      source === "demo"
-        ? "Demo moment saved. Find it in My shots."
-        : "Moment saved on this device. Find it in My shots.",
+      burstUsed
+        ? "Kept the sharpest of 3 frames. Find it in My shots."
+        : source === "demo"
+          ? "Demo moment saved. Find it in My shots."
+          : "Moment saved on this device. Find it in My shots.",
     );
   } catch {
     toast("Browser storage is full or unavailable. Download this shot below.");
     dialog(
-      `<h2>Keep this moment.</h2><p>There isn’t enough browser storage. Download your photo now.</p><a class="optimize-button" id="direct-download" download="prolens-shot.jpg">Download photo</a>`,
+      `<h2>Keep this moment.</h2><p>There isn’t enough browser storage. Download your photo now.</p><a class="primary-button" id="direct-download" download="prolens-shot.jpg">Download photo</a>`,
     );
     $("#direct-download").href = shot.image;
   }
 }
-$("#capture").onclick = capture;
+$("#capture").onclick = () => {
+  if (countdownActive) {
+    cancelCountdown();
+    toast("Self-timer cancelled.");
+    return;
+  }
+  if (source === "camera" && prefs.timer > 0) {
+    startCountdown();
+    return;
+  }
+  capture();
+};
 $("#last-shot").onclick = () => showPage("gallery");
 function updateShotCount() {
   $("#shot-count").textContent = shots.length;
+  $("#menu-shot-count").textContent = shots.length;
   $("#last-shot-image").style.backgroundImage = shots[0]
     ? `url("${shots[0].image}")`
     : "";
 }
 updateShotCount();
+
+/* ---------- Modes & coach copy ---------- */
+
+const modes = {
+  Portrait: [
+    "Place your subject on a gridline to give the scene room to breathe.",
+    "Turn your subject slightly toward the light for a softer, more natural portrait.",
+    "A little to the right. A lot more story.",
+  ],
+  Landscape: [
+    "Place the horizon on the upper or lower third. Keep vertical lines straight.",
+    "Include a foreground detail to give a wide view a sense of depth.",
+    "Find your horizon. Leave a little wonder.",
+  ],
+  Food: [
+    "Try a 45° angle for depth, or shoot overhead for a flat arrangement.",
+    "Use side light from a window. Turn off overhead bulbs to avoid mixed colour.",
+    "Follow the light. Savour the details.",
+  ],
+  Night: [
+    "Brace your phone against something steady and keep bright signs away from faces.",
+    "Ask your subject to stay still. More light helps more than digital brightening.",
+    "Steady hands. A little patience.",
+  ],
+};
+document.querySelectorAll("[data-mode]").forEach(
+  (el) =>
+    (el.onclick = () => {
+      mode = el.dataset.mode;
+      document
+        .querySelectorAll("[data-mode]")
+        .forEach((b) => b.classList.toggle("selected", b === el));
+      $("#composition-tip").textContent = modes[mode][0];
+      $("#instinct-tip").textContent = modes[mode][1];
+      if (source !== "camera") $("#frame-hint-text").textContent = modes[mode][2];
+      if (source === "demo") $("#subject-bracket").hidden = mode !== "Portrait";
+      toast(`${mode} guidance selected. No simulated camera lens effects.`);
+    }),
+);
+$("#composition-guide").onclick = () => {
+  prefs.grid = true;
+  updateGrid();
+  $("#subject-bracket").hidden = false;
+  $("#subject-bracket").classList.toggle("teaching");
+  $("#frame-hint-text").textContent = $("#subject-bracket").classList.contains(
+    "teaching",
+  )
+    ? "Try this area for your subject. Keep space around them."
+    : modes[mode][2];
+  toast("The bracket is a framing guide, not detected subject tracking.");
+};
+
+/* ---------- Keyboard ---------- */
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeSheets();
+  if (
+    e.code === "Space" &&
+    currentScreen === "camera" &&
+    !$("#info-dialog").open &&
+    !openSheetId &&
+    !["INPUT", "BUTTON", "TEXTAREA", "A"].includes(
+      document.activeElement?.tagName,
+    )
+  ) {
+    e.preventDefault();
+    $("#capture").click();
+  }
+});
+
+/* ---------- Gallery ---------- */
+
 function renderGallery() {
   const grid = $("#gallery-grid");
   grid.innerHTML = "";
@@ -788,8 +1402,9 @@ function renderGallery() {
     const picture = document.createElement("img");
     picture.src = shot.image;
     picture.alt = `Captured ${shot.mode.toLowerCase()} photo`;
-    card.append(picture);
-    const info = document.createElement("div");
+    const meta = document.createElement("div");
+    meta.className = "shot-meta";
+    const text = document.createElement("div");
     const title = document.createElement("h3");
     title.textContent = `${shot.mode} · ${shot.source === "demo" ? "Demo moment" : shot.source === "upload" ? "Photo study" : "A moment worth keeping"}`;
     const date = document.createElement("p");
@@ -799,17 +1414,24 @@ function renderGallery() {
       hour: "numeric",
       minute: "2-digit",
     });
+    text.append(title, date);
     const actions = document.createElement("div");
     actions.className = "shot-actions";
     const download = document.createElement("a");
-    download.textContent = "Download ↗";
+    download.className = "shot-action";
+    download.title = "Download";
+    download.setAttribute("aria-label", "Download photo");
+    download.innerHTML = icon("download");
     download.download = `prolens-${shot.id.slice(0, 8)}.jpg`;
     download.href = shot.image;
     const remove = document.createElement("button");
-    remove.textContent = "Delete";
+    remove.className = "shot-action danger";
+    remove.title = "Delete";
+    remove.setAttribute("aria-label", "Delete photo");
+    remove.innerHTML = icon("trash");
     remove.onclick = () => {
       dialog(
-        `<h2>Let this moment go?</h2><p>This removes the photo from this browser. Download it first if you want a copy.</p><button class="optimize-button" id="confirm-delete">Delete photo</button>`,
+        `<h2>Let this moment go?</h2><p>This removes the photo from this browser. Download it first if you want a copy.</p><button class="primary-button" id="confirm-delete">Delete photo</button>`,
       );
       $("#confirm-delete").onclick = () => {
         const updated = shots.filter((s) => s.id !== shot.id);
@@ -826,11 +1448,15 @@ function renderGallery() {
       };
     };
     actions.append(download, remove);
-    info.append(title, date, actions);
-    card.append(info);
+    meta.append(text, actions);
+    card.append(picture, meta);
     grid.append(card);
   }
+  renderIcons(grid);
 }
+
+/* ---------- Field guide ---------- */
+
 const guides = [
   [
     "sun",
@@ -877,17 +1503,29 @@ const guides = [
     "06 · KNOW YOUR CAMERA",
     "Smart, within its limits.",
     "Prolens checks browser camera capabilities before applying controls. Native CameraX supports exposure compensation and AF/AE/AWB metering on supported hardware. A web app cannot control your separate default camera app.",
-    "https://developer.android.com/media/camera/camerax/configuration",
+    "https://developer.android.com/media/camerax/configuration",
     "Android · Camera controls",
   ],
 ];
 $("#guide-grid").innerHTML = guides
   .map(
     ([ic, eyebrow, title, body, url, label]) =>
-      `<article class="guide-card"><div class="guide-visual">${icon(ic)}</div><div class="eyebrow">${eyebrow}</div><h2>${title}</h2><p>${body}</p><a href="${url}" target="_blank" rel="noopener noreferrer">${label}${icon("arrow-up-right")}</a></article>`,
+      `<article class="guide-card"><div class="guide-visual">${icon(ic)}</div><div class="eyebrow">${eyebrow}</div><h2>${title}</h2><p>${body}</p><a href="${url}" target="_blank" rel="noopener noreferrer">${label}${icon("arrow-right")}</a></article>`,
   )
   .join("");
-window.addEventListener("pagehide", () => stopCamera());
+renderIcons($("#guide-grid"));
+
+/* ---------- Lifecycle ---------- */
+
+window.addEventListener("pagehide", () => resetCoachState());
 window.addEventListener("pageshow", (e) => {
   if (e.persisted && source === "camera") restoreDemo();
 });
+
+/* ---------- Init ---------- */
+
+setScoreUI(86, "good");
+updateSubBars(86, null, null);
+updateAdjustmentUI();
+updateHardwareNote();
+requestAnimationFrame(updateCropFrame);

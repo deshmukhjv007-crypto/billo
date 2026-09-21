@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   analyzePixels,
   cropRect,
+  lumaDiff,
+  sharpness,
   suggestedExposure,
 } from "../public/analysis.js";
 import { server } from "../server.js";
@@ -85,4 +87,22 @@ test("server serves app and blocks invalid paths", async (t) => {
 test('light check does not prefer a single midtone brightness', () => {
   const scores = [60, 85, 120, 170, 220].map(value => analyzePixels(pixels(value)).score);
   assert.equal(new Set(scores).size, 1);
+});
+test("lumaDiff is zero for identical frames and positive for moved ones", () => {
+  const a = new Float32Array(48 * 36).fill(0.5);
+  const b = new Float32Array(a);
+  assert.equal(lumaDiff(a, b), 0);
+  const moved = new Float32Array(a);
+  for (let i = 0; i < moved.length; i++) moved[i] = (i % 2 ? 0.2 : 0.8);
+  assert.ok(lumaDiff(a, moved) > 0.3);
+  assert.equal(lumaDiff([], []), 0);
+});
+test("sharpness is zero for flat frames and higher for detailed ones", () => {
+  const flat = new Float32Array(96 * 72).fill(0.5);
+  assert.equal(sharpness(flat, 96, 72), 0);
+  const edge = new Float32Array(96 * 72);
+  for (let y = 0; y < 72; y++)
+    for (let x = 0; x < 96; x++) edge[y * 96 + x] = x % 8 < 4 ? 0 : 1;
+  assert.ok(sharpness(edge, 96, 72) > 0.1);
+  assert.equal(sharpness(null, 96, 72), 0);
 });

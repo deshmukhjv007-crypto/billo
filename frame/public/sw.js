@@ -1,13 +1,20 @@
 /* Prolens service worker: offline app shell + installability.
  * Version the cache name when the shell changes. No analytics, no uploads. */
-const CACHE = "prolens-shell-v1";
+const CACHE = "prolens-shell-v3";
 const SHELL = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./analysis.js",
+  "./face.js",
   "./manifest.webmanifest",
+  "./vendor/facedet/face_detection.js",
+  "./vendor/facedet/face_detection_short_range.tflite",
+  "./vendor/facedet/face_detection_solution_simd_wasm_bin.js",
+  "./vendor/facedet/face_detection_solution_simd_wasm_bin.wasm",
+  "./vendor/facedet/face_detection_solution_wasm_bin.js",
+  "./vendor/facedet/face_detection_solution_wasm_bin.wasm",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/maskable-512.png",
