@@ -15,6 +15,8 @@ const types = {
   ".svg": "image/svg+xml",
   ".webp": "image/webp",
   ".ico": "image/x-icon",
+  ".wasm": "application/wasm",
+  ".tflite": "application/octet-stream",
 };
 export const server = http.createServer(async (req, res) => {
   try {
