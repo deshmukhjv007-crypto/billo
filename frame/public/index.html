@@ -423,9 +423,14 @@
           <input id="zoom" type="range" min="1" max="3" step="0.1" value="1" />
           <small id="zoom-help">Get closer without taking a step.</small>
         </div>
-        <button class="ghost-button" id="reset-adjustments">
-          Reset to natural<i data-icon="reset"></i>
-        </button>
+        <div class="adjust-actions">
+          <button class="primary-button adjust-action-btn" id="ideal-settings-btn">
+            <i data-icon="sparkles"></i><span>Set to ideal light</span>
+          </button>
+          <button class="ghost-button adjust-action-btn" id="reset-adjustments">
+            <i data-icon="reset"></i><span>Reset to natural</span>
+          </button>
+        </div>
         <p class="soft-note">
           <i data-icon="info"></i
           ><span id="adjustment-note"
@@ -494,6 +499,31 @@
       </button>
       <div id="dialog-content"></div>
     </dialog>
+
+    <!-- Shot viewer modal for opening pictures in full detail -->
+    <div class="shot-viewer" id="shot-viewer" hidden aria-modal="true" role="dialog" aria-label="View photo">
+      <header class="shot-viewer-bar">
+        <button class="round-button" id="viewer-close" aria-label="Close photo">
+          <i data-icon="close"></i>
+        </button>
+        <div class="shot-viewer-info">
+          <h3 id="viewer-title">Photo</h3>
+          <span id="viewer-date">Date</span>
+        </div>
+        <div class="shot-viewer-actions">
+          <a class="shot-action" id="viewer-download" title="Download" aria-label="Download photo" download="prolens-shot.jpg">
+            <i data-icon="download"></i>
+          </a>
+          <button class="shot-action danger" id="viewer-delete" title="Delete" aria-label="Delete photo">
+            <i data-icon="trash"></i>
+          </button>
+        </div>
+      </header>
+      <div class="shot-viewer-stage">
+        <img id="viewer-img" src="" alt="Full view shot" />
+      </div>
+    </div>
+
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
   </body>
 </html>

@@ -70,8 +70,23 @@ let stream = null,
   facing = "environment",
   source = "demo",
   mode = "Portrait",
-  ratio = 3 / 2,
+  ratioKey = "3:2",
   cameraBusy = false;
+const RATIO_PRESETS = [
+  { key: "3:2", label: "3:2", val: 3 / 2 },
+  { key: "4:3", label: "4:3", val: 4 / 3 },
+  { key: "16:9", label: "16:9", val: 16 / 9 },
+  { key: "1:1", label: "1:1", val: 1 },
+  { key: "Full", label: "Full", val: "full" },
+];
+function getEffectiveRatio() {
+  const preset = RATIO_PRESETS.find((p) => p.key === ratioKey) || RATIO_PRESETS[0];
+  if (preset.val === "full") {
+    const { W, H } = stageSize();
+    return W && H ? W / H : 3 / 2;
+  }
+  return preset.val;
+}
 let capabilities = {},
   exposureHardware = false,
   zoomHardware = false,
@@ -142,6 +157,7 @@ function savePrefs() {
 function showPage(page) {
   currentScreen = page;
   cancelCountdown();
+  closeShotViewer();
   document.querySelectorAll(".screen").forEach((el) => {
     el.classList.toggle("active", el.id === `${page}-screen`);
   });
@@ -341,12 +357,13 @@ function frameRect() {
     { ew, eh } = elementSize(el),
     { W, H } = stageSize();
   if (!ew || !eh || !W || !H) return null;
+  const currentRatio = getEffectiveRatio();
   const scale = Math.max(W / ew, H / eh);
   const dw = W / scale,
     dh = H / scale,
     z = zoomHardware ? 1 : Number($("#zoom").value);
-  const w = Math.min(dw / z, (dh / z) * ratio),
-    h = w / ratio;
+  const w = Math.min(dw / z, (dh / z) * currentRatio),
+    h = w / currentRatio;
   return { x: ew / 2 - w / 2, y: eh / 2 - h / 2, width: w, height: h };
 }
 function updateCropFrame() {
@@ -375,23 +392,12 @@ function updateCropFrame() {
   frame.style.height = h + "px";
 }
 $("#ratio-toggle").onclick = () => {
-  ratio =
-    ratio === 3 / 2
-      ? 4 / 3
-      : ratio === 4 / 3
-        ? 16 / 9
-        : ratio === 16 / 9
-          ? 1
-          : 3 / 2;
-  $("#ratio-toggle").textContent =
-    ratio === 3 / 2
-      ? "3:2"
-      : ratio === 4 / 3
-        ? "4:3"
-        : ratio === 16 / 9
-          ? "16:9"
-          : "1:1";
+  const idx = RATIO_PRESETS.findIndex((p) => p.key === ratioKey);
+  const next = RATIO_PRESETS[(idx + 1) % RATIO_PRESETS.length];
+  ratioKey = next.key;
+  $("#ratio-toggle").textContent = next.label;
   updateCropFrame();
+  toast(`Aspect ratio: ${next.label}`);
 };
 window.addEventListener("resize", updateCropFrame);
 window.addEventListener("orientationchange", updateCropFrame);
@@ -684,6 +690,10 @@ $("#reset-adjustments").onclick = async () => {
   updateHardwareNote();
   toast("Back to a natural starting point. Smart auto pauses for 15 seconds.");
 };
+$("#ideal-settings-btn").onclick = async () => {
+  manualUntil = Date.now() + 15000;
+  await autoTune(true);
+};
 
 /* ---------- Tap to meter ---------- */
 
@@ -769,8 +779,8 @@ async function connectCamera() {
     stream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: { ideal: facing },
-        width: { ideal: 1920 },
-        height: { ideal: 1440 },
+        width: { ideal: 3840, max: 3840 },
+        height: { ideal: 2160, max: 2160 },
       },
       audio: false,
     });
@@ -786,6 +796,9 @@ async function connectCamera() {
         await track.applyConstraints({ advanced: [auto] });
       } catch {}
     source = "camera";
+    try {
+      localStorage.setItem("frame-camera-prompted", "true");
+    } catch {}
     img.hidden = true;
     video.hidden = false;
     $("#subject-bracket").hidden = true;
@@ -1185,10 +1198,14 @@ function grabFrame() {
   const el = sourceElement(),
     r = frameRect();
   if (!r) return null;
+  const currentRatio = getEffectiveRatio();
   const canvas = document.createElement("canvas");
-  canvas.width = Math.min(1400, Math.round(r.width));
-  canvas.height = Math.round(canvas.width / ratio);
-  const ctx = canvas.getContext("2d");
+  // Use uncompressed full sensor dimensions of the frame crop up to 3840px
+  canvas.width = Math.min(3840, Math.round(r.width));
+  canvas.height = Math.round(canvas.width / currentRatio);
+  const ctx = canvas.getContext("2d", { alpha: false });
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
   ctx.filter = imageFilter();
   ctx.drawImage(el, r.x, r.y, r.width, r.height, 0, 0, canvas.width, canvas.height);
   return canvas;
@@ -1261,7 +1278,7 @@ async function capture() {
   if (!best) return;
   const shot = {
     id: crypto.randomUUID(),
-    image: best.toDataURL("image/jpeg", 0.87),
+    image: best.toDataURL("image/jpeg", 0.95),
     date: new Date().toISOString(),
     mode,
     source,
@@ -1371,12 +1388,19 @@ $("#composition-guide").onclick = () => {
 /* ---------- Keyboard ---------- */
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") closeSheets();
+  if (e.key === "Escape") {
+    if (!$("#shot-viewer").hidden) {
+      closeShotViewer();
+      return;
+    }
+    closeSheets();
+  }
   if (
     e.code === "Space" &&
     currentScreen === "camera" &&
     !$("#info-dialog").open &&
     !openSheetId &&
+    $("#shot-viewer").hidden &&
     !["INPUT", "BUTTON", "TEXTAREA", "A"].includes(
       document.activeElement?.tagName,
     )
@@ -1447,13 +1471,63 @@ function renderGallery() {
         }
       };
     };
-    actions.append(download, remove);
     meta.append(text, actions);
     card.append(picture, meta);
+    card.onclick = (e) => {
+      if (e.target.closest(".shot-actions")) return;
+      openShotViewer(shot);
+    };
     grid.append(card);
   }
   renderIcons(grid);
 }
+
+/* ---------- Shot viewer ---------- */
+
+function openShotViewer(shot) {
+  const viewer = $("#shot-viewer");
+  const img = $("#viewer-img");
+  img.src = shot.image;
+  img.alt = `Captured ${shot.mode.toLowerCase()} photo`;
+  $("#viewer-title").textContent = `${shot.mode} · ${shot.source === "demo" ? "Demo moment" : shot.source === "upload" ? "Photo study" : "A moment worth keeping"}`;
+  $("#viewer-date").textContent = new Date(shot.date).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const dl = $("#viewer-download");
+  dl.href = shot.image;
+  dl.download = `prolens-${shot.id.slice(0, 8)}.jpg`;
+  $("#viewer-delete").onclick = () => {
+    dialog(
+      `<h2>Let this moment go?</h2><p>This removes the photo from this browser. Download it first if you want a copy.</p><button class="primary-button" id="confirm-delete-viewer">Delete photo</button>`,
+    );
+    $("#confirm-delete-viewer").onclick = () => {
+      const updated = shots.filter((s) => s.id !== shot.id);
+      try {
+        localStorage.setItem("frame-shots", JSON.stringify(updated));
+        shots = updated;
+        updateShotCount();
+        renderGallery();
+        closeShotViewer();
+        $("#info-dialog").close();
+        toast("Photo removed.");
+      } catch {
+        toast("Storage could not be updated. Please try again.");
+      }
+    };
+  };
+  viewer.hidden = false;
+  renderIcons(viewer);
+}
+function closeShotViewer() {
+  const viewer = $("#shot-viewer");
+  viewer.hidden = true;
+  $("#viewer-img").src = "";
+}
+$("#viewer-close").onclick = closeShotViewer;
 
 /* ---------- Field guide ---------- */
 
@@ -1529,3 +1603,13 @@ updateSubBars(86, null, null);
 updateAdjustmentUI();
 updateHardwareNote();
 requestAnimationFrame(updateCropFrame);
+
+// If the user hasn't explicitly been prompted before (first time), prompt to enable camera.
+// If previously prompted/declined or camera was turned off, keep demo mode with manual enable option.
+const cameraEverPrompted = readStored("frame-camera-prompted", false);
+if (!cameraEverPrompted && navigator.mediaDevices?.getUserMedia) {
+  try {
+    localStorage.setItem("frame-camera-prompted", "true");
+  } catch {}
+  connectCamera().catch(() => {});
+}
