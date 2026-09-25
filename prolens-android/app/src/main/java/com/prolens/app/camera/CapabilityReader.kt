@@ -28,7 +28,7 @@ object CapabilityReader {
         val capsList = ch(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES) ?: IntArray(0)
         val manual = capsList.contains(CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR) && isoRange != null && expRange != null
 
-        val awb = (ch(CameraCharacteristics.CONTROL_AWB_AVAILABLE_MODES) ?: IntArray(0)).mapNotNull {
+        val awbList: List<Awb>  = (ch(CameraCharacteristics.CONTROL_AWB_AVAILABLE_MODES) ?: IntArray(0)).mapNotNull {
             when (it) {
                 CameraMetadata.CONTROL_AWB_MODE_AUTO -> Awb.AUTO
                 CameraMetadata.CONTROL_AWB_MODE_DAYLIGHT -> Awb.DAYLIGHT
@@ -38,7 +38,8 @@ object CapabilityReader {
                 CameraMetadata.CONTROL_AWB_MODE_FLUORESCENT -> Awb.FLUORESCENT
                 else -> null
             }
-        }.toSet().ifEmpty { setOf(Awb.AUTO) }
+                   }
+           val awb: Set<Awb> = if (awbList.isEmpty()) setOf(Awb.AUTO) else awbList.toSet()
 
         // 35 mm-equivalent focal length: f × (43.27 mm full-frame diagonal / sensor diagonal)
         val focal = ch(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull()
