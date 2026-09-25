@@ -23,13 +23,17 @@ object CapabilityReader {
         val evStep = if (step.denominator != 0) step.numerator.toFloat() / step.denominator else 1f / 6f
         val supported = ex.isExposureCompensationSupported
 
-        val isoRange = ch(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
-        val expRange = ch(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)
-        val capsList = ch(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES) ?: IntArray(0)
+        val isoRange: android.util.Range<Int>? = ch(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
+        val expRange: android.util.Range<Long>? = ch(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)
+        val capsRaw: IntArray? = ch(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
+        val capsList: IntArray = capsRaw ?: IntArray(0)
         val manual = capsList.contains(CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR) && isoRange != null && expRange != null
 
-        val awbList: List<Awb>  = (ch(CameraCharacteristics.CONTROL_AWB_AVAILABLE_MODES) ?: IntArray(0)).mapNotNull {
-            when (it) {
+        val awbModesRaw: IntArray? = ch(CameraCharacteristics.CONTROL_AWB_AVAILABLE_MODES)
+        val awbRaw: IntArray = awbModesRaw ?: IntArray(0)
+        val awbFound = HashSet<Awb>()
+        for (mode in awbRaw) {
+            val m: Awb? = when (mode) {
                 CameraMetadata.CONTROL_AWB_MODE_AUTO -> Awb.AUTO
                 CameraMetadata.CONTROL_AWB_MODE_DAYLIGHT -> Awb.DAYLIGHT
                 CameraMetadata.CONTROL_AWB_MODE_CLOUDY_DAYLIGHT -> Awb.CLOUDY
@@ -38,20 +42,26 @@ object CapabilityReader {
                 CameraMetadata.CONTROL_AWB_MODE_FLUORESCENT -> Awb.FLUORESCENT
                 else -> null
             }
-                   }
-           val awb: Set<Awb> = if (awbList.isEmpty()) setOf(Awb.AUTO) else awbList.toSet()
+            if (m != null) awbFound.add(m)
+        }
+        val awb: Set<Awb> = if (awbFound.isEmpty()) setOf(Awb.AUTO) else awbFound
 
         // 35 mm-equivalent focal length: f × (43.27 mm full-frame diagonal / sensor diagonal)
-        val focal = ch(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull()
-        val size = ch(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
+        val focals: FloatArray? = ch(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
+        val focal: Float? = focals?.firstOrNull()
+        val size: android.util.SizeF? = ch(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
         val f35 = if (focal != null && size != null && size.width > 0f) {
             val diag = sqrt(size.width * size.width + size.height * size.height)
             (focal * 43.27f / diag).coerceIn(10f, 200f)
         } else 26f
-        val ois = (ch(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION) ?: IntArray(0))
-            .contains(CameraMetadata.LENS_OPTICAL_STABILIZATION_MODE_ON)
-        val minFocus = ch(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 1f
+        val oisRaw: IntArray? = ch(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION)
+        val oisModes: IntArray = oisRaw ?: IntArray(0)
+        val ois = oisModes.contains(CameraMetadata.LENS_OPTICAL_STABILIZATION_MODE_ON)
+        val minFocusRaw: Float? = ch(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE)
+        val minFocus: Float = minFocusRaw ?: 1f
 
+        val maxAe: Int? = ch(CameraCharacteristics.CONTROL_MAX_REGIONS_AE)
+        val maxAf: Int? = ch(CameraCharacteristics.CONTROL_MAX_REGIONS_AF)
         val zoom = info.zoomState.value
         return Capabilities(
             evMin = if (supported) evRange.lower else 0,
@@ -61,8 +71,8 @@ object CapabilityReader {
             exposureMinNs = expRange?.lower, exposureMaxNs = expRange?.upper,
             manualSensor = manual,
             awbModes = awb,
-            maxMeteringRegions = ch(CameraCharacteristics.CONTROL_MAX_REGIONS_AE) ?: 0,
-            maxFocusRegions = ch(CameraCharacteristics.CONTROL_MAX_REGIONS_AF) ?: 0,
+            maxMeteringRegions = maxAe ?: 0,
+            maxFocusRegions = maxAf ?: 0,
             zoomMin = zoom?.minZoomRatio ?: 1f,
             zoomMax = zoom?.maxZoomRatio ?: 1f,
             hasFlash = info.hasFlashUnit(),
