@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Billo</string>
+    <string name="shortcut_voice_short">Voice bill</string>
+    <string name="shortcut_voice_long">Say a bill</string>
+</resources>

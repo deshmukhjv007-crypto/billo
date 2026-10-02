@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- what people can say to Google Assistant (Assistant adds "in Billo" / "on Billo") -->
+    <string-array name="add_bill_queries">
+        <item>add a bill</item>
+        <item>add an expense</item>
+        <item>add a bill in Billo</item>
+        <item>add an expense in Billo</item>
+        <item>split a bill</item>
+        <item>split a bill in Billo</item>
+        <item>log a bill</item>
+        <item>new bill</item>
+        <item>record an expense</item>
+    </string-array>
+</resources>

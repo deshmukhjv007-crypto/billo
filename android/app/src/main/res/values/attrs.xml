@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- used by res/xml/shortcuts.xml (App Actions capability) -->
+    <attr name="queryPatterns" format="reference" />
+</resources>
