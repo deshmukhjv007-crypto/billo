@@ -220,5 +220,116 @@ eq(J('fmtMoney(9456.5, "INR")'), '₹9,456.5', 'INR with paisa');
 eq(J('fmtMoney(1000, "USD")'), '$1,000', 'USD format');
 eq(J('fmtMoney(999.99, "USD")'), '$999.99', 'USD with cents');
 
+
+/* ===================== v1.2 ===================== */
+console.log('\nUPI');
+assert(J('isVpa("rahul.k@okaxis")'), 'valid vpa');
+assert(J('isVpa("9876543210@ybl")'), 'phone vpa');
+assert(!J('isVpa("rahul@")'), 'rejects missing provider');
+assert(!J('isVpa("rahul okaxis")'), 'rejects no @');
+assert(!J('isVpa("a@b@c")'), 'rejects double @');
+eq(J('upiLink({ vpa: "Rahul@OkAxis", name: "Rahul K", amount: 1240.5, note: "Manali" })'),
+  'upi://pay?pa=rahul%40okaxis&pn=Rahul%20K&am=1240.50&cu=INR&tn=Manali', 'deep link format');
+eq(J('upiLink({ vpa: "nope", amount: 10 })'), '', 'bad vpa → no link');
+assert(!J('upiLink({ vpa: "a@ybl", amount: 0 })').includes('am='), 'zero amount omitted');
+J('trip.members[0].upi = "jay@okicici";');
+const req = J('buildUpiRequest(trip, { from: "m2", to: "m1", amount: 1240 })');
+assert(req.includes('Hi Rahul') && req.includes('₹1,240') && req.includes('UPI: jay@okicici'), 'request text', req);
+const st2 = J('buildShareText(trip, { total: 100, receipts: 0, flows: [{ from: "m2", to: "m1", amount: 100 }] })');
+assert(st2.includes('(UPI: jay@okicici)'), 'share text carries payee UPI');
+J('delete trip.members[0].upi;');
+
+console.log('\nsplitItems');
+let si = J('splitItems([{ name: "Pizza", price: 600, who: ["a","b","c"] }, { name: "Beer", price: 400, who: ["a"] }], 0)');
+eq(si.shares, { a: 600, b: 200, c: 200 }, 'item shares');
+eq(si.amount, 1000, 'amount = items');
+si = J('splitItems([{ price: 600, who: ["a","b","c"] }, { price: 400, who: ["a"] }], 100)');
+eq(si.shares, { a: 660, b: 220, c: 220 }, 'tax spread by consumption');
+eq(si.amount, 1100, 'amount includes tax');
+si = J('splitItems([{ price: 100, who: ["a","b","c"] }], 10)');
+eq(Math.round(Object.values(si.shares).reduce((s, v) => s + v, 0) * 100), 11000, 'paise-exact with thirds + tax');
+si = J('splitItems([{ price: 999.99, who: ["a","b","c"] }, { price: 1.01, who: ["b"] }], -77.77)');
+eq(Math.round(Object.values(si.shares).reduce((s, v) => s + v, 0) * 100), Math.round(si.amount * 100), 'discount stays exact');
+eq(si.amount, 923.23, 'discount applied');
+eq(J('splitItems([{ price: 100, who: [] }], 0)').amount, 0, 'unassigned item ignored');
+eq(J('splitItems([{ price: 50, who: ["a"] }], -500)').amount, 0, 'discount floors at zero');
+// random invariant check
+let okInv = true;
+for (let k = 0; k < 300; k++) {
+  const ids = ['a','b','c','d','e'];
+  const items = Array.from({ length: 1 + (k % 6) }, (_, i) => ({ price: ((k * 37 + i * 101) % 5000) / 7, who: ids.filter((_, j) => (k + i + j) % 3 !== 0) }));
+  const ex = ((k * 13) % 400) - 150;
+  const r = J('splitItems(' + JSON.stringify(items) + ', ' + ex + ')');
+  const sum = Math.round(Object.values(r.shares).reduce((s, v) => s + v, 0) * 100);
+  if (sum !== Math.round(r.amount * 100)) { okInv = false; break; }
+}
+assert(okInv, 'shares always sum to amount (300 random bills)');
+
+console.log('\nparseReceiptItems');
+const rc = J('parseReceiptItems(' + JSON.stringify([
+  'THE BIRYANI HOUSE', 'Koramangala, Bengaluru 560034', 'GSTIN 29ABCDE1234F1Z5', 'Date 12/09/2026 21:14', 'Table 7',
+  '2 Chicken Biryani 2 560.00', 'Paneer Tikka 280.00', 'Butter Naan 4 x 60 240', 'Coke 60',
+  'Sub Total 1140.00', 'CGST 2.5% 28.50', 'SGST 2.5% 28.50', 'Service Charge 57.00', 'Grand Total 1254.00', 'UPI 1254.00', 'Thank you visit again'
+].join('\n')) + ')');
+assert(rc && rc.items.length === 4, 'finds 4 items', JSON.stringify(rc));
+eq(rc.items.map(i => i.name), ['Chicken Biryani', 'Paneer Tikka', 'Butter Naan', 'Coke'], 'item names cleaned');
+eq(rc.items.map(i => i.price), [560, 280, 240, 60], 'item prices');
+eq(rc.extra, 114, 'tax + service collected');
+eq(rc.total, 1254, 'grand total read');
+const rc2 = J('parseReceiptItems("Pasta 450\\nTiramisu 300\\nDiscount 75\\nTotal 675")');
+eq(rc2.extra, -75, 'discount negative');
+eq(J('parseReceiptItems("Paid to Rahul\\n₹500")'), null, 'UPI screenshot is not itemized');
+const rc3 = J('parseReceiptItems("Dosa 120\\nIdli 80\\nTotal 220")');
+eq(rc3.extra, 20, 'printed total wins over missing tax line');
+
+console.log('\ntripInsights');
+const it = {
+  id: 'ti', name: 'Goa', emoji: '🏖️', currency: 'INR', budget: 10000, days: 4,
+  members: [{ id: 'a', name: 'A', self: true }, { id: 'b', name: 'B' }],
+  expenses: [
+    { amount: 3000, cat: 'hotel', date: '2026-09-01', payerId: 'a', parts: ['a', 'b'] },
+    { amount: 1000, cat: 'food', date: '2026-09-01', payerId: 'b', parts: ['a', 'b'] },
+    { amount: 600, cat: 'food', date: '2026-09-02', payerId: 'a', parts: ['a'], settled: true }
+  ], payments: []
+};
+const ins = J('tripInsights(' + JSON.stringify(it) + ')');
+eq(ins.total, 4600, 'total incl. settled bills');
+eq(ins.cats.map(c => c.cat), ['hotel', 'food'], 'cats sorted');
+eq(ins.cats[1].amount, 1600, 'food sum');
+eq(ins.nDays, 2, 'days');
+eq(ins.perDay, 2300, 'per day');
+eq(ins.paid, { a: 3600, b: 1000 }, 'paid by');
+eq(ins.share, { a: 2600, b: 2000 }, 'consumed by');
+eq(ins.budget.left, 5400, 'budget left');
+eq(ins.budget.pct, 46, 'budget pct');
+eq(ins.budget.projected, 9200, 'projection at burn rate');
+eq(J('tripInsights({ members: [], expenses: [] })').budget, null, 'no budget');
+it.expenses.forEach(e => { e.date = '2026-09-01'; });
+eq(J('tripInsights(' + JSON.stringify(it) + ')').budget.projected, null, 'no projection from a single day');
+
+console.log('\nvoice bills');
+const vt = { id: 'v1', name: 'Goa', currency: 'INR',
+  members: [{ id: 'j', name: 'Jay', self: true }, { id: 'r', name: 'Rahul' }, { id: 'a', name: 'Ajay' }],
+  expenses: [], payments: [], learn: {} };
+J('vt = ' + JSON.stringify(vt));
+eq(J('voiceNormalize("I paid 6 hazaar for food")'), 'I paid 6000 for food', '6 hazaar → 6000');
+eq(J('voiceNormalize("2.5 lakh")').indexOf('250000') >= 0, true, '2.5 lakh → 250000');
+eq(J('voiceNormalize("saat sau for cab")').indexOf('700') >= 0, true, 'saat sau → 700');
+eq(J('voiceNormalize("Maine 6 hazaar diye khane ke liye Rahul aur Krish ke saath")'), 'Maine 6000 diya khana with Rahul and Krish', 'Hinglish reorder');
+let vr = J('parseExpenseText(voiceNormalize("I paid 6000 for food with Rahul, Ajay and Krish"), vt, "Jay")');
+eq(vr.amount, 6000, 'amount 6000');
+eq(vr.payerId, 'j', 'I paid → me');
+eq(vr.parts.slice().sort(), ['a', 'j', 'r'], 'known people in the split');
+eq(J('detectNewNames(voiceNormalize("I paid 6000 for food with Rahul, Ajay and Krish"), vt, "Jay")'), ['Krish'], 'Krish is new');
+eq(J('detectNewNames("Rahul paid 1200 for petrol", vt, "Jay")'), [], 'no new names');
+eq(J('voiceDesc(parseExpenseText("I paid 6000 for food with Rahul and Krish", vt, "Jay"), vt, "Jay", ["Krish"])').toLowerCase().indexOf('krish'), -1, 'description has no names');
+
+console.log('\ncircleOf');
+const ct = JSON.parse(JSON.stringify(vt));
+ct.expenses.push({ id: 'x', amount: 300, currency: 'INR', payerId: 'j', parts: ['j', 'r', 'a'], date: '2026-09-01' });
+const circ = J('circleOf([' + JSON.stringify(ct) + '], "Jay", "INR")');
+eq(circ.map(p => p.name).sort(), ['Ajay', 'Rahul'], 'both friends in the circle');
+eq(circ.find(p => p.name === 'Rahul').amount, 100, 'Rahul pays you 100');
+
 console.log('\n' + (fail ? '❌ ' + fail + ' FAILED, ' : '') + pass + ' passed');
 process.exit(fail ? 1 : 0);
