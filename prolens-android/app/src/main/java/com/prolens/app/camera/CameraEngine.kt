@@ -336,14 +336,15 @@ class CameraEngine(
     // ---------- capture ----------
 
     @androidx.annotation.OptIn(ExperimentalCamera2Interop::class)
-    fun takePhoto(plan: Plan?, onSaved: (Uri) -> Unit, onFail: (String) -> Unit) {
+    fun takePhoto(plan: Plan?, album: String, onSaved: (Uri) -> Unit, onFail: (String) -> Unit) {
         val cam = camera ?: return onFail("Camera not ready")
         val ic = capture ?: return onFail("Camera not ready")
         val name = "Prolens_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, name)
             put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/Prolens")
+            put(MediaStore.Images.Media.DATE_TAKEN, System.currentTimeMillis())
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) put(MediaStore.MediaColumns.RELATIVE_PATH, album)
         }
         val meta = ImageCapture.Metadata().apply { isReversedHorizontal = front }
         val out = ImageCapture.OutputFileOptions.Builder(ctx.contentResolver, MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)

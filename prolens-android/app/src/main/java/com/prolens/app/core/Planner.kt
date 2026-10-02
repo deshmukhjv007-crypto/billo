@@ -45,6 +45,8 @@ class Planner(private val caps: Capabilities) {
     var settleMs = 450L
     /** User tapped to lock exposure: keep the EV where it is. */
     var locked = false
+    /** Steady hand-held long exposure is a Pro feature; when false the planner only advises. */
+    var allowManualNight = true
 
     fun reset() { smoothed = -1f; commanded = 0; lastChangeMs = -100_000L; lastErrSign = 0; steadySinceMs = null }
 
@@ -73,7 +75,7 @@ class Planner(private val caps: Capabilities) {
             guard = -min(1.5, 0.6 * log2((f.luma.clipHigh / r.maxClip).toDouble()) + 0.3)
             err = min(err, 0.0) + guard
         }
-        if (f.subject != null && f.subject.clipHigh > 0.08f) err = min(err, -0.3) // shiny face / hot spot
+        if (f.subject != null && f.subject.clipHigh > 0.08f && preset != Preset.SELLER) err = min(err, -0.3) // shiny face / hot spot
 
         // ---- steer EV compensation -------------------------------------------------------------
         val cur = f.camera.evIndex
@@ -121,6 +123,7 @@ class Planner(private val caps: Capabilities) {
         if (dark || preset == Preset.NIGHT) {
             when {
                 caps.nightExtension -> { mode = CaptureMode.NIGHT; reasons += "Low light: Night mode stacks several frames" }
+                !allowManualNight && caps.manualSensor && tripodLike -> reasons += "Phone is steady: Pro can take a clean long exposure here"
                 caps.manualSensor && tripodLike && caps.exposureMaxNs != null && caps.isoMin != null && caps.isoMax != null -> {
                     val longNs = min(caps.exposureMaxNs, 500_000_000L)
                     val curExp = if (exp > 0) exp else 33_000_000L

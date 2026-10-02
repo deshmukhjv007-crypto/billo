@@ -11,8 +11,8 @@ android {
         applicationId = "com.prolens.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
     }
 
     buildTypes {
@@ -20,6 +20,9 @@ android {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
+    }
+    buildFeatures {
+        buildConfig = true
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -48,6 +51,8 @@ dependencies {
     implementation("androidx.exifinterface:exifinterface:1.3.7")
     // on-device face detection (model bundled in the APK, works offline)
     implementation("com.google.mlkit:face-detection:16.1.7")
+    // Google Play Billing for the one-time Prolens Pro purchase
+    implementation("com.android.billingclient:billing:7.1.1")
 
     testImplementation("junit:junit:4.13.2")
 }

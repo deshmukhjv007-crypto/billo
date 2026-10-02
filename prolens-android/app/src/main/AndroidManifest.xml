@@ -9,7 +9,9 @@
         android:maxSdkVersion="28" />
 
     <application
+        android:name=".ProlensApp"
         android:allowBackup="true"
+        android:largeHeap="true"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -30,6 +32,27 @@
 
         <activity
             android:name=".ui.ReviewActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.Prolens" />
+
+        <activity
+            android:name=".ui.OnboardingActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.Prolens" />
+        <activity
+            android:name=".ui.SettingsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.Prolens" />
+        <activity
+            android:name=".ui.PaywallActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.Prolens" />
+        <activity
+            android:name=".ui.LegalActivity"
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.Prolens" />

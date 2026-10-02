@@ -1,6 +1,7 @@
 package com.prolens.app.ui
 
 import android.Manifest
+import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -28,6 +29,9 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import com.prolens.app.Prefs
+import com.prolens.app.ProlensApp
+import com.prolens.app.billing.ProStore
 import com.prolens.app.camera.Analysis
 import com.prolens.app.camera.CameraEngine
 import com.prolens.app.camera.CapabilityReader
@@ -37,13 +41,20 @@ import com.prolens.app.core.CaptureMode
 import com.prolens.app.core.Coach
 import com.prolens.app.core.CoachState
 import com.prolens.app.core.Cue
+import com.prolens.app.core.Features
 import com.prolens.app.core.FlashAdvice
 import com.prolens.app.core.Frame
 import com.prolens.app.core.Plan
 import com.prolens.app.core.Planner
 import com.prolens.app.core.Preset
+import com.prolens.app.core.ProductFind
+import com.prolens.app.core.ProductFinder
 import com.prolens.app.core.Rect01
 import com.prolens.app.core.SceneClassifier
+import com.prolens.app.core.SellerCheck
+import com.prolens.app.core.SellerStatus
+import java.io.File
+import kotlin.concurrent.thread
 import kotlin.math.abs
 
 class MainActivity : ComponentActivity() {
@@ -61,6 +72,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var zoomRow: LinearLayout
     private lateinit var modeRow: LinearLayout
     private lateinit var permissionView: LinearLayout
+    private lateinit var sellerPanel: TextView
+    private lateinit var prefs: Prefs
+    private var lastFind: ProductFind? = null
+    private var lastSeller: SellerStatus? = null
+    private val proListener: () -> Unit = { applyPro() }
     private val presetChips = LinkedHashMap<Preset, TextView>()
     private val zoomChips = LinkedHashMap<Float, TextView>()
     private var hdrChip: TextView? = null
@@ -89,12 +105,40 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        prefs = Prefs(this)
+        if (!prefs.onboarded) {
+            startActivity(Intent(this, OnboardingActivity::class.java))
+            finish()
+            return
+        }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         motion = MotionSensor(this)
         setContentView(buildUi())
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) startCamera()
         else requestPermissions()
+        offerCrashReport()
+    }
+
+    /** If Prolens crashed last time, offer to share the report (it never leaves the phone otherwise). */
+    private fun offerCrashReport() {
+        val f = File(filesDir, ProlensApp.CRASH_FILE)
+        if (!f.exists()) return
+        val report = try { f.readText() } catch (e: Throwable) { "" }
+        f.delete()
+        if (report.isBlank()) return
+        AlertDialog.Builder(this)
+            .setTitle("Prolens closed unexpectedly")
+            .setMessage("Sorry about that. Sharing the technical report helps fix it. It contains the app version, phone model and error details, but no photos.")
+            .setPositiveButton("Share report") { _, _ ->
+                val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+                    .putExtra(Intent.EXTRA_SUBJECT, "Prolens crash report")
+                    .putExtra(Intent.EXTRA_TEXT, report.take(8000))
+                if (SUPPORT_EMAIL.isNotBlank()) send.putExtra(Intent.EXTRA_EMAIL, arrayOf(SUPPORT_EMAIL))
+                startActivity(Intent.createChooser(send, "Share report"))
+            }
+            .setNegativeButton("Not now", null)
+            .show()
     }
 
     private fun requestPermissions() {
@@ -107,9 +151,26 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         motion.start()
         ShotStore.thumb?.let { thumb.setImageBitmap(it) }
+        overlay.gridOn = prefs.grid
+        overlay.sellerTarget = prefs.sellerTarget
+        ProStore.addListener(proListener)
+        ProStore.refresh()
+        applyPro()
     }
-    override fun onPause() { motion.stop(); super.onPause() }
+    override fun onPause() { ProStore.removeListener(proListener); motion.stop(); super.onPause() }
     override fun onDestroy() { engine?.shutdown(); super.onDestroy() }
+
+    /** Pro status changed (or the screen came back): unlock or lock features to match. */
+    private fun applyPro() {
+        val pro = ProStore.isPro
+        planner.allowManualNight = pro
+        for ((p, v) in presetChips) v.text = if (Features.presetAllowed(p, pro)) p.label else "${p.label} 🔒"
+        if (!Features.presetAllowed(userPreset, pro)) selectPreset(Preset.AUTO)
+    }
+
+    private fun openPaywall(reason: String) {
+        startActivity(Intent(this, PaywallActivity::class.java).putExtra(PaywallActivity.EXTRA_REASON, reason))
+    }
 
     // ------------------------------------------------------------------ UI
 
@@ -145,7 +206,11 @@ class MainActivity : ComponentActivity() {
             presetRow.addView(chip, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(8f) })
         }
         val scroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(presetRow) }
-        top.addView(scroll)
+        val topRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        topRow.addView(scroll, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val gear = Ui.chip(this, "⚙") { startActivity(Intent(this, SettingsActivity::class.java)) }.apply { textSize = 18f; contentDescription = "Settings" }
+        topRow.addView(gear, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { leftMargin = dp(8f) })
+        top.addView(topRow)
 
         val status = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -182,6 +247,12 @@ class MainActivity : ComponentActivity() {
         tips.addView(tipText, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         tips.addView(tip2Text, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6f) })
         top.addView(tips, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(14f) })
+        sellerPanel = TextView(this).apply {
+            setTextColor(Ui.TEXT); textSize = 13f; setLineSpacing(0f, 1.25f); visibility = View.GONE
+            background = Ui.pill(Ui.GLASS_STRONG, Ui.dpf(this@MainActivity, 14f))
+            setPadding(dp(12f), dp(8f), dp(12f), dp(8f))
+        }
+        top.addView(sellerPanel, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(10f) })
         root.addView(top, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP))
 
         // ---- bottom: modes + zoom, then thumb / shutter / flip
@@ -252,6 +323,7 @@ class MainActivity : ComponentActivity() {
     private fun onCameraReady(c: Capabilities) {
         caps = c
         planner = Planner(c)
+        planner.allowManualNight = ProStore.isPro
         coach.reset()
         buildModeAndZoomChips()
         whyText.text = "This camera: " + CapabilityReader.describe(c)
@@ -264,6 +336,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun selectPreset(p: Preset) {
+        if (!Features.presetAllowed(p, ProStore.isPro)) {
+            openPaywall("${p.label} is part of Prolens Pro. Auto still uses it for you when it fits the scene.")
+            return
+        }
         userPreset = p
         classifier.reset()
         coach.reset()
@@ -272,7 +348,7 @@ class MainActivity : ComponentActivity() {
         refreshLock()
         val e = engine ?: return refreshPresetChips()
         p.rules.zoom?.let { z -> if (!e.front) e.setZoom(z.coerceIn(caps.zoomMin, caps.zoomMax)) }
-        if (p == Preset.LANDSCAPE && caps.zoomMin < 1f && !e.front) e.setZoom(1f)
+        if ((p == Preset.LANDSCAPE || p == Preset.SELLER) && !e.front && e.zoom != 1f && caps.zoomMin <= 1f) e.setZoom(1f)
         when {
             p == Preset.NIGHT && caps.nightExtension -> e.setMode(CaptureMode.NIGHT)
             p != Preset.NIGHT && e.mode == CaptureMode.NIGHT -> e.setMode(CaptureMode.STANDARD)
@@ -280,6 +356,7 @@ class MainActivity : ComponentActivity() {
         refreshPresetChips()
         refreshZoomChips(null)
         Toast.makeText(this, p.rules.hint, Toast.LENGTH_SHORT).show()
+        if (p != Preset.SELLER) { overlay.sellerOn = false; sellerPanel.visibility = View.GONE; lastFind = null; lastSeller = null }
     }
 
     private fun buildModeAndZoomChips() {
@@ -348,34 +425,58 @@ class MainActivity : ComponentActivity() {
         val cs = coach.update(frame, effective, plan)
         lastFrame = frame; lastPlan = plan; lastCoach = cs
 
+        // Seller Studio: find the product and run the listing checklist
+        val seller = effective == Preset.SELLER
+        val status: SellerStatus? = if (seller) {
+            val find = ProductFinder.find(a.stats.snapshot(), a.stats.gw, a.stats.gh)
+            lastFind = find
+            SellerCheck.live(find, frame, prefs.sellerTarget, a.uprightW.toFloat() / a.uprightH.toFloat())
+        } else null
+        lastSeller = status
+        overlay.sellerOn = seller
+        overlay.productBox = lastFind?.takeIf { seller }?.box
+
         // overlay every frame (cheap), text at most ~6×/s
         overlay.faces = a.faces
         overlay.meterBox = plan.meteringBox
         overlay.roll = frame.rollDeg
         overlay.pitch = frame.pitchDeg
         overlay.levelTol = effective.rules.levelTol
-        overlay.cue = cs.tip?.cue
-        overlay.ready = cs.ready
+        overlay.cue = if (prefs.tips && status == null) cs.tip?.cue else null
+        val ready = if (status != null) status.ready else cs.ready
+        overlay.ready = ready
         overlay.invalidate()
-        shutter.readiness = cs.readiness
-        shutter.ready = cs.ready
-        if (cs.ready && !lastReadyHaptic) shutter.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-        lastReadyHaptic = cs.ready
+        shutter.readiness = if (status != null) status.items.count { it.ok }.toFloat() / status.items.size.coerceAtLeast(1) else cs.readiness
+        shutter.ready = ready
+        if (ready && !lastReadyHaptic && prefs.haptics) shutter.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+        lastReadyHaptic = ready
 
         if (a.timeMs - lastUiMs < 160) return
         lastUiMs = a.timeMs
         sceneText.text = (if (userPreset == Preset.AUTO) "AUTO · " else "") + effective.label.uppercase()
         settingsText.text = Planner.summary(e.state(), caps) + if (plan.meteringBox != null) (if (a.faces.isNotEmpty()) " · face" else " · centre") else ""
         whyText.text = (plan.reasons + listOf("This camera: " + CapabilityReader.describe(caps))).joinToString("\n") { "• $it" }
-        val tip = cs.tip
-        if (tip == null) tipText.visibility = View.INVISIBLE
-        else {
+        if (status != null) {
+            // the checklist is the coach in Seller Studio
+            val problem = status.firstProblem
             tipText.visibility = View.VISIBLE
-            tipText.text = tip.text
-            tipText.setTextColor(if (tip.cue == Cue.READY) Ui.READY else Ui.TEXT)
+            tipText.text = problem?.text ?: "Listing-ready: take the shot"
+            tipText.setTextColor(if (problem == null) Ui.READY else Ui.TEXT)
+            tip2Text.visibility = View.GONE
+            sellerPanel.visibility = View.VISIBLE
+            sellerPanel.text = status.items.joinToString("\n") { (if (it.ok) "✓  " else "✕  ") + it.text }
+        } else {
+            sellerPanel.visibility = View.GONE
+            val tip = if (prefs.tips) cs.tip else cs.tip?.takeIf { it.cue == Cue.READY }
+            if (tip == null) tipText.visibility = View.INVISIBLE
+            else {
+                tipText.visibility = View.VISIBLE
+                tipText.text = tip.text
+                tipText.setTextColor(if (tip.cue == Cue.READY) Ui.READY else Ui.TEXT)
+            }
+            val sec = if (prefs.tips) cs.secondary else null
+            if (sec == null) tip2Text.visibility = View.GONE else { tip2Text.visibility = View.VISIBLE; tip2Text.text = sec.text }
         }
-        val sec = cs.secondary
-        if (sec == null) tip2Text.visibility = View.GONE else { tip2Text.visibility = View.VISIBLE; tip2Text.text = sec.text }
         refreshPresetChips()
         refreshZoomChips(plan.zoomSuggestion)
         hdrChip?.let { Ui.setChipState(it, e.mode == CaptureMode.HDR, plan.mode == CaptureMode.HDR && e.mode != CaptureMode.HDR) }
@@ -392,16 +493,22 @@ class MainActivity : ComponentActivity() {
         if (shooting) return
         shooting = true
         shutter.busy = true
-        shutter.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        if (prefs.haptics) shutter.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         ShotStore.frame = lastFrame
         ShotStore.plan = lastPlan
         ShotStore.preset = effective
         ShotStore.settings = Planner.summary(e.state(), caps)
+        val sellerShot = effective == Preset.SELLER
+        ShotStore.seller = if (sellerShot) SellerShot(lastFind?.box?.takeIf { it.width < 0.99f || it.height < 0.99f }, prefs.sellerTarget, lastSeller) else null
         if (lastPlan?.mode == CaptureMode.MANUAL_NIGHT) Toast.makeText(this, "Hold still…", Toast.LENGTH_SHORT).show()
-        e.takePhoto(lastPlan, onSaved = { uri ->
+        e.takePhoto(lastPlan, prefs.albumPath, onSaved = { uri ->
             shooting = false; shutter.busy = false
             lastUri = uri
-            openReview(uri)
+            if (prefs.autoReview || sellerShot) openReview(uri)
+            else {
+                Toast.makeText(this, "Saved to your gallery", Toast.LENGTH_SHORT).show()
+                loadThumb(uri)
+            }
         }, onFail = { msg ->
             shooting = false; shutter.busy = false
             Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
@@ -410,5 +517,13 @@ class MainActivity : ComponentActivity() {
 
     private fun openReview(uri: Uri) {
         startActivity(Intent(this, ReviewActivity::class.java).setData(uri))
+    }
+
+    private fun loadThumb(uri: Uri) {
+        thread(name = "thumb") {
+            val b = Photos.decodeUpright(this, uri, 320) ?: return@thread
+            val t = android.graphics.Bitmap.createScaledBitmap(b, 160, kotlin.math.max(1, 160 * b.height / b.width), true)
+            runOnUiThread { ShotStore.thumb = t; thumb.setImageBitmap(t) }
+        }
     }
 }

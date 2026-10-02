@@ -6,7 +6,7 @@ package com.prolens.app.core
  */
 enum class Preset(val label: String) {
     AUTO("Auto"), PORTRAIT("Portrait"), GROUP("Group"), FOOD("Food"),
-    LANDSCAPE("Landscape"), NIGHT("Night"), PRODUCT("Product");
+    LANDSCAPE("Landscape"), NIGHT("Night"), PRODUCT("Product"), SELLER("Seller Studio");
 
     val rules: PresetRules get() = PresetRules.of(this)
 }
@@ -65,6 +65,12 @@ data class PresetRules(
                 subjectTarget = 0.55f, sceneTarget = 0.55f, maxClip = 0.02f, levelTol = 1f,
                 pitchOk = listOf(-25f..-3f, -90f..-80f), focusBox = 0.4f,
                 zoom = 2f, hint = "2× to avoid distortion, slightly above, plain background"
+            )
+            Preset.SELLER -> PresetRules(
+                // a bright, near-white background is the goal, so let it clip; protect only the product
+                subjectTarget = 0.68f, sceneTarget = 0.74f, maxClip = 0.6f, levelTol = 2f,
+                pitchOk = listOf(-40f..-3f, -90f..-78f), focusBox = 0.45f,
+                zoom = null, hint = "Plain white background, soft even light, product in the middle"
             )
             Preset.AUTO -> PresetRules(
                 subjectTarget = 0.50f, sceneTarget = 0.46f, maxClip = 0.03f, levelTol = 2f,

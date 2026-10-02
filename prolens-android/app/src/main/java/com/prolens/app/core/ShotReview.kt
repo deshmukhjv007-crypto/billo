@@ -87,6 +87,7 @@ object ShotReviewer {
         Preset.FOOD -> "Food looks best from 45° or straight above"
         Preset.PORTRAIT, Preset.GROUP -> "Shoot from eye level — it's the most flattering angle"
         Preset.PRODUCT -> "Shoot products from just above, lens at 2×"
+        Preset.SELLER -> "Shoot products from just above, straight on"
         else -> "Keep the camera pointing at the horizon"
     }
 }

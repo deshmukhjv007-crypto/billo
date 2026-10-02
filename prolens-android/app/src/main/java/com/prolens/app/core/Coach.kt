@@ -94,7 +94,7 @@ class Coach(private val enterMs: Long = 300, private val minShowMs: Long = 1000)
             else if (pitch < -60f && pitch > -78f) {
                 if (pitch < -69f) Tip(Cue.TILT_DOWN, "Go fully top-down", 50) else Tip(Cue.TILT_UP, "Come back up to about 45°", 50)
             } else Tip(Cue.TILT_UP, "Come back up to about 45°", 50)
-        Preset.PRODUCT -> if (pitch > -3f) Tip(Cue.RAISE_PHONE, "Shoot from slightly above the product", 50)
+        Preset.PRODUCT, Preset.SELLER -> if (pitch > -3f) Tip(Cue.RAISE_PHONE, "Shoot from slightly above the product", 50)
             else Tip(Cue.LOWER_PHONE, "Lower the phone — just above the product", 50)
         Preset.PORTRAIT, Preset.GROUP -> if (pitch < ok.first().start) Tip(Cue.RAISE_PHONE, "Hold the phone at eye level (you're shooting down)", 50)
             else Tip(Cue.LOWER_PHONE, "Lower the phone to eye level (you're shooting up)", 50)

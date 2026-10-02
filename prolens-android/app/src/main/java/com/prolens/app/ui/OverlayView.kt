@@ -3,6 +3,7 @@ package com.prolens.app.ui
 import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
@@ -11,6 +12,8 @@ import com.prolens.app.core.Coach
 import com.prolens.app.core.Cue
 import com.prolens.app.core.Face
 import com.prolens.app.core.Rect01
+import com.prolens.app.core.SellerCheck
+import com.prolens.app.core.SellerTarget
 import kotlin.math.abs
 import kotlin.math.min
 
@@ -30,6 +33,10 @@ class OverlayView(context: Context) : View(context) {
     var cue: Cue? = null
     var ready = false
     var gridOn = true
+    /** Seller Studio: the product found in the frame, and the square the listing image will be cut from. */
+    var sellerOn = false
+    var productBox: Rect01? = null
+    var sellerTarget = SellerTarget.MARKETPLACE
 
     private val d = resources.displayMetrics.density
     private val grid = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x40FFFFFF; strokeWidth = 1f * d; style = Paint.Style.STROKE }
@@ -38,6 +45,7 @@ class OverlayView(context: Context) : View(context) {
     private val tick = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x99FFFFFF.toInt(); strokeWidth = 2f * d; strokeCap = Paint.Cap.ROUND }
     private val arrow = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Ui.ACCENT; strokeWidth = 5f * d; style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
     private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Ui.ACCENT; strokeWidth = 2f * d; style = Paint.Style.STROKE }
+    private val dashed = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xCCFFFFFF.toInt(); strokeWidth = 1.5f * d; style = Paint.Style.STROKE; pathEffect = DashPathEffect(floatArrayOf(10f * d, 7f * d), 0f) }
     private val path = Path()
     private var tapX = -1f; private var tapY = -1f; private var tapT = 0f
     private var pulse = 0f
@@ -89,10 +97,24 @@ class OverlayView(context: Context) : View(context) {
             }
         }
 
-        // faces / metering box: corner brackets
+        // faces / metering box: corner brackets (Seller Studio: the product, plus the listing square)
         bracket.color = if (ready) Ui.READY else Ui.ACCENT
-        val boxes = if (faces.isNotEmpty()) faces.map { toViewRect(it.box) } else listOfNotNull(meterBox?.let { toViewRect(it) })
-        for (r in boxes) corners(cv, r, min(r.width(), r.height()) * 0.22f)
+        if (sellerOn) {
+            productBox?.let { pb ->
+                if (pb.width < 0.99f || pb.height < 0.99f) {
+                    val r = toViewRect(pb)
+                    corners(cv, r, min(r.width(), r.height()) * 0.22f)
+                    // listing square, in a 1000-unit-tall frame of this aspect
+                    val iw = (imageAspect * 1000f).toInt().coerceAtLeast(1)
+                    val crop = SellerCheck.crop(pb, iw, 1000, sellerTarget)
+                    val sq = Rect01(crop.left.toFloat() / iw, crop.top / 1000f, (crop.left + crop.side).toFloat() / iw, (crop.top + crop.side) / 1000f)
+                    cv.drawRect(toViewRect(sq), dashed)
+                }
+            }
+        } else {
+            val boxes = if (faces.isNotEmpty()) faces.map { toViewRect(it.box) } else listOfNotNull(meterBox?.let { toViewRect(it) })
+            for (r in boxes) corners(cv, r, min(r.width(), r.height()) * 0.22f)
+        }
 
         // level bar (hidden when pointing straight down, where roll means nothing)
         if (pitch > -70f) {
