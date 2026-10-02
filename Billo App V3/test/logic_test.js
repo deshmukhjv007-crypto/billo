@@ -217,7 +217,7 @@ assert(txt.includes('billo.app'), 'has store CTA');
 
 console.log('\nfmtMoney');
 eq(J('fmtMoney(1240, "INR")'), '₹1,240', 'INR format');
-eq(J('fmtMoney(9456.5, "INR")'), '₹9,456.5', 'INR with paisa');
+eq(J('fmtMoney(9456.5, "INR")'), '₹9,456.50', 'INR with paisa');
 eq(J('fmtMoney(1000, "USD")'), '$1,000', 'USD format');
 eq(J('fmtMoney(999.99, "USD")'), '$999.99', 'USD with cents');
 

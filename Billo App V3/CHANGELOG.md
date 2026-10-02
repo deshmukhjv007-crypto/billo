@@ -5,6 +5,16 @@ version. Bump the number with: `python3 scripts/bump_version.py X.Y.Z`
 
 ## [Unreleased]
 
+## [1.6.2] — 2026-10-02
+- **Share sends the picture now:** "Share to WhatsApp" attaches the dark trip card together with the text (it used to send text only).
+- **Remind sends a personal card:** "Appu, you owe Jayesh ₹1,500" with your UPI ID, plus the message.
+- Reminder amounts in whole rupees.
+
+## [1.6.1] — 2026-10-02
+- **Joined a live trip as the wrong person?** If the name you picked doesn't match yours but another member's does (Apurva → Appu), the trip shows "You joined as Jayesh — are you Appu?" with a one-tap switch. Members list also has "This is me" on shared trips.
+- "Which one are you?" now marks who started the trip and highlights the name that looks like yours.
+- Paise show as ₹113.50, not ₹113.5.
+
 ## [1.6.0] — 2026-10-02
 - **New look: Cream + Ink.** Warm off-white, deep ink text, one indigo accent; Midnight and Paper (pure white) are in Settings → Look. New fonts (Bricolage Grotesque + Manrope, bundled, ₹ included).
 - **No more emoji in the interface:** line icons for trips and bills; the trip picker shows icons.

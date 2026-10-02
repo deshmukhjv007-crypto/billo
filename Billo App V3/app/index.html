@@ -469,6 +469,8 @@ textarea.input{resize:none;line-height:1.5}
 .vnew span{flex:1}
 
 /* ===== v1.6 Cream + Ink ===== */
+.mecheck{border-color:var(--warn-bd);background:var(--warn-bg)}
+.pickrow.likely{background:var(--tile-bg)}
 .slide{box-shadow:var(--well-sh)}
 .slide .knob{background:var(--knob);box-shadow:inset 0 -3px 0 var(--knob-edge),0 4px 12px var(--glow)}
 .slide .knob .ico,.slide.save .knob .ico{stroke:var(--knob-ico)}
@@ -544,7 +546,7 @@ const APP = {
   tagline: "Just send the bills. We'll do the math.",
   storeUrl: 'https://play.google.com/store/apps/details?id=com.billo.app',
   webUrl: 'billo.app',
-  version: '1.6.0'
+  version: '1.6.2'
 };
 
 const CATS = {
@@ -575,7 +577,7 @@ function fmtMoney(n, cur) {
   n = round2(Number(n) || 0);
   try {
     return new Intl.NumberFormat(cur === 'INR' ? 'en-IN' : undefined, {
-      style: 'currency', currency: cur, minimumFractionDigits: 0, maximumFractionDigits: 2
+      style: 'currency', currency: cur, minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2
     }).format(n);
   } catch (e) { return '₹' + n.toFixed(2); }
 }
@@ -918,7 +920,7 @@ function buildUpiRequest(trip, flow, meNm) {
   const from = memberById(trip, flow.from), to = memberById(trip, flow.to);
   const L = [];
   L.push('Hi ' + displayName(trip, from, meNm) + ',');
-  L.push('Settling up ' + trip.name + ': you owe ' + displayName(trip, to, meNm) + ' ' + fmtMoney(flow.amount, trip.currency) + '.');
+  L.push('Settling up ' + trip.name + ': you owe ' + displayName(trip, to, meNm) + ' ' + fmtMoney(trip.currency === 'INR' ? Math.round(flow.amount) : flow.amount, trip.currency) + '.');
   if (to && isVpa(to.upi)) L.push('UPI: ' + to.upi.trim().toLowerCase());
   L.push('');
   L.push('— sent from ' + APP.name + ' · ' + APP.storeUrl);
@@ -1816,7 +1818,7 @@ Object.assign(STR.hi, { theme_cream: 'क्रीम', theme_dark: 'मिड�
   const EMO = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B50}\u{2B06}\u{2194}-\u{21FF}\u{FE0F}\u{200D}\u{2705}\u{231A}-\u{23FF}]\uFE0F?/gu;
   [STR.en, STR.hi].forEach(tb => Object.keys(tb).forEach(k => { if (typeof tb[k] === 'string') tb[k] = tb[k].replace(EMO, '').replace(/ {2,}/g, ' ').replace(/ ([.!?,])/g, '$1').trim(); }));
 })();
-Object.assign(STR.en, { pay_on_upi: 'Pay {name} on UPI', trip_icon: 'Icon' }); Object.assign(STR.hi, { pay_on_upi: '{name} को UPI से भेजें', trip_icon: 'आइकन' });
+Object.assign(STR.en, { pay_on_upi: 'Pay {name} on UPI', remind_for: 'For {trip}', remind_you_owe: '{a}, you owe {b}', trip_icon: 'Icon', me_check_t: 'You joined as {name}', me_check_b: 'Your bills and balance belong to that person. Are you {other}?', me_is: "I'm {name}", me_keep: "I'm {name}", this_is_me: 'This is me', me_switched: 'You are {name} in this trip now', started_trip: 'Started this trip', looks_like_you: 'Looks like you' }); Object.assign(STR.hi, { pay_on_upi: '{name} को UPI से भेजें', remind_for: '{trip} के लिए', remind_you_owe: '{a}, {b} को देना है', trip_icon: 'आइकन', me_check_t: 'आप {name} बनकर जुड़े हैं', me_check_b: 'बिल और बैलेंस उसी के नाम हैं। क्या आप {other} हैं?', me_is: 'मैं {name} हूँ', me_keep: 'मैं {name} हूँ', this_is_me: 'यह मैं हूँ', me_switched: 'इस ट्रिप में अब आप {name} हैं', started_trip: 'ट्रिप शुरू किया', looks_like_you: 'शायद आप' });
 const T = (k, vars) => {
   let s = (STR[S.settings.lang] || STR.en)[k] || STR.en[k] || k;
   if (vars) for (const v in vars) s = s.split('{' + v + '}').join(vars[v]);
@@ -2371,6 +2373,24 @@ function syncCard(t) {
     '<div class="muted sm" style="margin-top:2px">' + T('sync_cta_b') + '</div></div></div>' +
     '<button class="btn btn-primary mini" style="margin-top:12px" data-act="sync-on">' + ic('users', 's') + ' ' + T('sync_cta_btn') + '</button></div>';
 }
+/* Joined a live trip as the wrong person? (e.g. tapped the organiser's name.) Offer the member whose name looks like yours. */
+function nameKey(n) { return String(n || '').trim().toLowerCase().replace(/[^a-zऀ-ॿ]/g, '').slice(0, 2); }
+function meMismatch(t) {
+  if (!(t.sync && t.sync.on) || t.sync.meOk || !S.me.name) return null;
+  const me = (t.members || []).find(m => m.self);
+  const k = nameKey(S.me.name);
+  if (!me || !k || nameKey(me.name) === k) return null;
+  const cands = (t.members || []).filter(m => !m.self && nameKey(m.name) === k);
+  return cands.length === 1 ? { me, other: cands[0] } : null;
+}
+function meCheckHtml(t) {
+  const mm = meMismatch(t);
+  if (!mm) return '';
+  return '<div class="card mecheck"><b>' + T('me_check_t', { name: escapeHtml(mm.me.name) }) + '</b>' +
+    '<div class="muted sm" style="margin-top:2px">' + T('me_check_b', { other: escapeHtml(mm.other.name) }) + '</div>' +
+    '<div class="btnrow" style="margin-top:12px"><button class="btn btn-accent grow" data-act="member-me" data-arg="' + mm.other.id + '">' + T('me_is', { name: escapeHtml(mm.other.name) }) + '</button>' +
+    '<button class="btn btn-ghost grow" data-act="me-ok">' + T('me_keep', { name: escapeHtml(mm.me.name) }) + '</button></div></div>';
+}
 function tripHeader(t) {
   return topBar(
     iconBtn('trip-back', 'back', T('back')),
@@ -2459,7 +2479,7 @@ function scrTrip() {
       '<div class="eside"><span class="eamt">' + fmtMoney(e.amount, t.currency) + '</span>' + part + '</div></div>';
   }).join('') + '<div class="bill-total"><span>' + T('total').toUpperCase() + '</span><span>' + fmtMoney(I.total, t.currency) + '</span></div>';
 
-  return tripHeader(t) + syncCard(t) + heroHtml(t, c) + inviteStrip(t) +
+  return tripHeader(t) + meCheckHtml(t) + syncCard(t) + heroHtml(t, c) + inviteStrip(t) +
     '<div class="stats">' + stat(fmtMoney(I.total, t.currency), T('total')) +
     stat(fmtMoney(t.members.length ? I.total / t.members.length : 0, t.currency), T('per_person')) + third + '</div>' +
     (c.flows.length ? '<div class="card"><div class="sec-h"><b>' + T('settle_up') + '</b><span class="muted sm">' + (c.flows.length === 1 ? T('settle_1') : T('settle_n', { n: c.flows.length })) + '</span></div>' + flows + '</div>' : '') +
@@ -2832,6 +2852,35 @@ function drawShareCard(t, c) {
   x.fillText(APP.tagline + ' · billo.app', P, H - P + 10);
   return cv;
 }
+/* a one-to-one reminder card: "Appu, you owe Jayesh ₹1,500" */
+function drawRemindCard(t, f) {
+  const W = 1080, H = 1080;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const x = cv.getContext('2d');
+  const DISP = '"Bricolage Grotesque", "Manrope", sans-serif', BODY = '"Manrope", system-ui, sans-serif';
+  x.fillStyle = '#12112A'; x.fillRect(0, 0, W, H);
+  const g = x.createRadialGradient(0, 0, 0, 0, 0, W * 1.1); g.addColorStop(0, 'rgba(58,50,150,.85)'); g.addColorStop(.6, 'rgba(42,36,112,0)');
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  const P = 84, from = nameOf(t, f.from), to = nameOf(t, f.to), toM = memberById(t, f.to);
+  const fit = (str, max) => { let o = String(str); while (o.length > 1 && x.measureText(o).width > max) o = o.slice(0, -2) + '…'; return o; };
+  x.textAlign = 'left'; x.fillStyle = '#FFFFFF'; x.font = '800 52px ' + DISP; x.fillText('billo', P, P + 40);
+  x.fillStyle = '#8F8FFF'; x.fillText('.', P + x.measureText('billo').width, P + 40);
+  x.fillStyle = '#A9A7C2'; x.font = '700 34px ' + BODY; x.fillText(fit(T('remind_for', { trip: t.name }), W - P * 2), P, 330);
+  x.fillStyle = '#FFFFFF'; x.font = '700 72px ' + DISP; x.fillText(fit(T('remind_you_owe', { a: from, b: to }), W - P * 2), P, 430);
+  x.fillStyle = '#8EE6B4'; x.font = '800 170px ' + DISP; x.fillText(shareAmt(f.amount, t.currency), P, 610);
+  if (toM && isVpa(toM.upi) && t.currency === 'INR') {
+    x.fillStyle = 'rgba(255,255,255,.07)'; x.beginPath(); x.roundRect ? x.roundRect(P, 700, W - P * 2, 150, 34) : x.rect(P, 700, W - P * 2, 150); x.fill();
+    x.fillStyle = '#B4B4FF'; x.font = '800 32px ' + BODY; x.fillText('UPI', P + 40, 790);
+    x.fillStyle = '#FFFFFF'; x.font = '700 40px ' + BODY; x.fillText(fit(toM.upi.trim().toLowerCase(), W - P * 2 - 200), P + 140, 790);
+  }
+  x.fillStyle = '#8C8AA6'; x.font = '600 28px ' + BODY; x.fillText(APP.tagline + ' · billo.app', P, H - P + 10);
+  return cv;
+}
+/* share a picture (+ caption) through the Android share sheet when the app can; false if it can't */
+function nativeShareImage(dataUrl, text) {
+  try { if (dataUrl && window.Billo && window.Billo.shareImage) { window.Billo.shareImage(String(dataUrl).split(',')[1] || '', text || ''); return true; } } catch (e) {}
+  return false;
+}
 function scrShare() {
   const t = curTrip();
   if (!t) return scrHome();
@@ -2936,7 +2985,8 @@ function scrJoinPick() {
     .sort((a, b) => (a.at || 0) - (b.at || 0));
   return topBar(iconBtn('join-back', 'back', T('back')), '<div style="min-width:0"><div class="tname">' + escapeHtml(J.meta.name) + '</div><div class="tcode">' + escapeHtml(J.meta.code || '') + '</div></div>', '') +
     '<div class="greet" style="font-size:32px">' + T('which_you') + '</div><div class="tagline">' + T('which_you_b') + '</div>' +
-    '<div class="card">' + ms.map(m => '<button class="pickrow" data-act="join-as" data-arg="' + escapeHtml(m.id) + '"><span class="av sm">' + escapeHtml(String(m.name || '?').charAt(0).toUpperCase()) + '</span><b class="grow">' + escapeHtml(m.name) + '</b>' + ic('arrow', 's') + '</button>').join('') + '</div>' +
+    '<div class="card">' + ms.map((m, i) => '<button class="pickrow' + (nameKey(m.name) && nameKey(m.name) === nameKey(S.me.name) ? ' likely' : '') + '" data-act="join-as" data-arg="' + escapeHtml(m.id) + '"><span class="av sm">' + escapeHtml(String(m.name || '?').charAt(0).toUpperCase()) + '</span><span class="grow"><b>' + escapeHtml(m.name) + '</b>' +
+      (i === 0 ? '<span class="muted sm" style="display:block">' + T('started_trip') + '</span>' : nameKey(m.name) && nameKey(m.name) === nameKey(S.me.name) ? '<span class="sm" style="display:block;color:var(--accent);font-weight:700">' + T('looks_like_you') + '</span>' : '') + '</span>' + ic('arrow', 's') + '</button>').join('') + '</div>' +
     '<button class="btn btn-ghost big" data-act="join-as" data-arg="__new__">' + ic('plus', 's') + ' ' + T('not_listed', { name: escapeHtml(S.me.name || T('you')) }) + '</button>';
 }
 function scrJoin() {
@@ -3349,6 +3399,9 @@ const ACT = {
     const me = memberById(t, meIdOf(t));
     if (me && !isVpa(me.upi) && isVpa(S.me.upi)) { me.upi = S.me.upi; save(); }
     const txt = buildUpiRequest(t, f, S.me.name);
+    let img = '';
+    try { img = drawRemindCard(t, f).toDataURL('image/png'); } catch (e) {}
+    if (nativeShareImage(img, txt)) return;
     if (!nativeShare(txt)) {
       if (navigator.share) navigator.share({ text: txt }).catch(() => {});
       else if (copyText(txt)) toast(T('copied'));
@@ -3392,6 +3445,7 @@ const ACT = {
       '<div class="row" style="padding:8px 0;border-bottom:1px solid var(--line)">' + avHtml(m, 'sm') +
       '<div style="flex:1;min-width:0"><b>' + escapeHtml(displayName(t, m, S.me.name)) + (m.self ? ' <span class="muted sm">(' + T('you') + ')</span>' : '') + '</b>' +
       (t.currency === 'INR' ? '<input class="upi-in" data-upi="' + m.id + '" placeholder="' + T('upi_id') + ' · ' + T('upi_ph') + '" value="' + escapeHtml(m.upi || '') + '" autocapitalize="off" autocomplete="off" spellcheck="false">' : '') + '</div>' +
+      (!m.self && t.sync && t.sync.on ? '<button class="mini-link" data-act="member-me" data-arg="' + m.id + '">' + T('this_is_me') + '</button>' : '') +
       (!m.self ? '<button class="mini-link" data-act="member-del" data-arg="' + m.id + '">✕</button>' : '') + '</div>'
     ).join('');
     const codeBlock = (t.sync && t.sync.on) ? '<div class="lead" style="margin-bottom:6px"><span class="lbl">' + T('join_code_lbl') + '</span><span class="fill"></span><b class="mono" style="color:var(--ink);font-size:16px;letter-spacing:1px">' + escapeHtml(t.code) + '</b></div>' +
@@ -3770,11 +3824,8 @@ const ACT = {
     const t = curTrip();
     const c = computeTrip(t);
     const txt = buildShareText(t, c, S.me.name);
-    if (window.Billo && window.Billo.shareText) {
-      window.Billo.shareText(txt);
-      ACT['share-dl']();
-      return;
-    }
+    if (nativeShareImage(ui.shareImg, txt)) return;
+    if (window.Billo && window.Billo.shareText) { window.Billo.shareText(txt); return; }
     (async () => {
       try {
         if (ui.shareImg) {
@@ -3888,6 +3939,13 @@ const ACT = {
     go('trip');
   },
   'join-back'() { ui.joining = null; ui.joinPrefill = ''; go('home'); },
+  'member-me'(mid) {
+    const t = curTrip(); if (!t || !memberById(t, mid)) return;
+    if (t.sync) { t.sync.memberId = mid; t.sync.meOk = true; }
+    t.members.forEach(m => { m.self = m.id === mid; });
+    save(); closeModal && closeModal(); toast(T('me_switched', { name: memberById(t, mid).name })); render();
+  },
+  'me-ok'() { const t = curTrip(); if (t && t.sync) { t.sync.meOk = true; save(); render(); } },
   'join-as'(mid) {
     const J = ui.joining;
     if (!J || !SYNC) return;
