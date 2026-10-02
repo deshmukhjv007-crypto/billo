@@ -1,18 +1,23 @@
 package com.billo.app
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.view.ViewGroup
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import org.json.JSONObject
 import androidx.webkit.WebViewAssetLoader
-import androidx.webkit.WebViewAssetLoaderWebViewClient
 
 /**
  * Billo — thin native shell around the PWA (bundled in assets/www).
@@ -20,6 +25,8 @@ import androidx.webkit.WebViewAssetLoaderWebViewClient
  *  • <input type=file> bridge for the "Snap it" camera/gallery picker
  *  • Native share sheet (WhatsApp) for summaries and invites
  *  • Google Play Billing bridge for Billo Pro (see PlayBilling.kt)
+ *  • Voice bills: mic in the app (VoiceInput.kt) and billo://voice for
+ *    "Hey Google, add a bill in Billo" / the long-press "Voice bill" shortcut
  */
 class MainActivity : AppCompatActivity() {
 
@@ -38,6 +45,81 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+    // ---- voice ----
+    private var pageReady = false
+    private var voiceOnLoad = false
+    private var pendingLang = "en-IN"
+
+    private val voiceDialog =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            voice.onDialogResult(result.resultCode, result.data)
+        }
+
+    private val askMic =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) voice.start(pendingLang)
+            else sendVoice(JSONObject().put("type", "error").put("code", "perm").toString())
+        }
+
+    private val voice: VoiceInput by lazy { VoiceInput(this, ::sendVoice, voiceDialog) }
+
+    private fun sendVoice(json: String) {
+        runOnUiThread {
+            if (::web.isInitialized) {
+                web.evaluateJavascript("window.__billoVoice && window.__billoVoice(" + JSONObject.quote(json) + ")", null)
+            }
+        }
+    }
+
+    /** Called from JS (window.Billo.startVoice). */
+    fun startVoice(lang: String) {
+        runOnUiThread {
+            pendingLang = if (lang.isBlank()) "en-IN" else lang
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                voice.start(pendingLang)
+            } else {
+                askMic.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        }
+    }
+
+    fun stopVoice() {
+        runOnUiThread { voice.stop() }
+    }
+
+    fun hasVoice(): Boolean = voice.available()
+
+    private fun isVoiceIntent(i: Intent?): Boolean {
+        if (i == null) return false
+        if (i.getBooleanExtra("billo_voice", false)) return true
+        val d = i.data ?: return false
+        return d.scheme == "billo" && d.host == "voice"
+    }
+
+    /** Opened by "Hey Google" or the shortcut → open the listening screen once the app is up. */
+    private fun openVoiceScreen() {
+        if (!pageReady) { voiceOnLoad = true; return }
+        web.postDelayed({
+            web.evaluateJavascript("window.__billoVoiceStart ? window.__billoVoiceStart() : false", null)
+        }, 350)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (isVoiceIntent(intent)) openVoiceScreen()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (::web.isInitialized) voice.stop()
+    }
+
+    override fun onDestroy() {
+        if (::web.isInitialized) voice.stop()
+        super.onDestroy()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -55,6 +137,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(web)
 
         web.addJavascriptInterface(BilloWebBridge(this), "Billo")
+        voiceOnLoad = isVoiceIntent(intent)
 
         // Bill photo picker (camera + gallery) for <input type=file>
         web.webChromeClient = object : WebChromeClient() {
@@ -72,6 +155,15 @@ class MainActivity : AppCompatActivity() {
                 }
                 return true
             }
+
+            override fun onPageFinished(view: WebView, url: String?) {
+                super.onPageFinished(view, url)
+                pageReady = true
+                if (voiceOnLoad) {
+                    voiceOnLoad = false
+                    openVoiceScreen()
+                }
+            }
         }
 
         // Serve assets over an internal HTTPS origin (https://appassets.androidplatform.net)
@@ -79,7 +171,10 @@ class MainActivity : AppCompatActivity() {
         val assetLoader = WebViewAssetLoader.Builder()
             .addPathHandler("/www/", WebViewAssetLoader.AssetsPathHandler("www"))
             .build()
-        web.webViewClient = object : WebViewAssetLoaderWebViewClient(assetLoader) {
+        web.webViewClient = object : WebViewClient() {
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
+                assetLoader.shouldInterceptRequest(request.url)
+
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url.toString()
                 if (url.startsWith("https://appassets.androidplatform.net/")) return false

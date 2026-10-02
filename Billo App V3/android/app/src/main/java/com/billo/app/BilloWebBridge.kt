@@ -1,6 +1,5 @@
 package com.billo.app
 
-import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.webkit.JavascriptInterface
@@ -8,7 +7,7 @@ import android.webkit.JavascriptInterface
 /**
  * JS ↔ native bridge. Exposed to the web app as `window.Billo`.
  */
-class BilloWebBridge(private val activity: Activity) {
+class BilloWebBridge(private val activity: MainActivity) {
 
     /** Share text via the Android share sheet (WhatsApp etc.). */
     @JavascriptInterface
@@ -40,4 +39,15 @@ class BilloWebBridge(private val activity: Activity) {
     /** Start the Play Billing flow for a Pro product (pro_monthly / pro_annual / pro_lifetime). */
     @JavascriptInterface
     fun buyPro(productId: String) = PlayBilling.buy(activity, productId)
+
+    /** Voice bills: start listening. Results arrive in window.__billoVoice(...). */
+    @JavascriptInterface
+    fun startVoice(lang: String) = activity.startVoice(lang)
+
+    @JavascriptInterface
+    fun stopVoice() = activity.stopVoice()
+
+    /** Whether this phone has speech recognition. */
+    @JavascriptInterface
+    fun hasVoice(): Boolean = activity.hasVoice()
 }

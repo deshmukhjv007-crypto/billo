@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  1) Long-press the Billo icon → "Voice bill".
+  2) Google Assistant App Actions: "Hey Google, add a bill in Billo" opens billo://voice,
+     which opens Billo on the listening screen. (Assistant only picks this up once Billo is
+     published on Google Play; until then use the shortcut, or "Hey Google, open Billo".)
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <capability
+        android:name="custom.actions.intent.ADD_BILL"
+        app:queryPatterns="@array/add_bill_queries">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.billo.app"
+            android:targetClass="com.billo.app.MainActivity">
+            <url-template android:value="billo://voice" />
+        </intent>
+    </capability>
+
+    <shortcut
+        android:shortcutId="voice_bill"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_voice_short"
+        android:shortcutLongLabel="@string/shortcut_voice_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="billo://voice"
+            android:targetPackage="com.billo.app"
+            android:targetClass="com.billo.app.MainActivity" />
+        <capability-binding android:key="custom.actions.intent.ADD_BILL" />
+    </shortcut>
+</shortcuts>

@@ -1,9 +1,11 @@
 /* Billo service worker — app-shell caching for offline use */
-const V = 'billo-v1.1.0';
+const V = 'billo-v1.5.0';
 const ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
+  './sync/config.js',
+  './sync/firebase.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/maskable-192.png',
@@ -12,7 +14,19 @@ const ASSETS = [
   './ocr/worker.min.js',
   './ocr/tesseract-core-simd-lstm.js',
   './ocr/tesseract-core-simd-lstm.wasm',
-  './ocr/eng.traineddata'
+  './ocr/eng.traineddata',
+  './fonts/sora-400-ext.woff2',
+  './fonts/sora-400.woff2',
+  './fonts/sora-600-ext.woff2',
+  './fonts/sora-600.woff2',
+  './fonts/sora-700-ext.woff2',
+  './fonts/sora-700.woff2',
+  './fonts/unbounded-500-ext.woff2',
+  './fonts/unbounded-500.woff2',
+  './fonts/unbounded-700-ext.woff2',
+  './fonts/unbounded-700.woff2',
+  './fonts/unbounded-800-ext.woff2',
+  './fonts/unbounded-800.woff2'
 ];
 
 self.addEventListener('install', e => {
