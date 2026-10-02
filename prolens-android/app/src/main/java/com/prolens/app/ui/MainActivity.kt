@@ -33,6 +33,9 @@ import com.prolens.app.Prefs
 import com.prolens.app.ProlensApp
 import com.prolens.app.billing.ProStore
 import com.prolens.app.camera.Analysis
+import com.prolens.app.diag.DiagLog
+import com.prolens.app.diag.Snap
+import com.prolens.app.diag.TestScript
 import com.prolens.app.camera.CameraEngine
 import com.prolens.app.camera.CapabilityReader
 import com.prolens.app.camera.MotionSensor
@@ -77,6 +80,10 @@ class MainActivity : ComponentActivity() {
     private var lastFind: ProductFind? = null
     private var lastSeller: SellerStatus? = null
     private val proListener: () -> Unit = { applyPro() }
+    private lateinit var testBar: LinearLayout
+    private lateinit var testTitle: TextView
+    private lateinit var testText: TextView
+    private var shotStartMs = 0L
     private val presetChips = LinkedHashMap<Preset, TextView>()
     private val zoomChips = LinkedHashMap<Float, TextView>()
     private var hdrChip: TextView? = null
@@ -156,6 +163,9 @@ class MainActivity : ComponentActivity() {
         ProStore.addListener(proListener)
         ProStore.refresh()
         applyPro()
+        refreshTestBar()
+        DiagLog.event("screen", DiagLog.obj("name" to "camera", "pro" to ProStore.isPro))
+        if (prefs.testMode && engine != null) stepStarted()
     }
     override fun onPause() { ProStore.removeListener(proListener); motion.stop(); super.onPause() }
     override fun onDestroy() { engine?.shutdown(); super.onDestroy() }
@@ -168,7 +178,74 @@ class MainActivity : ComponentActivity() {
         if (!Features.presetAllowed(userPreset, pro)) selectPreset(Preset.AUTO)
     }
 
+    // ------------------------------------------------------------------ test mode
+
+    private fun buildTestBar(): LinearLayout {
+        val dp = { v: Float -> Ui.dp(this, v) }
+        val bar = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = Ui.pill(0xE61C1C1E.toInt(), Ui.dpf(this@MainActivity, 14f), dp(1f), Ui.ACCENT)
+            setPadding(dp(12f), dp(8f), dp(12f), dp(8f))
+            visibility = View.GONE
+        }
+        testTitle = Ui.text(this, "", 13f, Ui.ACCENT, true)
+        testText = Ui.text(this, "", 12.5f, Ui.TEXT)
+        bar.addView(testTitle)
+        bar.addView(testText, Ui.matchWrap(dp(2f)))
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+        val lp = { LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { leftMargin = dp(3f); rightMargin = dp(3f) } }
+        row.addView(Ui.chip(this, "✓ Worked") { answerStep("pass", null) }, lp())
+        row.addView(Ui.chip(this, "✕ Not right") { askWhatWasWrong() }, lp())
+        row.addView(Ui.chip(this, "Skip") { answerStep("skip", null) }, lp())
+        bar.addView(row, Ui.matchWrap(dp(6f)))
+        return bar
+    }
+
+    private fun refreshTestBar() {
+        if (!this::testBar.isInitialized) return
+        if (!prefs.testMode) { testBar.visibility = View.GONE; return }
+        testBar.visibility = View.VISIBLE
+        val i = prefs.testStep
+        val steps = TestScript.steps
+        if (i >= steps.size) {
+            testTitle.text = "TEST COMPLETE"
+            testText.text = "Thank you! Share the report: Settings → Test mode → Share test report. Tap ✓ to hide this bar."
+            return
+        }
+        val st = steps[i]
+        testTitle.text = "TEST ${i + 1}/${steps.size} · ${st.title.uppercase()}"
+        testText.text = "Do: ${st.todo}\nShould: ${st.expect}"
+    }
+
+    private fun stepStarted() {
+        val st = TestScript.steps.getOrNull(prefs.testStep) ?: return
+        DiagLog.event("step_start", DiagLog.obj("step" to st.id, "n" to prefs.testStep + 1))
+    }
+
+    private fun askWhatWasWrong() {
+        val input = android.widget.EditText(this).apply { hint = "What happened instead? (optional)" }
+        AlertDialog.Builder(this)
+            .setTitle("What wasn't right?")
+            .setView(input)
+            .setPositiveButton("Save") { _, _ -> answerStep("fail", input.text?.toString()) }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun answerStep(verdict: String, note: String?) {
+        val steps = TestScript.steps
+        val i = prefs.testStep
+        if (i >= steps.size) { prefs.testMode = false; DiagLog.setEnabled(false); refreshTestBar(); return }
+        val now = lastFrame?.let { f -> lastPlan?.let { p -> lastCoach?.let { c -> Snap.frame(f, userPreset, effective, p, c, lastSeller, lastFind, tipText.text?.toString()) } } }
+        DiagLog.event("step_result", DiagLog.obj("step" to steps[i].id, "n" to i + 1, "verdict" to verdict, "note" to note, "state" to now))
+        prefs.testStep = i + 1
+        refreshTestBar()
+        stepStarted()
+        Toast.makeText(this, if (verdict == "fail") "Noted. Thanks!" else "Next test", Toast.LENGTH_SHORT).show()
+    }
+
     private fun openPaywall(reason: String) {
+        DiagLog.event("paywall", DiagLog.obj("reason" to reason))
         startActivity(Intent(this, PaywallActivity::class.java).putExtra(PaywallActivity.EXTRA_REASON, reason))
     }
 
@@ -187,6 +264,7 @@ class MainActivity : ComponentActivity() {
         overlay = OverlayView(this)
         overlay.setOnTouchListener { v, e ->
             if (e.action == MotionEvent.ACTION_UP) {
+                DiagLog.event("tap_focus", DiagLog.obj("x" to e.x / v.width.coerceAtLeast(1), "y" to e.y / v.height.coerceAtLeast(1)))
                 engine?.focusAt(e.x, e.y)
                 overlay.showTap(e.x, e.y)
                 planner.locked = true
@@ -259,6 +337,8 @@ class MainActivity : ComponentActivity() {
         val bottom = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(16f), 0, dp(16f), dp(18f)) }
         modeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
         zoomRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+        testBar = buildTestBar()
+        bottom.addView(testBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(10f) })
         bottom.addView(modeRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         bottom.addView(zoomRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(10f) })
         val controls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
@@ -316,7 +396,7 @@ class MainActivity : ComponentActivity() {
         engine = CameraEngine(this, this, preview,
             onFrame = { onFrame(it) },
             onReady = { onCameraReady(it) },
-            onError = { Toast.makeText(this, it, Toast.LENGTH_LONG).show() })
+            onError = { DiagLog.event("camera_error", DiagLog.obj("msg" to it)); Toast.makeText(this, it, Toast.LENGTH_LONG).show() })
         engine?.start()
     }
 
@@ -327,9 +407,12 @@ class MainActivity : ComponentActivity() {
         coach.reset()
         buildModeAndZoomChips()
         whyText.text = "This camera: " + CapabilityReader.describe(c)
+        DiagLog.event("camera_ready", Snap.caps(c).put("front", engine?.front == true).put("summary", CapabilityReader.describe(c)))
+        if (prefs.testMode) stepStarted()
     }
 
     private fun flipCamera() {
+        DiagLog.event("flip", DiagLog.obj("toFront" to (engine?.front != true)))
         engine?.flip()
         overlay.mirror = engine?.front == true
         planner.reset()
@@ -340,6 +423,7 @@ class MainActivity : ComponentActivity() {
             openPaywall("${p.label} is part of Prolens Pro. Auto still uses it for you when it fits the scene.")
             return
         }
+        DiagLog.event("preset", DiagLog.obj("to" to p.name))
         userPreset = p
         classifier.reset()
         coach.reset()
@@ -365,10 +449,10 @@ class MainActivity : ComponentActivity() {
         hdrChip = null; nightChip = null; flashChip = null
         val lp = { LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { leftMargin = dp(4f); rightMargin = dp(4f) } }
         if (caps.hdrExtension) hdrChip = Ui.chip(this, "HDR") {
-            engine?.let { it.setMode(if (it.mode == CaptureMode.HDR) CaptureMode.STANDARD else CaptureMode.HDR) }
+            engine?.let { it.setMode(if (it.mode == CaptureMode.HDR) CaptureMode.STANDARD else CaptureMode.HDR); DiagLog.event("mode", DiagLog.obj("to" to it.mode.name)) }
         }.also { modeRow.addView(it, lp()) }
         if (caps.nightExtension) nightChip = Ui.chip(this, "Night") {
-            engine?.let { it.setMode(if (it.mode == CaptureMode.NIGHT) CaptureMode.STANDARD else CaptureMode.NIGHT) }
+            engine?.let { it.setMode(if (it.mode == CaptureMode.NIGHT) CaptureMode.STANDARD else CaptureMode.NIGHT); DiagLog.event("mode", DiagLog.obj("to" to it.mode.name)) }
         }.also { modeRow.addView(it, lp()) }
         if (caps.hasFlash) flashChip = Ui.chip(this, "Flash off") {
             engine?.let { it.setFlash(!it.flashOn); (flashChip)?.text = if (it.flashOn) "Flash on" else "Flash off" }
@@ -381,7 +465,7 @@ class MainActivity : ComponentActivity() {
         if (caps.zoomMax >= 5f) stops += 5f
         for (z in stops) {
             val label = if (z < 1f) String.format(java.util.Locale.US, "%.1f", z) else "${z.toInt()}×"
-            val chip = Ui.chip(this, label) { engine?.setZoom(z); refreshZoomChips(null) }
+            val chip = Ui.chip(this, label) { engine?.setZoom(z); refreshZoomChips(null); DiagLog.event("zoom", DiagLog.obj("to" to z)) }
             zoomChips[z] = chip
             zoomRow.addView(chip, lp())
         }
@@ -451,6 +535,11 @@ class MainActivity : ComponentActivity() {
         if (ready && !lastReadyHaptic && prefs.haptics) shutter.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
         lastReadyHaptic = ready
 
+        if (DiagLog.frameDue(a.timeMs)) {
+            val shown = if (status != null) (status.firstProblem?.text ?: "Listing-ready") else if (prefs.tips) cs.tip?.text else null
+            DiagLog.frame(a.timeMs, Snap.frame(frame, userPreset, effective, plan, cs, status, lastFind.takeIf { status != null }, shown))
+        }
+
         if (a.timeMs - lastUiMs < 160) return
         lastUiMs = a.timeMs
         sceneText.text = (if (userPreset == Preset.AUTO) "AUTO · " else "") + effective.label.uppercase()
@@ -501,7 +590,11 @@ class MainActivity : ComponentActivity() {
         val sellerShot = effective == Preset.SELLER
         ShotStore.seller = if (sellerShot) SellerShot(lastFind?.box?.takeIf { it.width < 0.99f || it.height < 0.99f }, prefs.sellerTarget, lastSeller) else null
         if (lastPlan?.mode == CaptureMode.MANUAL_NIGHT) Toast.makeText(this, "Hold still…", Toast.LENGTH_SHORT).show()
+        shotStartMs = System.currentTimeMillis()
+        DiagLog.event("shutter", DiagLog.obj("scene" to effective.name, "settings" to ShotStore.settings, "planMode" to lastPlan?.mode?.name,
+            "camMode" to e.mode.name, "ready" to shutter.ready, "sellerReady" to lastSeller?.ready))
         e.takePhoto(lastPlan, prefs.albumPath, onSaved = { uri ->
+            DiagLog.event("photo_saved", DiagLog.obj("ms" to System.currentTimeMillis() - shotStartMs, "album" to prefs.albumPath))
             shooting = false; shutter.busy = false
             lastUri = uri
             if (prefs.autoReview || sellerShot) openReview(uri)
@@ -510,6 +603,7 @@ class MainActivity : ComponentActivity() {
                 loadThumb(uri)
             }
         }, onFail = { msg ->
+            DiagLog.event("photo_failed", DiagLog.obj("msg" to msg))
             shooting = false; shutter.busy = false
             Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
         })

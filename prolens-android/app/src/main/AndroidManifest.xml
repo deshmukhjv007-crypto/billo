@@ -57,6 +57,17 @@
             android:screenOrientation="portrait"
             android:theme="@style/Theme.Prolens" />
 
+        <!-- Lets the share sheet read the test report from the app's cache. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- Bundle the ML Kit face model at install time instead of downloading it later. -->
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"

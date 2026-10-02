@@ -27,6 +27,8 @@ import com.prolens.app.core.FrameStats
 import com.prolens.app.core.Rect01
 import com.prolens.app.core.Review
 import com.prolens.app.core.ShotReviewer
+import com.prolens.app.diag.DiagLog
+import com.prolens.app.diag.Snap
 import kotlin.concurrent.thread
 import kotlin.math.max
 
@@ -56,7 +58,14 @@ class ReviewActivity : ComponentActivity() {
                 if (display != null) image.setImageBitmap(display)
                 if (th != null) ShotStore.thumb = th
                 ShotStore.seller?.let { showSeller(it) }
-                if (review != null) show(review) else body.addView(line("Couldn't read this photo back.", 15f, Ui.DIM))
+                if (review != null) {
+                    DiagLog.event("review", Snap.review(review).put("preset", ShotStore.preset.name)
+                        .put("photo", "${display?.width ?: 0}x${display?.height ?: 0}"))
+                    show(review)
+                } else {
+                    DiagLog.event("review_failed", DiagLog.obj("decoded" to (display != null)))
+                    body.addView(line("Couldn't read this photo back.", 15f, Ui.DIM))
+                }
             }
         }
     }
@@ -195,8 +204,13 @@ class ReviewActivity : ComponentActivity() {
         val dp = { v: Float -> Ui.dp(this, v) }
         into.removeAllViews()
         into.addView(line("Making the listing image…", 14f, Ui.DIM), Ui.matchWrap(dp(10f)))
+        val started = System.currentTimeMillis()
         thread(name = "listing") {
-            val made = try { ListingMaker.make(this, uri, box, s.target) } catch (e: Throwable) { null }
+            var err: String? = null
+            val made = try { ListingMaker.make(this, uri, box, s.target) } catch (e: Throwable) { err = e.toString(); null }
+            DiagLog.event(if (made != null) "listing_made" else "listing_failed", DiagLog.obj(
+                "target" to s.target.name, "box" to Snap.box(box), "ms" to System.currentTimeMillis() - started,
+                "size" to made?.size, "tooSmall" to made?.tooSmall, "error" to err))
             runOnUiThread {
                 listingBusy = false
                 into.removeAllViews()
@@ -215,6 +229,7 @@ class ReviewActivity : ComponentActivity() {
     }
 
     private fun openPaywall(reason: String) {
+        DiagLog.event("paywall", DiagLog.obj("reason" to reason))
         startActivity(Intent(this, PaywallActivity::class.java).putExtra(PaywallActivity.EXTRA_REASON, reason))
     }
 

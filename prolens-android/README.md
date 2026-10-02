@@ -52,6 +52,16 @@ Command line (Gradle 8.9+, JDK 17, Android SDK): `gradle testDebugUnitTest assem
 
 Requires Android 8.0+ (API 26). Permissions: camera; storage only on Android 9 and older (to save photos).
 
+## Test mode (field testing)
+
+Settings → **Test mode** turns on a recorder and a 12-step guide on the camera screen (portrait,
+group, level, food, backlight, dark room, shake, a shot, Seller Studio good and bad, selfie, Pro lock).
+For each step the tester taps **✓ Worked**, **✕ Not right** (with an optional note) or **Skip**.
+About twice a second Prolens records what it measured and decided (scene, brightness, faces, angles,
+ISO/shutter/EV, plan, tip shown, Seller checklist), plus every shot, review score, listing image,
+paywall and error. Numbers only, no images. **Share test report** sends one `.txt` file;
+`python3 tools/analyze_report.py <file>` summarises it per step.
+
 ## Before publishing on Google Play
 
 1. **Support email:** set `SUPPORT_EMAIL` in `ui/LegalActivity.kt` and replace `ADD-YOUR-SUPPORT-EMAIL-HERE` in `docs/privacy-policy.html`.

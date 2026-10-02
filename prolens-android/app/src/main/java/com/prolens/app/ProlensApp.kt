@@ -3,6 +3,7 @@ package com.prolens.app
 import android.app.Application
 import android.os.Build
 import com.prolens.app.billing.ProStore
+import com.prolens.app.diag.DiagLog
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -14,6 +15,7 @@ import java.io.StringWriter
 class ProlensApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        try { DiagLog.init(this, Prefs(this).testMode) } catch (e: Throwable) { }
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
             try {
@@ -23,6 +25,7 @@ class ProlensApp : Application() {
                     "${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})\n" +
                     "Thread: ${thread.name}\n\n$sw"
                 File(filesDir, CRASH_FILE).writeText(report)
+                DiagLog.crashNow(report)
             } catch (e: Throwable) {
                 // never let the crash reporter itself crash
             }

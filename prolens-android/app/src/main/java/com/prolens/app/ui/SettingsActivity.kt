@@ -15,6 +15,9 @@ import com.prolens.app.Prefs
 import com.prolens.app.ProlensApp
 import com.prolens.app.billing.ProStore
 import com.prolens.app.core.SellerTarget
+import com.prolens.app.diag.DiagLog
+import com.prolens.app.diag.TestScript
+import androidx.core.content.FileProvider
 import java.io.File
 
 class SettingsActivity : ComponentActivity() {
@@ -23,6 +26,7 @@ class SettingsActivity : ComponentActivity() {
     private lateinit var proButton: TextView
     private val targetChips = LinkedHashMap<SellerTarget, TextView>()
     private lateinit var targetDetail: TextView
+    private lateinit var testInfo: TextView
     private val onChange: () -> Unit = { refreshPro() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,6 +70,22 @@ class SettingsActivity : ComponentActivity() {
         col.addView(targetDetail, Ui.matchWrap(dp(6f)))
         refreshTargets()
 
+        // ---- test mode
+        col.addView(Ui.section(this, "Test mode"))
+        col.addView(Ui.text(this, "Records what Prolens sees and decides while you try ${TestScript.steps.size} short tests, so the developer can check it works. Numbers only, no photos. Nothing is sent until you share it.", 13.5f, Ui.DIM))
+        col.addView(toggle("Test mode", "Shows a test guide on the camera screen", prefs.testMode) { on ->
+            prefs.testMode = on
+            if (on && prefs.testStep >= TestScript.steps.size) prefs.testStep = 0
+            DiagLog.setEnabled(on)
+            refreshTest()
+        })
+        testInfo = Ui.text(this, "", 13.5f, Ui.DIM)
+        col.addView(testInfo, Ui.matchWrap(dp(4f)))
+        col.addView(link("Share test report") { shareReport() })
+        col.addView(link("Restart the tests from step 1") { prefs.testStep = 0; refreshTest(); Toast.makeText(this, "Tests restart at step 1", Toast.LENGTH_SHORT).show() })
+        col.addView(link("Delete recorded test data") { DiagLog.clear(); prefs.testStep = 0; refreshTest() })
+        refreshTest()
+
         // ---- help
         col.addView(Ui.section(this, "Help"))
         col.addView(link("Show the intro again") { prefs.onboarded = false; startActivity(Intent(this, OnboardingActivity::class.java)); finishAffinity() })
@@ -93,6 +113,23 @@ class SettingsActivity : ComponentActivity() {
             proLine.text = "Free: live coaching, Auto, Portrait, Food and Seller Studio (${prefs.listingsLeft().coerceAtLeast(0)} listing images left today)."
             proButton.text = "Get Pro for ${ProStore.price}"
         }
+    }
+
+    private fun refreshTest() {
+        val step = prefs.testStep.coerceAtMost(TestScript.steps.size)
+        testInfo.text = "Progress: $step of ${TestScript.steps.size} tests · ${DiagLog.summary()}"
+    }
+
+    private fun shareReport() {
+        DiagLog.event("report_shared")
+        val f = try { DiagLog.buildReport(this) } catch (e: Throwable) { null }
+        if (f == null) { Toast.makeText(this, "No test data yet. Turn on Test mode and try the camera first.", Toast.LENGTH_LONG).show(); return }
+        val uri = FileProvider.getUriForFile(this, "${packageName}.files", f)
+        val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+            .putExtra(Intent.EXTRA_STREAM, uri)
+            .putExtra(Intent.EXTRA_SUBJECT, "Prolens test report")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        startActivity(Intent.createChooser(send, "Share test report"))
     }
 
     private fun refreshTargets() {

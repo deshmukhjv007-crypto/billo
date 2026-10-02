@@ -33,6 +33,10 @@ class Prefs(ctx: Context) {
     var debugPro: Boolean get() = flag("debugPro", false); set(v) = put("debugPro", v)
     val isPro: Boolean get() = proOwned || (BuildConfig.DEBUG && debugPro)
 
+    /** Test mode: record how Prolens behaves (see diag/DiagLog). */
+    var testMode: Boolean get() = flag("testMode", false); set(v) = put("testMode", v)
+    var testStep: Int get() = sp.getInt("testStep", 0); set(v) { sp.edit().putInt("testStep", v).apply() }
+
     val albumPath: String get() = if (saveToCamera) "DCIM/Camera" else "Pictures/Prolens"
 
     // ---- free listing images per day
