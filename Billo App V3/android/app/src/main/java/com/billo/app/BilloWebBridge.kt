@@ -2,7 +2,11 @@ package com.billo.app
 
 import android.content.Intent
 import android.net.Uri
+import android.content.ClipData
 import android.graphics.Color
+import android.util.Base64
+import androidx.core.content.FileProvider
+import java.io.File
 import android.webkit.JavascriptInterface
 import androidx.core.view.WindowCompat
 
@@ -68,6 +72,31 @@ class BilloWebBridge(private val activity: MainActivity) {
                 ctl.isAppearanceLightStatusBars = lightBackground
                 ctl.isAppearanceLightNavigationBars = lightBackground
             } catch (_: Exception) {
+            }
+        }
+    }
+
+    /** Share a PNG (base64, no data: prefix) with a caption — WhatsApp gets the card and the text together. */
+    @JavascriptInterface
+    fun shareImage(base64Png: String, text: String) {
+        val bytes = try { Base64.decode(base64Png, Base64.DEFAULT) } catch (_: Exception) { null }
+        activity.runOnUiThread {
+            try {
+                if (bytes == null || bytes.isEmpty()) { shareText(text); return@runOnUiThread }
+                val dir = File(activity.cacheDir, "share").apply { mkdirs() }
+                val file = File(dir, "billo.png")
+                file.writeBytes(bytes)
+                val uri = FileProvider.getUriForFile(activity, activity.packageName + ".files", file)
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "image/png"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    if (text.isNotBlank()) putExtra(Intent.EXTRA_TEXT, text)
+                    clipData = ClipData.newRawUri("billo", uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                activity.startActivity(Intent.createChooser(intent, null))
+            } catch (_: Exception) {
+                shareText(text)
             }
         }
     }
