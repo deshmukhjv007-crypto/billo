@@ -15,7 +15,7 @@ jobs:
       - name: Logic tests
         run: node test/logic_test.js
       - name: Copy web app into the Android shell
-        run: python3 scripts/copy_web_to_android.py
+        run: mkdir -p android/app/src/main/assets/www && cp -r app/. android/app/src/main/assets/www/
       - uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: '17' }
       - uses: gradle/actions/setup-gradle@v4
