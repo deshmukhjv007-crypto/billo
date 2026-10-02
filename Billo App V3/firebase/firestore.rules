@@ -1,0 +1,97 @@
+rules_version = '2';
+
+// Billo live sync — security rules.
+//
+// Model
+//   codes/{CODE}                      join code → trip id (get only, never list)
+//   trips/{tripId}                    trip meta + members + uids (who may read/write)
+//   trips/{tripId}/expenses/{id}      one doc per bill   (soft-deleted with deleted:true)
+//   trips/{tripId}/payments/{id}      one doc per settle-up payment
+//
+// Identity is Firebase Anonymous Auth: one uid per install, no account, no email.
+// Capability model: knowing a trip's join code (8 random chars) lets you join it.
+// Only people in trips/{id}.uids can read or change anything in that trip.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+    function tripDoc(tripId) { return get(/databases/$(database)/documents/trips/$(tripId)); }
+    function isMember(tripId) { return signedIn() && me() in tripDoc(tripId).data.uids; }
+    function str(v, max) { return v is string && v.size() <= max; }
+    function money(v) { return (v is int || v is float) && v >= 0 && v < 100000000; }
+
+    // ---------- join codes ----------
+    match /codes/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && code.matches('^[A-Z]{1,3}-[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$')
+        && request.resource.data.keys().hasOnly(['tripId', 'createdBy', 'createdAt'])
+        && request.resource.data.createdBy == me()
+        && request.resource.data.tripId is string
+        && me() in getAfter(/databases/$(database)/documents/trips/$(request.resource.data.tripId)).data.uids;
+      allow update, delete: if false;
+    }
+
+    // ---------- trips ----------
+    match /trips/{tripId} {
+      function validMeta(d) {
+        return str(d.name, 60) && str(d.emoji, 16) && str(d.currency, 3) && str(d.code, 16)
+          && d.members is map && d.members.size() <= 40
+          && d.uids is list && d.uids.size() <= 40
+          && (!('budget' in d) || d.budget == null || money(d.budget))
+          && (!('days' in d) || d.days == null || (d.days is int && d.days >= 0 && d.days < 400));
+      }
+
+      allow get: if signedIn() && me() in resource.data.uids;
+      allow list: if false;
+
+      allow create: if signedIn()
+        && request.resource.data.uids == [me()]
+        && request.resource.data.createdBy == me()
+        && validMeta(request.resource.data);
+
+      // members edit the trip; nobody can rewrite who created it or its code
+      allow update: if signedIn() && me() in resource.data.uids
+        && validMeta(request.resource.data)
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.code == resource.data.code
+        // uids may only change by removing yourself (leaving)
+        && (request.resource.data.uids == resource.data.uids
+            || (resource.data.uids.removeAll([me()]) == request.resource.data.uids));
+
+      // joining: a non-member who holds the trip id (from its code) may add exactly themselves
+      allow update: if signedIn() && !(me() in resource.data.uids)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uids', 'updatedAt'])
+        && request.resource.data.uids == resource.data.uids.concat([me()])
+        && resource.data.uids.size() < 40;
+
+      allow delete: if false;
+
+      match /expenses/{expId} {
+        allow read: if isMember(tripId);
+        allow create, update: if isMember(tripId)
+          && request.resource.data.id == expId
+          && money(request.resource.data.amount)
+          && str(request.resource.data.desc, 80)
+          && str(request.resource.data.payerId, 40)
+          && request.resource.data.parts is list && request.resource.data.parts.size() <= 40
+          && request.resource.data.updatedBy == me()
+          && !('img' in request.resource.data);            // receipt photos never leave the phone
+        allow delete: if false;                              // soft delete only (deleted: true)
+      }
+
+      match /payments/{payId} {
+        allow read: if isMember(tripId);
+        allow create, update: if isMember(tripId)
+          && request.resource.data.id == payId
+          && money(request.resource.data.amount)
+          && str(request.resource.data.from, 40) && str(request.resource.data.to, 40)
+          && request.resource.data.updatedBy == me();
+        allow delete: if false;
+      }
+    }
+  }
+}

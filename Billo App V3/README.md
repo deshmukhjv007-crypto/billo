@@ -28,7 +28,8 @@ wired to Google Play Billing.
 ├── scripts/
 │   └── make_icons.py           ← regenerate every icon (python3 scripts/make_icons.py)
 ├── test/
-│   └── logic_test.js           ← 62 unit tests for the money math + parser (node test/logic_test.js)
+│   ├── sync_test.js / sync_e2e.js ← live-sync tests (49 engine + 21 two-browser)
+│   └── logic_test.js           ← 130 unit tests for the money math, parser, UPI, itemized split, insights (node test/logic_test.js)
 └── README-ANDROID.md           ← build the AAB, step by step
 ```
 
@@ -76,8 +77,12 @@ Web-only notes:
 2. `playstore/launch-checklist.md` → $25 fee, listing copy, live privacy policy, data-safety form, Pro products, upload, internal test, submit.
 That's the whole path. Everything else is already done.
 
+## Live sync
+Opt-in per trip, on your own Firebase project — see **SYNC-SETUP.md**. Until `app/sync/config.js`
+has a config the app is fully offline and sync is hidden.
+
 ## v2 roadmap (when the v1 numbers are in)
-1. **Multi-device sync** — the one thing a no-backend build can't do: today one person
+1. ~~**Multi-device sync**~~ ✅ shipped in 1.4.0 (Firebase, see SYNC-SETUP.md). — the one thing a no-backend build can't do: today one person
    (the trip leader) runs the books and exports a backup to sync. A ~100-line Firebase
    Realtime add-on (optional, user-supplied project config, same privacy posture) makes
    every member live-synced. This is the upgrade that turns a "one phone's app" into a group product.
@@ -96,6 +101,6 @@ so a rename is: 3 text edits + rebuild. If you pick a different name from your l
 
 ## Quality gates already passed
 - `node --check` on the app script ✅
-- 62/62 unit tests: paise-exact splitting, ledger invariants (nets sum to 0; flows
+- 130/130 unit tests: paise-exact splitting, ledger invariants (nets sum to 0; flows
   always settle to zero), parser cases, learning, share text, formatting ✅
   → run anytime: `node test/logic_test.js`
