@@ -2,7 +2,9 @@ package com.billo.app
 
 import android.content.Intent
 import android.net.Uri
+import android.graphics.Color
 import android.webkit.JavascriptInterface
+import androidx.core.view.WindowCompat
 
 /**
  * JS ↔ native bridge. Exposed to the web app as `window.Billo`.
@@ -50,4 +52,23 @@ class BilloWebBridge(private val activity: MainActivity) {
     /** Whether this phone has speech recognition. */
     @JavascriptInterface
     fun hasVoice(): Boolean = activity.hasVoice()
+
+    /** Status / navigation bar colour to match the app's look (Cream, Midnight, Paper). */
+    @JavascriptInterface
+    fun setBars(hex: String, lightBackground: Boolean) {
+        activity.runOnUiThread {
+            try {
+                val c = Color.parseColor(hex)
+                @Suppress("DEPRECATION")
+                activity.window.statusBarColor = c
+                @Suppress("DEPRECATION")
+                activity.window.navigationBarColor = c
+                activity.window.decorView.setBackgroundColor(c)
+                val ctl = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+                ctl.isAppearanceLightStatusBars = lightBackground
+                ctl.isAppearanceLightNavigationBars = lightBackground
+            } catch (_: Exception) {
+            }
+        }
+    }
 }
