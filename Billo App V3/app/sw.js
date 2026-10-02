@@ -1,5 +1,5 @@
 /* Billo service worker — app-shell caching for offline use */
-const V = 'billo-v1.6.2';
+const V = 'billo-v1.6.4';
 const ASSETS = [
   './',
   './index.html',

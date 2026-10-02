@@ -5,6 +5,14 @@ version. Bump the number with: `python3 scripts/bump_version.py X.Y.Z`
 
 ## [Unreleased]
 
+## [1.6.4] — 2026-10-02
+- Bill names no longer pick up people's names or filler words ("I paid 600 for food with Sid" → **Food**, not "Food Sid" / "I Paid").
+- A bill with no name is called **Bill** (not "Other"); old bills saved as "Other" or "I Paid" show their category's name instead.
+- The bill icon follows its name when the name is a category (a bill called "Food" shows the food icon).
+
+## [1.6.3] — 2026-10-02
+- "Per person" only shows when every bill was split equally between everyone. Otherwise the trip shows **Your share**, and the share card says "Not everyone was in every bill" (₹3,530 ÷ 3 = ₹1,177 was nobody's real share).
+
 ## [1.6.2] — 2026-10-02
 - **Share sends the picture now:** "Share to WhatsApp" attaches the dark trip card together with the text (it used to send text only).
 - **Remind sends a personal card:** "Appu, you owe Jayesh ₹1,500" with your UPI ID, plus the message.

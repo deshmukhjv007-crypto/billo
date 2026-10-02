@@ -546,7 +546,7 @@ const APP = {
   tagline: "Just send the bills. We'll do the math.",
   storeUrl: 'https://play.google.com/store/apps/details?id=com.billo.app',
   webUrl: 'billo.app',
-  version: '1.6.2'
+  version: '1.6.4'
 };
 
 const CATS = {
@@ -768,6 +768,9 @@ function parseExpenseText(text, trip, meName) {
   if (r.amStr) s = s.split(r.amStr).join(' ');
   const payerName = displayName(trip, memberById(trip, r.payerId), meName);
   if (payerName) s = s.replace(new RegExp('\\b' + escapeRe(payerName) + '\\b', 'gi'), ' ');
+  /* names never belong in a bill's description ("Food Sid" → "Food") */
+  (trip.members || []).forEach(m => [m.name, displayName(trip, m, meName)].forEach(n => { if (n && n.length > 1) s = s.replace(new RegExp('\\b' + escapeRe(n) + '\\b', 'gi'), ' '); }));
+  s = s.replace(/\b(between|split|equally|each|both|rupees?|rupaye|bucks|saath|aur|diye|bhi|also|everybody|people|guys)\b/gi, ' ').replace(/[.,!?;:&+()]/g, ' ');
   s = s.replace(/\b(i|me|my|we|us|the|a|an|and|with|for|of|to|on|at|in|it|its|was|is|by|had|has|have|paid|billed|bill|bills|receipt|invoice|upi|screenshot|pic|image|photo|ne|ki|ke|ko|se|liye|liya|di|diya|maine|sab|sabbr|everyone|all|just|only|sirf|myself|google|pay|payment|transaction|transactions|successful|success|reference|ref|id|charged|cashback|fee|date|time|january|february|march|april|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|am|pm)\b/gi, ' ');
   s = s.replace(/[0-9][0-9,]*(?:\.[0-9]{1,2})?/g, ' ');
   s = s.replace(/₹/g, ' ').replace(/(?:^|[^a-z0-9])(?:rs\.?|inr|k\.?)(?![a-z0-9])/gi, ' ');
@@ -870,6 +873,26 @@ function learnSuggest(trip, payerId, cat) {
 }
 
 /* ---------- shareable summary ---------- */
+/* "per person" only means something when every bill was split equally between everyone */
+/* the icon for a bill: its category, unless its name is another category's name ("Food" saved as Other) */
+function billName(e) {
+  const d = (e && e.desc) || '';
+  const lab = e && e.cat && e.cat !== 'other' && CATS[e.cat] ? CATS[e.cat].label : 'Bill';
+  /* older versions saved the word "Other" as the name of unnamed bills */
+  /* …and leftovers like "I Paid" from voice */
+  const junk = /^(?:other|(?:i|me|we|maine|hum|humne)?\s*(?:paid|pay|payed|diya|diye|de\s*diya)?)$/i;
+  return d && !junk.test(d.trim()) ? d : lab;
+}
+function billCat(e) {
+  const d = String((e && e.desc) || '').trim().toLowerCase();
+  const byLabel = Object.keys(CATS).find(k => CATS[k].label.toLowerCase() === d);
+  if (byLabel && byLabel !== 'other') return byLabel;
+  return CATS[e && e.cat] ? e.cat : 'other';
+}
+function evenSplit(trip) {
+  const ids = (trip.members || []).map(m => m.id);
+  return (trip.expenses || []).every(e => !e.custom && e.split !== 'items' && ids.every(id => (e.parts || []).includes(id)));
+}
 function buildShareText(trip, calc) {
   const nm = id => { const m = memberById(trip, id); return m ? displayName(trip, m, meName) : '?'; };
   /* whole rupees in chat: splitting to the paisa can leave someone at ₹1,225.99 */
@@ -877,7 +900,7 @@ function buildShareText(trip, calc) {
   const L = [];
   L.push(trip.name + ' — ' + amt(calc.total));
   const n = trip.members.length;
-  L.push(n + ' ' + (n === 1 ? 'person' : 'people') + ' · ' + (trip.expenses.length) + ' bills' + (n ? ' · ' + amt(calc.total / n) + ' each' : ''));
+  L.push(n + ' ' + (n === 1 ? 'person' : 'people') + ' · ' + (trip.expenses.length) + ' bills' + (n && evenSplit(trip) ? ' · ' + amt(calc.total / n) + ' each' : ''));
   L.push('');
   if (calc.flows.length) {
     L.push('Who pays whom:');
@@ -1373,7 +1396,7 @@ function voiceDesc(r, trip, meName, extraNames) {
   names.forEach(n => { if (n) d = d.replace(new RegExp('\\b' + escapeRe(n) + '\\b', 'gi'), ' '); });
   d = d.replace(/\b(split|between|khana|equally|each|both|also|bhi)\b/gi, m => m.toLowerCase() === 'khana' ? 'Food' : ' ');
   d = d.replace(/[,&]+/g, ' ').replace(/\s+/g, ' ').trim();
-  return d || (CATS[r.cat] || CATS.other).label;
+  return d || (r.cat && r.cat !== 'other' ? CATS[r.cat].label : 'Bill');
 }
 /* Your circle: who you owe and who owes you across all trips in one currency.
    amount > 0 = they pay you, < 0 = you pay them. People are matched across trips by name. */
@@ -1818,7 +1841,7 @@ Object.assign(STR.hi, { theme_cream: 'क्रीम', theme_dark: 'मिड�
   const EMO = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B50}\u{2B06}\u{2194}-\u{21FF}\u{FE0F}\u{200D}\u{2705}\u{231A}-\u{23FF}]\uFE0F?/gu;
   [STR.en, STR.hi].forEach(tb => Object.keys(tb).forEach(k => { if (typeof tb[k] === 'string') tb[k] = tb[k].replace(EMO, '').replace(/ {2,}/g, ' ').replace(/ ([.!?,])/g, '$1').trim(); }));
 })();
-Object.assign(STR.en, { pay_on_upi: 'Pay {name} on UPI', remind_for: 'For {trip}', remind_you_owe: '{a}, you owe {b}', trip_icon: 'Icon', me_check_t: 'You joined as {name}', me_check_b: 'Your bills and balance belong to that person. Are you {other}?', me_is: "I'm {name}", me_keep: "I'm {name}", this_is_me: 'This is me', me_switched: 'You are {name} in this trip now', started_trip: 'Started this trip', looks_like_you: 'Looks like you' }); Object.assign(STR.hi, { pay_on_upi: '{name} को UPI से भेजें', remind_for: '{trip} के लिए', remind_you_owe: '{a}, {b} को देना है', trip_icon: 'आइकन', me_check_t: 'आप {name} बनकर जुड़े हैं', me_check_b: 'बिल और बैलेंस उसी के नाम हैं। क्या आप {other} हैं?', me_is: 'मैं {name} हूँ', me_keep: 'मैं {name} हूँ', this_is_me: 'यह मैं हूँ', me_switched: 'इस ट्रिप में अब आप {name} हैं', started_trip: 'ट्रिप शुरू किया', looks_like_you: 'शायद आप' });
+Object.assign(STR.en, { pay_on_upi: 'Pay {name} on UPI', your_share_t: 'Your share', split_differs: 'Not everyone was in every bill', remind_for: 'For {trip}', remind_you_owe: '{a}, you owe {b}', trip_icon: 'Icon', me_check_t: 'You joined as {name}', me_check_b: 'Your bills and balance belong to that person. Are you {other}?', me_is: "I'm {name}", me_keep: "I'm {name}", this_is_me: 'This is me', me_switched: 'You are {name} in this trip now', started_trip: 'Started this trip', looks_like_you: 'Looks like you' }); Object.assign(STR.hi, { pay_on_upi: '{name} को UPI से भेजें', your_share_t: 'आपका हिस्सा', split_differs: 'हर बिल में सब शामिल नहीं थे', remind_for: '{trip} के लिए', remind_you_owe: '{a}, {b} को देना है', trip_icon: 'आइकन', me_check_t: 'आप {name} बनकर जुड़े हैं', me_check_b: 'बिल और बैलेंस उसी के नाम हैं। क्या आप {other} हैं?', me_is: 'मैं {name} हूँ', me_keep: 'मैं {name} हूँ', this_is_me: 'यह मैं हूँ', me_switched: 'इस ट्रिप में अब आप {name} हैं', started_trip: 'ट्रिप शुरू किया', looks_like_you: 'शायद आप' });
 const T = (k, vars) => {
   let s = (STR[S.settings.lang] || STR.en)[k] || STR.en[k] || k;
   if (vars) for (const v in vars) s = s.split('{' + v + '}').join(vars[v]);
@@ -2472,8 +2495,8 @@ function scrTrip() {
       : mp.share > 0.004 ? '<span class="share neg">' + T('your_part', { a: fmtMoney(mp.share, t.currency) }) + '</span>'
       : '<span class="share muted">' + T('not_in_it') + '</span>';
     return '<div class="erow" data-act="open-expense" data-arg="' + e.id + '">' +
-      '<div class="etile">' + ic(CATS[e.cat] ? e.cat : 'other') + '<span class="payer">' + avHtml(memberById(t, e.payerId), 'xs') + '</span></div>' +
-      '<div class="einfo"><b>' + escapeHtml(e.desc || (CATS[e.cat] || CATS.other).label) + '</b>' +
+      '<div class="etile">' + ic(billCat(e)) + '<span class="payer">' + avHtml(memberById(t, e.payerId), 'xs') + '</span></div>' +
+      '<div class="einfo"><b>' + escapeHtml(billName(e)) + '</b>' +
       '<span class="meta">' + escapeHtml(nameOf(t, e.payerId)) + ' ' + T('paid_w') + ' · ' + who + ' · ' + dayLabel(e.date, S.settings.lang) +
       (e.items && e.items.length ? ' · ' + T('by_item_w') : '') + (e.img ? ' · ' + T('receipt') : '') + (e.settled ? ' · ' + T('settled') : '') + '</span></div>' +
       '<div class="eside"><span class="eamt">' + fmtMoney(e.amount, t.currency) + '</span>' + part + '</div></div>';
@@ -2481,7 +2504,7 @@ function scrTrip() {
 
   return tripHeader(t) + meCheckHtml(t) + syncCard(t) + heroHtml(t, c) + inviteStrip(t) +
     '<div class="stats">' + stat(fmtMoney(I.total, t.currency), T('total')) +
-    stat(fmtMoney(t.members.length ? I.total / t.members.length : 0, t.currency), T('per_person')) + third + '</div>' +
+    (evenSplit(t) ? stat(fmtMoney(t.members.length ? I.total / t.members.length : 0, t.currency), T('per_person')) : stat(fmtMoney((I.share || {})[meIdOf(t)] || 0, t.currency), T('your_share_t'))) + third + '</div>' +
     (c.flows.length ? '<div class="card"><div class="sec-h"><b>' + T('settle_up') + '</b><span class="muted sm">' + (c.flows.length === 1 ? T('settle_1') : T('settle_n', { n: c.flows.length })) + '</span></div>' + flows + '</div>' : '') +
     '<div class="card"><div class="sec-h"><b>' + T('balances') + '</b>' +
     '<button class="mini-link" data-act="trip-members">' + t.members.length + ' ' + T('members_btn') + '</button></div>' + bal + '</div>' +
@@ -2653,7 +2676,7 @@ function multiListHtml() {
     return '<div class="mrow' + (sel ? '' : ' off') + '" data-act="multi-toggle" data-arg="' + i + '">' +
       '<span class="tick' + (sel ? ' on' : '') + '">' + ic('check', 's') + '</span>' +
       '<div class="etile xs">' + ic(CATS[r.cat] ? r.cat : 'other') + '</div>' +
-      '<div class="einfo" style="flex:1;min-width:0"><div class="ename">' + escapeHtml(r.desc || (CATS[r.cat] || CATS.other).label) + '</div>' +
+      '<div class="einfo" style="flex:1;min-width:0"><div class="ename">' + escapeHtml(billName(r)) + '</div>' +
       '<div class="muted sm">' + escapeHtml(displayName(t, payer, S.me.name)) + ' · ' + parts + '</div></div>' +
       '<div class="eamt">' + fmtMoney(r.amount, t.currency) + '</div>' +
       '<button class="iconbtn small" data-act="multi-edit" data-arg="' + i + '" aria-label="' + T('edit') + '">' + ic('edit', 's') + '</button></div>';
@@ -2728,7 +2751,7 @@ function scrDone() {
   ).join('');
   const amtLine = ui.doneMulti ? fmtMoney(ui.doneMulti.total, t.currency) : (e ? fmtMoney(e.amount, t.currency) : '');
   const descLine = ui.doneMulti ? T('added_n', { n: ui.doneMulti.count })
-    : (e ? escapeHtml(e.desc || (CATS[e.cat] || CATS.other).label) + ' · ' + T('added') : '');
+    : (e ? escapeHtml(billName(e)) + ' · ' + T('added') : '');
   return '<div class="done-wrap"><div class="check">' + ic('check') + '</div>' +
     '<div class="done-amt">' + amtLine + '</div>' +
     '<div class="done-desc">' + descLine + '</div>' +
@@ -2816,7 +2839,8 @@ function drawShareCard(t, c) {
   y += 250;
   x.fillStyle = WH; x.font = '800 132px ' + DISP; x.fillText(shareAmt(I.total, t.currency), P, y);
   y += 58; x.fillStyle = DIM; x.font = '600 34px ' + BODY;
-  x.fillText(shareAmt(t.members.length ? I.total / t.members.length : 0, t.currency) + ' ' + T('per_person'), P, y);
+  if (evenSplit(t)) x.fillText(shareAmt(t.members.length ? I.total / t.members.length : 0, t.currency) + ' ' + T('per_person'), P, y);
+  else x.fillText(T('split_differs'), P, y);
   y += 96;
   x.fillStyle = DIM; x.font = '800 26px ' + BODY; x.letterSpacing = '6px'; x.fillText(T('who_pays').toUpperCase(), P, y); x.letterSpacing = '0px';
   y += 30;
@@ -3510,7 +3534,7 @@ const ACT = {
       const m = memberById(t, pid);
       splitRows += '<div class="row" style="justify-content:space-between;padding:4px 0;font-size:14px"><span>' + escapeHtml(displayName(t, m, S.me.name)) + '</span><b>' + fmtMoney(sh[pid], t.currency) + '</b></div>';
     }
-    modal((e.desc || (CATS[e.cat] || CATS.other).label),
+    modal(billName(e),
       '<b style="font-size:26px;color:var(--ink)">' + fmtMoney(e.amount, t.currency) + '</b>' +
       '<div class="muted sm" style="margin:6px 0 10px">' + escapeHtml(displayName(t, payM, S.me.name)) + ' · ' + dayLabel(e.date, S.settings.lang) + ' · ' + srcLabel + '</div>' +
       (e.raw ? '<div class="quote" style="margin-bottom:10px">“' + escapeHtml(e.raw) + '”</div>' : '') +
@@ -3659,7 +3683,7 @@ const ACT = {
       if (!parts.includes(r.payerId)) parts.unshift(r.payerId);
       return {
         id: uid('e'), ts: Date.now(),
-        desc: r.desc || (CATS[r.cat] || CATS.other).label, cat: r.cat || 'other',
+        desc: billName(r), cat: r.cat || 'other',
         amount: r.amount, currency: t.currency, date: todayStr(),
         payerId: r.payerId, parts: [...new Set(parts)],
         custom: false, customAmts: null, settled: false, src: 'text', raw: r.raw || '', ai: false, img: ''

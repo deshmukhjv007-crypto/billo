@@ -327,6 +327,26 @@ eq(J('detectNewNames(voiceNormalize("I paid 6000 for food with Rahul, Ajay and K
 eq(J('detectNewNames("Rahul paid 1200 for petrol", vt, "Jay")'), [], 'no new names');
 eq(J('voiceDesc(parseExpenseText("I paid 6000 for food with Rahul and Krish", vt, "Jay"), vt, "Jay", ["Krish"])').toLowerCase().indexOf('krish'), -1, 'description has no names');
 
+console.log('\nper person only when fair');
+const ut = { id: 'u', name: 'Trip', currency: 'INR', members: [{ id: 'j', name: 'Jayesh', self: true }, { id: 's', name: 'Sid' }, { id: 'k', name: 'Krish' }],
+  expenses: [{ id: 'x1', amount: 600, payerId: 'j', parts: ['j', 's'] }, { id: 'x2', amount: 2930, payerId: 's', parts: ['j', 's', 'k'] }],
+  payments: [{ id: 'p1', from: 's', to: 'j', amount: 300 }] };
+J('ut = ' + JSON.stringify(ut));
+eq(J('evenSplit(ut)'), false, 'Krish missed the first bill');
+const uc = J('computeTrip(ut)');
+eq(uc.net, { j: -976.67, s: 1953.33, k: -976.66 }, 'balances after the ₹300 payment');
+const ut2 = J('buildShareText(ut, computeTrip(ut))');
+assert(!ut2.includes('each') && ut2.includes('→ Sid ₹977'), 'no misleading per-person line', ut2);
+console.log('\nbill names and icons');
+J('nt = ' + JSON.stringify({ id: 'n', currency: 'INR', members: [{ id: 'j', name: 'Jayesh', self: true }, { id: 's', name: 'Sid' }], expenses: [], payments: [], learn: {} }));
+eq(J('parseExpenseText("I paid 600 for food with Sid", nt, "Jayesh").desc'), 'Food', 'names stripped from description');
+eq(J('parseExpenseText("I paid 600 with Sid", nt, "Jayesh").desc'), '', 'no leftover words');
+eq(J('billName({ desc: "", cat: "other" })'), 'Bill', 'uncategorised bill is just "Bill"');
+eq(J('billCat({ desc: "Food", cat: "other" })'), 'food', 'icon follows a category-name');
+eq(J('billCat({ desc: "Other", cat: "food" })'), 'food', 'keeps its own category otherwise');
+eq(J('billName({ desc: "Other", cat: "food" })'), 'Food', 'old "Other" name follows the icon');
+eq(J('billName({ desc: "I Paid", cat: "food" })'), 'Food', 'old "I Paid" name cleaned up');
+eq(J('billName({ desc: "Paid parking", cat: "cab" })'), 'Paid parking', 'real names kept');
 console.log('\ncircleOf');
 const ct = JSON.parse(JSON.stringify(vt));
 ct.expenses.push({ id: 'x', amount: 300, currency: 'INR', payerId: 'j', parts: ['j', 'r', 'a'], date: '2026-09-01' });
