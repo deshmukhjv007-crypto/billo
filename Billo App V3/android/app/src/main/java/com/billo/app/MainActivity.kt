@@ -156,20 +156,12 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
 
-            override fun onPageFinished(view: WebView, url: String?) {
-                super.onPageFinished(view, url)
-                pageReady = true
-                if (voiceOnLoad) {
-                    voiceOnLoad = false
-                    openVoiceScreen()
-                }
-            }
         }
 
         // Serve assets over an internal HTTPS origin (https://appassets.androidplatform.net)
         // so Web Workers (on-device OCR) and the service worker work, exactly like a real site.
         val assetLoader = WebViewAssetLoader.Builder()
-            .addPathHandler("/www/", WebViewAssetLoader.AssetsPathHandler("www"))
+            .addPathHandler("/www/", WebViewAssetLoader.AssetsPathHandler(this))
             .build()
         web.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
@@ -184,6 +176,15 @@ class MainActivity : AppCompatActivity() {
                 } catch (_: Exception) {
                 }
                 return true
+            }
+
+            override fun onPageFinished(view: WebView, url: String?) {
+                super.onPageFinished(view, url)
+                pageReady = true
+                if (voiceOnLoad) {
+                    voiceOnLoad = false
+                    openVoiceScreen()
+                }
             }
         }
 
