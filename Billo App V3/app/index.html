@@ -3,8 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0B0C10" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0B0C10" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F7F4EE">
 <meta name="description" content="Just send the bills. Billo reads your receipts, keeps the group ledger right, and tells you exactly who pays whom.">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -19,38 +18,52 @@
 /* ============ Billo "Midnight" design — v1.5 ============
    Dark first. Names and money in Unbounded, everything else in Sora.
    Mint = money coming to you, coral = money you pay. Words always say it too. */
-@font-face{font-family:"Unbounded";font-weight:500;font-display:swap;src:url(fonts/unbounded-500.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2212,U+2215}
-@font-face{font-family:"Unbounded";font-weight:500;font-display:swap;src:url(fonts/unbounded-500-ext.woff2) format("woff2");unicode-range:U+0100-02AF,U+20A0-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
-@font-face{font-family:"Unbounded";font-weight:700;font-display:swap;src:url(fonts/unbounded-700.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2212,U+2215}
-@font-face{font-family:"Unbounded";font-weight:700;font-display:swap;src:url(fonts/unbounded-700-ext.woff2) format("woff2");unicode-range:U+0100-02AF,U+20A0-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
-@font-face{font-family:"Unbounded";font-weight:800;font-display:swap;src:url(fonts/unbounded-800.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2212,U+2215}
-@font-face{font-family:"Unbounded";font-weight:800;font-display:swap;src:url(fonts/unbounded-800-ext.woff2) format("woff2");unicode-range:U+0100-02AF,U+20A0-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
-@font-face{font-family:"Sora";font-weight:400;font-display:swap;src:url(fonts/sora-400.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2212,U+2215}
-@font-face{font-family:"Sora";font-weight:400;font-display:swap;src:url(fonts/sora-400-ext.woff2) format("woff2");unicode-range:U+0100-02AF,U+20A0-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
-@font-face{font-family:"Sora";font-weight:600;font-display:swap;src:url(fonts/sora-600.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2212,U+2215}
-@font-face{font-family:"Sora";font-weight:600;font-display:swap;src:url(fonts/sora-600-ext.woff2) format("woff2");unicode-range:U+0100-02AF,U+20A0-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
-@font-face{font-family:"Sora";font-weight:700;font-display:swap;src:url(fonts/sora-700.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2212,U+2215}
-@font-face{font-family:"Sora";font-weight:700;font-display:swap;src:url(fonts/sora-700-ext.woff2) format("woff2");unicode-range:U+0100-02AF,U+20A0-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
-
+@font-face{font-family:"Bricolage Grotesque";font-weight:700;font-display:swap;src:url(fonts/bricolage-700.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Bricolage Grotesque";font-weight:700;font-display:swap;src:url(fonts/bricolage-700-ext.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Bricolage Grotesque";font-weight:800;font-display:swap;src:url(fonts/bricolage-800.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Bricolage Grotesque";font-weight:800;font-display:swap;src:url(fonts/bricolage-800-ext.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Manrope";font-weight:400;font-display:swap;src:url(fonts/manrope-400.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Manrope";font-weight:400;font-display:swap;src:url(fonts/manrope-400-ext.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Manrope";font-weight:600;font-display:swap;src:url(fonts/manrope-600.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Manrope";font-weight:600;font-display:swap;src:url(fonts/manrope-600-ext.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Manrope";font-weight:700;font-display:swap;src:url(fonts/manrope-700.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Manrope";font-weight:700;font-display:swap;src:url(fonts/manrope-700-ext.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Manrope";font-weight:800;font-display:swap;src:url(fonts/manrope-800.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Manrope";font-weight:800;font-display:swap;src:url(fonts/manrope-800-ext.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
 :root{
+  --bg:#F7F4EE; --paper:#FFFFFF; --paper2:#F1EDE5; --ink:#1A1A2E; --ink2:#34344A; --dim:#5F5E6B; --faint:#8B8A96;
+  --rule:#E6E0D4; --line:#E6E0D4; --field:#FFFFFF; --hair:#EDE8DE;
+  --accent:#3B3BF5; --on-accent:#FFFFFF; --get:#177A42; --owe:#B83232; --warn:#7A5200;
+  --get-bg:#E4F3EA; --get-bd:#BFE3CD; --owe-bg:#FBE8E8; --owe-bd:#F2C4C4; --warn-bg:#FFF1D6; --warn-bd:#F0D9A6;
+  --well:#FFFFFF; --well-sh:inset 0 1px 3px rgba(26,26,46,.07); --knob:#3B3BF5; --knob-edge:#2B2BD0; --knob-ico:#FFFFFF;
+  --dock:#FFFFFF; --dock-bd:#E6E0D4; --dock-ink:#1A1A2E; --dock-dim:#8B8A96; --dmain-bg:#1A1A2E; --dmain-fg:#FFFFFF; --dmic-bg:#3B3BF5; --dmic-fg:#FFFFFF;
+  --me-bg:#1A1A2E; --me-fg:#FFFFFF; --tile-bg:#EEEEFF; --tile-fg:#3B3BF5;
+  --glow:rgba(59,59,245,.22); --shadow:0 10px 30px rgba(26,26,46,.10);
+  --mono:"Manrope",system-ui,-apple-system,"Segoe UI","Noto Sans","Noto Sans Devanagari",sans-serif;
+  --serif:"Bricolage Grotesque","Manrope",system-ui,"Noto Sans Devanagari",sans-serif;
+  --sans:"Manrope",system-ui,-apple-system,"Segoe UI","Noto Sans","Noto Sans Devanagari",sans-serif;
+  color-scheme:light;
+}
+:root[data-theme="dark"]{
   --bg:#0B0C10; --paper:#14161C; --paper2:#1A1D24; --ink:#F2F3F7; --ink2:#C9CCD6; --dim:#8E93A3; --faint:#6B6F7C;
   --rule:#262932; --line:#262932; --field:#0F1115; --hair:#1E2129;
   --accent:#7CF5C4; --on-accent:#0B0C10; --get:#7CF5C4; --owe:#FF8A6B; --warn:#FFB547;
   --get-bg:#10251E; --get-bd:#1F5A45; --owe-bg:#2A1714; --owe-bd:#5A2C22; --warn-bg:#2A2112; --warn-bd:#5C4A1E;
-  --well:#050608; --knob:#E9EBF0; --knob-edge:#B8BCC6; --dock:#F2F3F7; --dock-ink:#0B0C10; --dock-dim:#6B6F7C;
+  --well:#050608; --well-sh:inset 0 2px 8px rgba(0,0,0,.55); --knob:#FFFFFF; --knob-edge:#B8BCC6; --knob-ico:#0B0C10;
+  --dock:#F2F3F7; --dock-bd:transparent; --dock-ink:#0B0C10; --dock-dim:#6B6F7C; --dmain-bg:#0B0C10; --dmain-fg:#7CF5C4; --dmic-bg:#7CF5C4; --dmic-fg:#0B0C10;
+  --me-bg:#FFB547; --me-fg:#0B0C10; --tile-bg:#1D2030; --tile-fg:#B4B4FF;
   --glow:rgba(124,245,196,.16); --shadow:0 10px 30px rgba(0,0,0,.45);
-  --mono:"Sora",system-ui,-apple-system,"Segoe UI","Noto Sans","Noto Sans Devanagari",sans-serif;
-  --serif:"Unbounded","Sora",system-ui,"Noto Sans Devanagari",sans-serif;
-  --sans:"Sora",system-ui,-apple-system,"Segoe UI","Noto Sans","Noto Sans Devanagari",sans-serif;
   color-scheme:dark;
 }
-:root[data-theme="light"]{
-  --bg:#F3F4F8; --paper:#FFFFFF; --paper2:#EEF0F5; --ink:#11131A; --ink2:#2E323D; --dim:#5D6270; --faint:#7C8190;
-  --rule:#E1E3EA; --line:#DADDE5; --field:#FFFFFF; --hair:#E8EAF0;
-  --accent:#0E9F6E; --on-accent:#FFFFFF; --get:#0B8A5F; --owe:#D24D2A; --warn:#A46200;
-  --get-bg:#E3F7EE; --get-bd:#A7E3C9; --owe-bg:#FDECE6; --owe-bd:#F4C1B1; --warn-bg:#FFF3DC; --warn-bd:#F2D49A;
-  --well:#E4E6EC; --knob:#FFFFFF; --knob-edge:#C9CDD6; --dock:#11131A; --dock-ink:#FFFFFF; --dock-dim:#9AA0AD;
-  --glow:rgba(14,159,110,.12); --shadow:0 10px 30px rgba(17,19,26,.12);
+:root[data-theme="paper"]{
+  --bg:#FFFFFF; --paper:#FFFFFF; --paper2:#F4F4F6; --ink:#111111; --ink2:#2B2B2B; --dim:#5E5E66; --faint:#8A8A92;
+  --rule:#E4E4E8; --line:#E4E4E8; --field:#FFFFFF; --hair:#EEEEF1;
+  --accent:#111111; --on-accent:#FFFFFF; --get:#167A3E; --owe:#B42F2F; --warn:#7A5200;
+  --get-bg:#E7F4EC; --get-bd:#C2E3CF; --owe-bg:#FBE9E9; --owe-bd:#F1C6C6; --warn-bg:#FFF3DC; --warn-bd:#F2D49A;
+  --well:#F4F4F6; --well-sh:inset 0 1px 3px rgba(0,0,0,.06); --knob:#111111; --knob-edge:#000000; --knob-ico:#FFFFFF;
+  --dock:#FFFFFF; --dock-bd:#E4E4E8; --dock-ink:#111111; --dock-dim:#8A8A92; --dmain-bg:#111111; --dmain-fg:#FFFFFF; --dmic-bg:#111111; --dmic-fg:#FFFFFF;
+  --me-bg:#111111; --me-fg:#FFFFFF; --tile-bg:#F1F1F4; --tile-fg:#111111;
+  --glow:rgba(0,0,0,.12); --shadow:0 10px 30px rgba(0,0,0,.08);
   color-scheme:light;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -236,7 +249,7 @@ textarea.input{resize:none;line-height:1.5}
 .bamt.pos{color:var(--get)} .bamt.neg{color:var(--owe)} .bamt.zero{color:var(--faint);font-size:13.5px}
 .frow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;column-gap:10px;row-gap:8px;padding:10px 12px;border-radius:18px;background:var(--paper2);border:1px solid var(--line);margin-bottom:8px}
 .frow:last-child{margin-bottom:0}
-.frow.mine{border-color:var(--warn);background:var(--warn-bg)}
+.frow.mine{border-color:var(--tile-fg);background:var(--tile-bg)}
 .frow .pair{display:flex;align-items:center;gap:4px}
 .frow .pair .ico{width:18px;height:14px;color:var(--dim)}
 .finfo{font-size:14px;min-width:0;overflow-wrap:break-word;line-height:1.35}
@@ -454,6 +467,59 @@ textarea.input{resize:none;line-height:1.5}
 .vbill .vp .av{width:42px;height:42px;font-size:15px}
 .vnew{display:flex;align-items:center;gap:10px;background:var(--warn-bg);border:1px solid var(--warn-bd);border-radius:16px;padding:10px 12px;margin-top:12px;font-size:13.5px}
 .vnew span{flex:1}
+
+/* ===== v1.6 Cream + Ink ===== */
+.slide{box-shadow:var(--well-sh)}
+.slide .knob{background:var(--knob);box-shadow:inset 0 -3px 0 var(--knob-edge),0 4px 12px var(--glow)}
+.slide .knob .ico,.slide.save .knob .ico{stroke:var(--knob-ico)}
+.slide.save .knob{background:var(--knob);box-shadow:inset 0 -3px 0 var(--knob-edge),0 4px 12px var(--glow)}
+.orbit .me .core{background:var(--me-bg);color:var(--me-fg);box-shadow:0 0 0 5px var(--bg),0 0 0 6px var(--line),0 8px 22px rgba(26,26,46,.18)}
+.dock{border:1px solid var(--dock-bd)}
+.dock .dmain{background:var(--dmain-bg);color:var(--dmain-fg)}
+.dock .dmic{background:var(--dmic-bg);color:var(--dmic-fg);border-radius:50%;width:52px;height:52px;box-shadow:0 6px 16px var(--glow)}
+.ttile{width:40px;height:40px;border-radius:13px;background:var(--tile-bg);color:var(--tile-fg);display:flex;align-items:center;justify-content:center;flex:none}
+.ttile .ico{width:20px;height:20px}
+.ttit .ttile{margin-right:2px}
+.gcard .ttile{margin-bottom:2px}
+.emo{color:var(--ink)} .emo .ico{width:22px;height:22px}
+.emo.on{background:var(--tile-bg);color:var(--tile-fg)}
+.catperch{width:68px;height:65px;flex:none;margin-left:auto;margin-right:2px;margin-bottom:-6px;cursor:pointer;background:none;border:none;padding:0}
+.catperch .bcat{width:100%;height:100%;display:block;overflow:visible}
+.catperch.tapped [class^="bc"],.catperch.tapped [class*=" bc"]{animation:none!important}
+.catperch.tapped .bcat{animation:catnotice .5s ease}
+@keyframes catnotice{0%{transform:none}40%{transform:translateY(-5px)}100%{transform:none}}
+.brand{min-width:0}
+.vsaid{min-height:76px;max-height:76px;overflow:hidden;font-family:var(--sans);font-weight:600;font-size:16px;color:var(--dim);font-style:italic;background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:12px 14px;display:flex;align-items:center;justify-content:center}
+.vsaid:empty::before{content:attr(data-ph);color:var(--faint)}
+.vnote{text-align:center;font-size:12.5px;color:var(--dim);margin-top:8px}
+.vhead{font-family:var(--serif);font-weight:700;font-size:24px;line-height:1.2;text-align:center;margin-top:6px}
+.bchead{transform-box:view-box;transform-origin:105px 122px;animation:bchead 18s ease-in-out infinite}
+@keyframes bchead{0%,3%{transform:none}6%,21%{transform:rotate(9deg) translate(2px,6px)}25%,46%{transform:none}50%,59%{transform:rotate(-9deg) translateY(-3px)}63%,66%{transform:none}70%,82%{transform:rotate(-26deg) translate(-10px,10px)}86%,100%{transform:none}}
+.bcpaw{opacity:0;animation:bcpaw 18s infinite}
+@keyframes bcpaw{0%,4%{opacity:0}6%,21%{opacity:1}23%,100%{opacity:0}}
+.bcpawf{transform-box:view-box;transform-origin:124px 168px;animation:bclick .7s ease-in-out infinite}
+@keyframes bclick{0%,100%{transform:rotate(0)}50%{transform:rotate(-6deg) translateY(-2px)}}
+.bcrf{animation:bcrf 18s infinite}
+@keyframes bcrf{0%,4%{opacity:1}6%,21%{opacity:0}23%,100%{opacity:1}}
+.bceO{animation:bceO 18s infinite}
+@keyframes bceO{0%,4%{opacity:1}6%,21%{opacity:0}24%,48%{opacity:1}50%,82%{opacity:0}85%,100%{opacity:1}}
+.bceC{opacity:0;animation:bceC 18s infinite}
+@keyframes bceC{0%,4%{opacity:0}6%,21%{opacity:1}24%,48%{opacity:0}50%,82%{opacity:1}85%,100%{opacity:0}}
+.bcmN{animation:bcmN 18s infinite}
+@keyframes bcmN{0%,49%{opacity:1}50%,60%{opacity:0}62%,100%{opacity:1}}
+.bcmY{opacity:0;transform-box:fill-box;transform-origin:50% 0;animation:bcmY 18s infinite}
+@keyframes bcmY{0%,49%{opacity:0;transform:scaleY(.2)}53%,57%{opacity:1;transform:scaleY(1)}60%,100%{opacity:0;transform:scaleY(.2)}}
+.bctg{opacity:0;animation:bctg 18s infinite}
+@keyframes bctg{0%,6%{opacity:0}8%,20%{opacity:1}21%,70%{opacity:0}72%,81%{opacity:1}82%,100%{opacity:0}}
+.bctgf{transform-box:fill-box;transform-origin:50% 0;animation:bctgf .35s ease-in-out infinite}
+@keyframes bctgf{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.4)}}
+.bclook{animation:bclook 18s ease-in-out infinite}
+@keyframes bclook{0%,27%{transform:none}31%,35%{transform:translateX(-4px)}39%,43%{transform:translateX(4px)}46%,100%{transform:none}}
+.bcear{transform-box:view-box;transform-origin:70px 46px;animation:bcear 18s infinite}
+@keyframes bcear{0%,36%{transform:none}37%{transform:rotate(-14deg)}38%,40%{transform:none}41%{transform:rotate(-14deg)}42%,100%{transform:none}}
+.bctl{transform-box:view-box;transform-origin:128px 186px;animation:bctl 3s ease-in-out infinite}
+@keyframes bctl{0%,100%{transform:rotate(0)}50%{transform:rotate(-9deg)}}
+
 </style>
 </head>
 <body>
@@ -478,7 +544,7 @@ const APP = {
   tagline: "Just send the bills. We'll do the math.",
   storeUrl: 'https://play.google.com/store/apps/details?id=com.billo.app',
   webUrl: 'billo.app',
-  version: '1.5.0'
+  version: '1.6.0'
 };
 
 const CATS = {
@@ -804,24 +870,28 @@ function learnSuggest(trip, payerId, cat) {
 /* ---------- shareable summary ---------- */
 function buildShareText(trip, calc) {
   const nm = id => { const m = memberById(trip, id); return m ? displayName(trip, m, meName) : '?'; };
+  /* whole rupees in chat: splitting to the paisa can leave someone at ₹1,225.99 */
+  const amt = n => fmtMoney(trip.currency === 'INR' ? Math.round(Number(n) || 0) : n, trip.currency);
   const L = [];
-  L.push(trip.emoji + ' ' + trip.name + ' — ' + fmtMoney(calc.total, trip.currency));
-  L.push('');
-  L.push(trip.members.length + ' ' + (trip.members.length === 1 ? 'person' : 'people') + ' · ' + (trip.expenses.length) + ' bills · ' + calc.receipts + ' receipts');
-  if (trip.members.length) L.push(fmtMoney(calc.total / trip.members.length, trip.currency) + '/person');
+  L.push(trip.name + ' — ' + amt(calc.total));
+  const n = trip.members.length;
+  L.push(n + ' ' + (n === 1 ? 'person' : 'people') + ' · ' + (trip.expenses.length) + ' bills' + (n ? ' · ' + amt(calc.total / n) + ' each' : ''));
   L.push('');
   if (calc.flows.length) {
-    L.push('Settlements:');
-    calc.flows.forEach(f => {
-      const to = memberById(trip, f.to);
-      L.push('• ' + nm(f.from) + ' → ' + nm(f.to) + ' ' + fmtMoney(f.amount, trip.currency) + (to && isVpa(to.upi) && trip.currency === 'INR' ? ' (UPI: ' + to.upi.trim().toLowerCase() + ')' : ''));
-    });
+    L.push('Who pays whom:');
+    calc.flows.forEach(f => L.push('• ' + nm(f.from) + ' → ' + nm(f.to) + ' ' + amt(f.amount)));
+    const seen = {};
+    const upi = calc.flows.map(f => memberById(trip, f.to)).filter(m => m && isVpa(m.upi) && trip.currency === 'INR' && !seen[m.id] && (seen[m.id] = 1));
+    if (upi.length) {
+      L.push('');
+      upi.forEach(m => L.push('Pay ' + displayName(trip, m, meName) + ' on UPI: ' + m.upi.trim().toLowerCase()));
+    }
   } else {
-    L.push("🎉 Everyone's settled up");
+    L.push("Everyone's settled up");
   }
   L.push('');
   L.push(APP.tagline);
-  L.push('Get ' + APP.name + ' on the Play Store → ' + APP.storeUrl);
+  L.push('Get ' + APP.name + ' → ' + APP.storeUrl);
   return L.join('\n');
 }
 /* ---------- UPI settle-up ---------- */
@@ -847,8 +917,8 @@ function upiLink(o) {
 function buildUpiRequest(trip, flow, meNm) {
   const from = memberById(trip, flow.from), to = memberById(trip, flow.to);
   const L = [];
-  L.push('Hi ' + displayName(trip, from, meNm) + ' 👋');
-  L.push('Settling up ' + trip.emoji + ' ' + trip.name + ': you owe ' + displayName(trip, to, meNm) + ' ' + fmtMoney(flow.amount, trip.currency) + '.');
+  L.push('Hi ' + displayName(trip, from, meNm) + ',');
+  L.push('Settling up ' + trip.name + ': you owe ' + displayName(trip, to, meNm) + ' ' + fmtMoney(flow.amount, trip.currency) + '.');
   if (to && isVpa(to.upi)) L.push('UPI: ' + to.upi.trim().toLowerCase());
   L.push('');
   L.push('— sent from ' + APP.name + ' · ' + APP.storeUrl);
@@ -1348,7 +1418,7 @@ function freshState() {
 }
 function saveLocal() {
   try { localStorage.setItem(LS_KEY, JSON.stringify(S)); }
-  catch (e) { toast('⚠️ Storage full or unavailable — export a backup'); }
+  catch (e) { toast('Storage full or unavailable — export a backup'); }
 }
 function save() {
   saveLocal();
@@ -1620,9 +1690,9 @@ const STR = {
 };
 Object.assign(STR.en, {
  "hi_over": "Hi {name}, overall",
- "overall_get": "you'll get back {a}",
- "overall_owe": "you pay {a} in total",
- "overall_sq": "you're all square",
+ "overall_get": "You'll get back {a}",
+ "overall_owe": "You pay {a} in total",
+ "overall_sq": "You're all square",
  "circle_pays_you": "{name} pays you {a}",
  "circle_you_pay": "You pay {name} {a}",
  "circle_square": "{name} · all square",
@@ -1739,6 +1809,14 @@ Object.assign(STR.hi, {
  "theme_dark": "मिडनाइट",
  "theme_light": "दिन"
 });
+Object.assign(STR.en, { theme_cream: 'Cream', theme_dark: 'Midnight', theme_paper: 'Paper', voice_take: 'Take your time.<br>Say the whole bill.', voice_card_note: 'The card comes up when you stop talking', voice_heard: 'Your words show up here…', cat_hi: 'Billo, the cat' });
+Object.assign(STR.hi, { theme_cream: 'क्रीम', theme_dark: 'मिडनाइट', theme_paper: 'पेपर', voice_take: 'आराम से बोलिए।<br>पूरा बिल बताइए।', voice_card_note: 'आपके रुकते ही कार्ड आ जाएगा', voice_heard: 'आपके शब्द यहाँ दिखेंगे…', cat_hi: 'बिल्लो, बिल्ला' });
+/* v1.6: no emoji in the interface — words and line icons only */
+(function () {
+  const EMO = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B50}\u{2B06}\u{2194}-\u{21FF}\u{FE0F}\u{200D}\u{2705}\u{231A}-\u{23FF}]\uFE0F?/gu;
+  [STR.en, STR.hi].forEach(tb => Object.keys(tb).forEach(k => { if (typeof tb[k] === 'string') tb[k] = tb[k].replace(EMO, '').replace(/ {2,}/g, ' ').replace(/ ([.!?,])/g, '$1').trim(); }));
+})();
+Object.assign(STR.en, { pay_on_upi: 'Pay {name} on UPI', trip_icon: 'Icon' }); Object.assign(STR.hi, { pay_on_upi: '{name} को UPI से भेजें', trip_icon: 'आइकन' });
 const T = (k, vars) => {
   let s = (STR[S.settings.lang] || STR.en)[k] || STR.en[k] || k;
   if (vars) for (const v in vars) s = s.split('{' + v + '}').join(vars[v]);
@@ -1801,7 +1879,10 @@ function render() {
   ui._screen = ui.screen;
   document.documentElement.lang = S.settings.lang;
   const th = S.settings.theme;
-  if (th === 'light') document.documentElement.setAttribute('data-theme', 'light'); else document.documentElement.removeAttribute('data-theme');
+  const thv = th === 'dark' ? 'dark' : (th === 'paper' || th === 'light') ? 'paper' : '';
+  if (thv) document.documentElement.setAttribute('data-theme', thv); else document.documentElement.removeAttribute('data-theme');
+  try { const bar = thv === 'dark' ? '#0B0C10' : thv === 'paper' ? '#FFFFFF' : '#F7F4EE'; if (window.Billo && window.Billo.setBars && ui._bar !== bar) { ui._bar = bar; window.Billo.setBars(bar, thv !== 'dark'); } } catch (e) {}
+  try { const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', thv === 'dark' ? '#0B0C10' : thv === 'paper' ? '#FFFFFF' : '#F7F4EE'); } catch (e) {}
   const fns = {
     welcome: scrWelcome, home: scrHome, trip: scrTrip, add: scrAdd, done: scrDone,
     share: scrShare, settings: scrSettings, pro: scrPro, newtrip: scrNewTrip, join: scrJoin, insights: scrInsights, paid: scrPaid, joinpick: scrJoinPick
@@ -1908,6 +1989,31 @@ function tripRange(t) {
 }
 
 /* ---------- v1.5 Midnight: circle, slide-to-pay, dock ---------- */
+Object.assign(ICONS, {
+  plane: '<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',
+  home: '<path d="M3 11l9-7 9 7v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/>',
+  beach: '<path d="M4 20h16M12 20V9M5 10a7 7 0 0114 0z"/><path d="M12 3v1"/>',
+  mountain: '<path d="M2 20l7-12 4 6 3-4 6 10z"/><path d="M8 10l1.5 2 1.5-2"/>',
+  city: '<path d="M3 21V9h6v12M9 21V4h8v17M17 21v-9h4v9M2 21h20M12 8h2M12 12h2M12 16h2"/>',
+  party: '<path d="M4 20l5-14 9 9z"/><path d="M14 4v2M19 9h2M17.5 5.5L16 7"/>',
+  bike: '<circle cx="5.5" cy="16.5" r="3.5"/><circle cx="18.5" cy="16.5" r="3.5"/><path d="M5.5 16.5L9 9h5l4.5 7.5M12 9l-2-3H7M14 9l1.5-3H18"/>',
+  wave: '<path d="M2 15c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2M2 19c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2M6 11c0-4 4-7 8-6"/>',
+  temple: '<path d="M12 2l2 4h-4zM6 10h12M7 10l1-4h8l1 4M5 21V13h14v8M3 21h18M10 21v-4h4v4"/>',
+  film: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14M3 9h4M3 15h4M17 9h4M17 15h4"/>',
+  train: '<rect x="5" y="3" width="14" height="14" rx="3"/><path d="M5 11h14M9 21l-2-4M15 21l2-4M8.5 14h.01M15.5 14h.01"/>',
+  tent: '<path d="M3 20L12 4l9 16zM12 4v16M9 20l3-6 3 6"/>',
+  game: '<rect x="2" y="7" width="20" height="11" rx="5"/><path d="M7 11v3M5.5 12.5h3M15 11.5h.01M18 13h.01"/>',
+  bag: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2M3 12h18"/>',
+  heart: '<path d="M12 20s-7-4.5-9-9a4.5 4.5 0 018-3 4.5 4.5 0 018 3c-2 4.5-7 9-7 9z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5"/>'
+});
+/* trips keep their emoji in the data (older phones, sync); the screen shows a line icon instead */
+const TRIP_ICON = { '🏖️': 'beach', '🏔️': 'mountain', '🏙️': 'city', '🎉': 'party', '✈️': 'plane', '🏍️': 'bike', '🎳': 'fun', '🏠': 'home', '🌊': 'wave', '⛰️': 'mountain', '🛕': 'temple', '🎬': 'film', '🚂': 'train', '🏕️': 'tent', '🎮': 'game', '📿': 'heart', '🧳': 'bag' };
+function tripIconOf(t) { const e = String((t && t.emoji) || ''); return TRIP_ICON[e] || TRIP_ICON[e.replace(/️/g, '')] || TRIP_ICON[e + '️'] || 'bag'; }
+function tripTile(t) { return '<span class="ttile">' + ic(tripIconOf(t)) + '</span>'; }
+/* Billo the cat — sits in the top bar and minds his own business (licks paw, looks around, yawns, grooms) */
+const BILLO_CAT = '<svg class="bcat" viewBox="0 0 210 200" aria-hidden="true"><g class="bctl"><path d="M128 186 C160 190 172 166 164 146 C160 134 168 124 178 128" fill="none" stroke="#1A1A2E" stroke-width="10" stroke-linecap="round"/><path d="M128 186 C160 190 172 166 164 146 C160 134 168 124 178 128" fill="none" stroke="#3A3D46" stroke-width="5.6" stroke-linecap="round"/></g><path d="M80 194 C68 168 70 134 88 120 L122 120 C140 134 142 168 130 194 Z" fill="#3A3D46" stroke="#1A1A2E" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M94 124 C90 148 92 174 105 184 C118 174 120 148 116 124 Z" fill="#F1EEE7"/><path d="M88 194 q8 -10 16 0" fill="#F1EEE7" stroke="#1A1A2E" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><g class="bcrf"><path d="M106 194 q8 -10 16 0" fill="#F1EEE7" stroke="#1A1A2E" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></g><g class="bchead"><path d="M62 90 C59 70 63 52 67 30 L89 46 C99 42 111 42 121 46 L143 30 C147 52 151 70 148 90 C146 110 128 120 105 120 C82 120 64 110 62 90 Z" fill="#3A3D46" stroke="#1A1A2E" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><g class="bcear"><path d="M67 34 L74 40 L66 44" style="fill:var(--bg)" stroke="#1A1A2E" stroke-width="2.2" stroke-linejoin="round"/></g><path d="M70 44 L73 55M140 42 L137 53" fill="none" stroke="#5A5E69" stroke-width="3" stroke-linecap="round"/><g class="bceO"><ellipse cx="88" cy="82" rx="10.5" ry="9.5" fill="#F5B83D" stroke="#1A1A2E" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="122" cy="82" rx="10.5" ry="9.5" fill="#F5B83D" stroke="#1A1A2E" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><g class="bclook"><circle cx="88" cy="83" r="4.8" fill="#1A1A2E"/><circle cx="90.4" cy="80" r="1.8" fill="#FFFFFF"/><circle cx="122" cy="83" r="4.8" fill="#1A1A2E"/><circle cx="124.4" cy="80" r="1.8" fill="#FFFFFF"/></g><path d="M76 77 L100 77 L100 68 L76 68 Z" fill="#3A3D46"/><path d="M77 78 Q88 75 99 78" fill="none" stroke="#1A1A2E" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M110 77 L134 77 L134 68 L110 68 Z" fill="#3A3D46"/><path d="M111 78 Q122 75 133 78" fill="none" stroke="#1A1A2E" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></g><g class="bceC"><path d="M78 82 q10 7 20 0" fill="none" stroke="#1A1A2E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M112 82 q10 7 20 0" fill="none" stroke="#1A1A2E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></g><path d="M78 66 l17 -1M115 65 l17 1" fill="none" stroke="#A3A8B5" stroke-width="3.2" stroke-linecap="round"/><ellipse cx="105" cy="102" rx="19" ry="13" fill="#F1EEE7"/><path d="M101 96 h8 l-4 4.5z" fill="#C77B86" stroke="#1A1A2E" stroke-width="1.6" stroke-linejoin="round"/><path class="bcmN" d="M98 108 q6 3 14 -3" fill="none" stroke="#1A1A2E" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><g class="bcmY"><path d="M95 104 q10 22 20 0 z" fill="#7A3A44" stroke="#1A1A2E" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M99 112 q6 6 12 0" fill="#E58A98"/></g><g class="bctg"><g class="bctgf"><path d="M101 108 q4 9 8 0 z" fill="#E58A98" stroke="#1A1A2E" stroke-width="1.8" stroke-linejoin="round"/></g></g><path d="M70 98 L48 94M70 105 L49 110M140 98 L162 94M140 105 L161 110" fill="none" stroke="#1A1A2E" stroke-width="1.7" stroke-linecap="round"/></g><g class="bcpaw"><g class="bcpawf"><path d="M118 168 C116 146 112 128 106 116 C104 110 112 106 117 110 C124 120 128 144 130 166" fill="#3A3D46" stroke="#1A1A2E" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="111" cy="113" rx="7" ry="6" fill="#F1EEE7" stroke="#1A1A2E" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></g></g></svg>';
+function catHtml() { return '<button class="catperch" data-act="cat-tap" aria-label="' + escapeHtml(T('cat_hi')) + '">' + BILLO_CAT + '</button>'; }
 ICONS.mic = '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/>';
 ICONS.home = '<path d="M3 11l9-7 9 7v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/>';
 ICONS.scan = '<path d="M4 8V5a1 1 0 011-1h3M16 4h3a1 1 0 011 1v3M20 16v3a1 1 0 01-1 1h-3M8 20H5a1 1 0 01-1-1v-3M7 12h10"/>';
@@ -2017,7 +2123,7 @@ function scrHome() {
   });
   const net = round2(get - owe);
   const head = topBar(
-    '<div class="brand"><span class="wordmark">billo<span class="dot">.</span></span></div>', '',
+    '<div class="brand"><span class="wordmark">billo<span class="dot">.</span></span>' + catHtml() + '</div>', '',
     '<div class="top-actions">' + (S.pro ? '<span class="badge pro">PRO</span>' : iconBtn('open-pro', 'star', T('pro'))) +
     '<button class="iconbtn" data-act="go-settings" aria-label="' + escapeHtml(T('settings')) + '" style="background:#FFB547;color:#0B0C10;border:none;font-weight:700">' + escapeHtml((me || 'B').charAt(0).toUpperCase()) + '</button></div>'
   );
@@ -2041,7 +2147,7 @@ function scrHome() {
       const line = v < -0.004 ? '<span class="neg">' + T('you_pay_a', { a: fmtMoney(-v, t.currency) }) + '</span>'
         : v > 0.004 ? '<span class="pos">' + T('you_get_a', { a: fmtMoney(v, t.currency) }) + '</span>'
         : '<span class="muted">' + (t.expenses.length ? T('all_settled') : T('no_bills_t')) + '</span>';
-      return '<button class="gcard' + (done ? ' done' : '') + '" data-act="open-trip" data-arg="' + t.id + '"><span class="gn">' + escapeHtml(t.name) + '</span>' +
+      return '<button class="gcard' + (done ? ' done' : '') + '" data-act="open-trip" data-arg="' + t.id + '">' + tripTile(t) + '<span class="gn">' + escapeHtml(t.name) + '</span>' +
         '<span class="gm">' + t.members.length + ' ' + T('people') + ' · ' + fmtMoney(tripSpent(t), t.currency) + '</span><span class="gl">' + line + '</span></button>';
     }).join('');
     body += '<div class="sec-row"><b>' + T('groups') + '</b><button class="mini-link" data-act="new-trip">＋ ' + T('new_trip') + '</button></div>' +
@@ -2095,7 +2201,13 @@ window.__billoVoice = function (m) {
 function voiceOn(m) {
   const v = ui.voice;
   if (!v || !m) return;
-  if (m.type === 'partial') { if (v.phase === 'listen') { v.interim = m.text || ''; voiceRender(); } }
+  if (m.type === 'partial') {
+    if (v.phase !== 'listen') return;
+    v.interim = m.text || '';
+    /* only the words change — the screen itself stays put (no flicker while you talk) */
+    const el = $('#vsaidTxt');
+    if (el) el.textContent = v.interim ? '“' + v.interim + '…”' : ''; else voiceRender();
+  }
   else if (m.type === 'final') { if (v.phase !== 'listen') return; v.text = String(m.text || '').trim(); v.interim = ''; VOICE.rec = null; voiceDone(); }
   else if (m.type === 'error') {
     if (v.phase !== 'listen') return;
@@ -2185,7 +2297,7 @@ function voiceRender() {
     return;
   }
   const listening = v.phase === 'listen';
-  const said = listening ? (escapeHtml(v.text) + '<span class="in">' + escapeHtml(v.interim || '') + '</span>') : escapeHtml(v.text || '');
+  const said = listening ? (v.interim ? escapeHtml('“' + v.interim + '…”') : '') : (v.text ? escapeHtml('“' + v.text + '”') : '');
   const tips = ['voice_ex1', 'voice_ex2', 'voice_ex3'].map(k => '<div class="x">“' + escapeHtml(T(k)) + '”</div>').join('');
   let state, bottom;
   if (v.phase === 'type') {
@@ -2193,7 +2305,8 @@ function voiceRender() {
     bottom = '<div class="vtips">' + tips + '<textarea class="input" id="voiceText" rows="2" placeholder="' + escapeHtml(T('voice_ex1')) + '"></textarea>' +
       '<button class="btn btn-accent big" data-act="voice-typed">' + T('parse_btn') + '</button></div>';
   } else {
-    state = '<div class="vstate"><div class="lbl">' + (listening ? T('voice_listen') : T('voice_tap')) + '</div><div class="muted">' + (v.err ? escapeHtml(v.err) : T('voice_say')) + '</div></div>';
+    state = '<div class="vstate"><div class="lbl">' + (listening ? T('voice_listen') : T('voice_tap')) + '</div>' +
+      (listening ? '<div class="vhead">' + T('voice_take') + '</div>' : '<div class="muted">' + (v.err ? escapeHtml(v.err) : T('voice_say')) + '</div>') + '</div>';
     bottom = '<div class="vtips"><span class="muted sm" style="text-align:center">' + T('voice_also') + '</span>' + tips +
       (listening ? '<button class="btn btn-ghost big" data-act="voice-stop">' + ic('stop', 's') + ' ' + T('voice_done') + '</button>'
         : '<button class="btn btn-ghost big" data-act="voice-type">' + ic('edit', 's') + ' ' + T('voice_type') + '</button>') + '</div>';
@@ -2204,7 +2317,8 @@ function voiceRender() {
     [44, 62, 36, 56, 40].map((h, i) => '<span style="height:' + h + 'px;animation-delay:' + (i * 0.15) + 's"></span>').join('') + '</button></div>';
   root.innerHTML = '<div class="vwrap" role="dialog" aria-label="' + escapeHtml(T('voice_btn')) + '"><div class="vin">' +
     '<div class="vtop">' + iconBtn('voice-close', 'close', T('close')) + '<span class="muted sm">' + T('voice_lang') + '</span>' + tripBtn + '</div>' +
-    state + orb + '<div class="vsaid">' + said + '</div><div class="vchips">' + voiceChips(v.text || v.interim, t) + '</div>' + bottom + '</div></div>';
+    state + orb + '<div class="vsaid" id="vsaidTxt" data-ph="' + escapeHtml(T('voice_heard')) + '">' + said + '</div>' +
+    (listening ? '<div class="vnote">' + T('voice_card_note') + '</div>' : '') + bottom + '</div></div>';
 }
 
 function scrWelcome() {
@@ -2260,7 +2374,7 @@ function syncCard(t) {
 function tripHeader(t) {
   return topBar(
     iconBtn('trip-back', 'back', T('back')),
-    '<div style="min-width:0"><div class="tname">' + escapeHtml(t.name) + '</div><div class="tcode">' + syncPill(t) + '</div></div>',
+    tripTile(t) + '<div style="min-width:0"><div class="tname">' + escapeHtml(t.name) + '</div><div class="tcode">' + syncPill(t) + '</div></div>',
     '<div class="top-actions">' + iconBtn('trip-insights', 'chart', T('insights')) + iconBtn('trip-invite', 'users', T('invite')) + iconBtn('trip-share', 'share', T('share')) + '</div>'
   );
 }
@@ -2505,9 +2619,9 @@ function customStatusHtml() {
   const sum = round2(Object.values(d.customAmts).reduce((s, v) => s + (parseFloat(v) || 0), 0));
   const diff = round2(amt - sum);
   if (amt <= 0) return '—';
-  if (Math.abs(diff) < 0.005) return '<span style="color:var(--mint)">✓ ' + fmtMoney(amt, curTrip().currency) + '</span>';
+  if (Math.abs(diff) < 0.005) return '<span style="color:var(--get)">' + fmtMoney(amt, curTrip().currency) + '</span>';
   if (diff > 0) return fmtMoney(diff, curTrip().currency) + ' ' + T('remaining');
-  return fmtMoney(-diff, curTrip().currency) + ' ' + T('over_by') + ' ⚠️';
+  return fmtMoney(-diff, curTrip().currency) + ' ' + T('over_by');
 }
 function multiListHtml() {
   const t = curTrip();
@@ -2636,95 +2750,86 @@ function scrPaid() {
     '<button class="btn btn-primary grow" data-act="paid-close">' + T('back_to_trip') + '</button></div>';
 }
 
-/* ---------- share: a printed receipt on the brand colour, story-sized ---------- */
+/* ---------- share card: dark, calm, readable in a chat (1080 wide, 4:5 or taller) ---------- */
+function shareAmt(n, cur) { return fmtMoney(cur === 'INR' ? Math.round(Number(n) || 0) : n, cur); }
 function drawShareCard(t, c) {
-  const W = 1080, H = 1920;
+  const W = 1080;
+  const flows = c.flows.slice(0, 6);
+  const payee = (() => { const ids = [...new Set(c.flows.map(f => f.to))]; for (const id of ids) { const m = memberById(t, id); if (m && isVpa(m.upi) && t.currency === 'INR') return m; } return null; })();
+  const I = tripInsights(t);
+  const H = Math.max(1350, 1000 + (flows.length || 1) * 96 + (c.flows.length > 6 ? 60 : 0) + (payee ? 170 : 0));
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const x = cv.getContext('2d');
-  const MONO = '"Plex Mono", ui-monospace, Menlo, monospace';
-  const SERIF = '"Instrument Serif", Georgia, serif';
-  const F = (px, w) => (w || '400') + ' ' + px + 'px ' + MONO;
-  const INK = '#1C1A17', DIM = '#5E574C', RULE = '#8A8173', PAPER = '#FFFDF7';
-  x.fillStyle = '#B8430B'; x.fillRect(0, 0, W, H);
-  const PW = 860, PX = (W - PW) / 2, PAD = 56, CW = PW - PAD * 2;
-  const I = tripInsights(t);
-  const bills = (t.expenses || []).slice().sort((a, b) => b.amount - a.amount);
-  const flows = c.flows;
-  const maxBills = Math.max(3, 10 - Math.min(flows.length, 5));
-  const shown = bills.slice(0, maxBills);
-  const payees = [...new Set(flows.map(f => f.to))].map(id => memberById(t, id)).filter(m => m && isVpa(m.upi) && t.currency === 'INR');
-  /* measure first so the receipt is exactly as tall as its content */
-  let h = 0;
-  const rows = [];
-  const add = (kind, hh, data) => { rows.push({ kind, h: hh, data }); h += hh; };
-  add('brand', 86); add('tag', 44); add('dash', 44);
-  add('trip', 104); add('meta', 50); add('dash', 44);
-  shown.forEach(e => add('line', 54, { l: e.desc || CATS[e.cat].label, r: fmtPlain(e.amount, t.currency) }));
-  if (bills.length > shown.length) add('more', 50, { l: '+ ' + (bills.length - shown.length) + ' ' + T('more_bills') });
-  add('solid', 34); add('total', 66); add('perhead', 50); add('dash', 44);
-  add('label', 50, { l: T('who_pays').toUpperCase() });
-  if (flows.length) {
-    flows.slice(0, 5).forEach(f => add('line', 54, { l: nameOf(t, f.from).toUpperCase() + ' → ' + nameOf(t, f.to).toUpperCase(), r: fmtPlain(f.amount, t.currency).replace(/\.00$/, '') }));
-    if (flows.length > 5) add('more', 50, { l: '+ ' + (flows.length - 5) + ' ' + T('more_bills') });
-    payees.slice(0, 3).forEach(m => add('upi', 42, { l: 'UPI ' + nameOf(t, m.id) + ': ' + m.upi.toLowerCase() }));
-  } else add('allsq', 60);
-  add('dash', 44); add('barcode', 92); add('foot', 50);
-  const PH = h + 70;
-  const PY = Math.round((H - PH) / 2);
-  /* paper with torn top and bottom edges */
-  x.save();
-  x.translate(W / 2, H / 2); x.rotate(-1.5 * Math.PI / 180); x.translate(-W / 2, -H / 2);
-  x.shadowColor = 'rgba(28,26,23,.35)'; x.shadowBlur = 50; x.shadowOffsetY = 24;
-  x.fillStyle = PAPER; x.fillRect(PX, PY, PW, PH);
-  x.shadowColor = 'transparent';
-  x.globalCompositeOperation = 'destination-out';
-  for (let cx = PX + 10; cx < PX + PW; cx += 20) {
-    x.beginPath(); x.arc(cx, PY, 9, 0, Math.PI * 2); x.fill();
-    x.beginPath(); x.arc(cx, PY + PH, 9, 0, Math.PI * 2); x.fill();
-  }
-  x.globalCompositeOperation = 'source-over';
-  const fit = (s, px, w, max) => { x.font = F(px, w); let o = String(s); while (o.length > 1 && x.measureText(o).width > max) o = o.slice(0, -2) + '…'; return o; };
-  const leader = (l, r, y, px, w) => {
-    x.font = F(px, w); x.fillStyle = INK; x.textAlign = 'right'; x.fillText(r, PX + PAD + CW, y);
-    const rw = x.measureText(r).width;
-    x.textAlign = 'left'; const L = fit(String(l).toUpperCase(), px, w, CW - rw - 60); x.fillText(L, PX + PAD, y);
-    const lw = x.measureText(L).width;
-    x.strokeStyle = RULE; x.lineWidth = 3; x.setLineDash([3, 10]);
-    x.beginPath(); x.moveTo(PX + PAD + lw + 14, y - 4); x.lineTo(PX + PAD + CW - rw - 14, y - 4); x.stroke(); x.setLineDash([]);
+  const DISP = '"Bricolage Grotesque", "Manrope", sans-serif', BODY = '"Manrope", system-ui, sans-serif';
+  const WH = '#FFFFFF', DIM = '#A9A7C2', FAINT = '#8C8AA6', GET = '#8EE6B4', IND = '#B4B4FF';
+  x.fillStyle = '#12112A'; x.fillRect(0, 0, W, H);
+  const g = x.createRadialGradient(0, 0, 0, 0, 0, W * 1.1); g.addColorStop(0, 'rgba(58,50,150,.85)'); g.addColorStop(.6, 'rgba(42,36,112,0)');
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  const P = 84;
+  const rr = (X, Y, w, h, r) => { x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r); x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath(); };
+  const fit = (str, max) => { let o = String(str); while (o.length > 1 && x.measureText(o).width > max) o = o.slice(0, -2) + '…'; return o; };
+  const icon = (name, X, Y, size, color) => {
+    const m = String(ICONS[name] || ICONS.receipt);
+    x.save(); x.translate(X, Y); x.scale(size / 24, size / 24);
+    x.strokeStyle = color; x.lineWidth = 2; x.lineCap = 'round'; x.lineJoin = 'round';
+    (m.match(/d="([^"]+)"/g) || []).forEach(d => x.stroke(new Path2D(d.slice(3, -1))));
+    (m.match(/<circle[^>]*>/g) || []).forEach(cc => { const n = k => Number((cc.match(new RegExp(k + '="([\\d.]+)"')) || [])[1] || 0); x.beginPath(); x.arc(n('cx'), n('cy'), n('r'), 0, Math.PI * 2); x.stroke(); });
+    (m.match(/<rect[^>]*>/g) || []).forEach(cc => { const n = k => Number((cc.match(new RegExp(' ' + k + '="([\\d.]+)"')) || [])[1] || 0); rr(n('x'), n('y'), n('width'), n('height'), n('rx') || 0.01); x.stroke(); });
+    x.restore();
   };
-  let y = PY + 50;
-  const code = String(t.code || 'BILLO');
-  rows.forEach(r => {
-    const base = y + r.h - 14;
-    x.textAlign = 'center';
-    if (r.kind === 'brand') { x.fillStyle = INK; x.font = F(64, '700'); x.letterSpacing = '20px'; x.fillText('BILLO', W / 2 + 10, base); x.letterSpacing = '0px'; }
-    else if (r.kind === 'tag') { x.fillStyle = DIM; x.font = F(24, '500'); x.fillText(APP.tagline.toUpperCase(), W / 2, base); }
-    else if (r.kind === 'trip') {
-      x.fillStyle = INK; x.font = '400 96px ' + SERIF;
-      let nm = String(t.name); while (nm.length > 1 && x.measureText(nm).width > CW) nm = nm.slice(0, -2) + '…';
-      x.fillText(nm, W / 2, base);
-    }
-    else if (r.kind === 'meta') { x.fillStyle = DIM; x.font = F(26, '500'); x.fillText([tripRange(t), t.members.length + ' ' + T('people').toUpperCase(), t.sync && t.sync.on ? '' : code].filter(Boolean).join('  ·  '), W / 2, base); }
-    else if (r.kind === 'dash' || r.kind === 'solid') {
-      x.strokeStyle = r.kind === 'solid' ? INK : RULE; x.lineWidth = 3; x.setLineDash(r.kind === 'solid' ? [] : [12, 9]);
-      x.beginPath(); x.moveTo(PX + PAD, y + r.h / 2); x.lineTo(PX + PAD + CW, y + r.h / 2); x.stroke(); x.setLineDash([]);
-    }
-    else if (r.kind === 'line') leader(r.data.l, r.data.r, base, 32, '500');
-    else if (r.kind === 'more' || r.kind === 'upi') { x.textAlign = 'left'; x.fillStyle = DIM; x.font = F(26, '500'); x.fillText(fit(r.data.l, 26, '500', CW), PX + PAD, base); }
-    else if (r.kind === 'label') { x.textAlign = 'left'; x.fillStyle = DIM; x.font = F(24, '600'); x.fillText(r.data.l, PX + PAD, base); }
-    else if (r.kind === 'total') { x.fillStyle = INK; x.font = F(44, '700'); x.textAlign = 'left'; x.fillText(T('total').toUpperCase(), PX + PAD, base); x.textAlign = 'right'; x.fillText(fmtMoney(I.total, t.currency), PX + PAD + CW, base); }
-    else if (r.kind === 'perhead') { x.fillStyle = DIM; x.font = F(30, '500'); x.textAlign = 'left'; x.fillText(T('per_person').toUpperCase(), PX + PAD, base); x.textAlign = 'right'; x.fillText(fmtMoney(t.members.length ? I.total / t.members.length : 0, t.currency), PX + PAD + CW, base); }
-    else if (r.kind === 'allsq') { x.fillStyle = INK; x.font = F(38, '700'); x.fillText(T('everyone_square').toUpperCase(), W / 2, base); }
-    else if (r.kind === 'barcode') {
-      /* decorative barcode seeded by the trip code — same trip, same bars */
-      let s = 0; for (const ch of code) s = (s * 31 + ch.charCodeAt(0)) >>> 0;
-      let bx = W / 2 - 170; x.fillStyle = INK;
-      while (bx < W / 2 + 170) { s = (s * 1103515245 + 12345) >>> 0; const bw = 2 + (s >>> 28) % 4; x.fillRect(bx, y + 10, bw, r.h - 24); bx += bw + 3 + ((s >>> 24) % 3); }
-    }
-    else if (r.kind === 'foot') { x.fillStyle = INK; x.font = F(24, '600'); x.fillText(S.pro ? (T('thanks_from') + ' ' + (S.me.name || '').toUpperCase()).trim() : T('share_cta').toUpperCase(), W / 2, base); }
-    y += r.h;
-  });
-  x.restore();
+  const avatar = (name, X, Y, r) => {
+    x.fillStyle = colorFor(name || '?'); x.beginPath(); x.arc(X, Y, r, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#1A1A2E'; x.font = '800 ' + Math.round(r * 0.95) + 'px ' + BODY; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText(String(name || '?').charAt(0).toUpperCase(), X, Y + 2); x.textBaseline = 'alphabetic';
+  };
+  let y = P + 40;
+  x.textAlign = 'left'; x.fillStyle = WH; x.font = '800 52px ' + DISP; x.fillText('billo', P, y);
+  const bw = x.measureText('billo').width; x.fillStyle = '#8F8FFF'; x.fillText('.', P + bw, y);
+  x.textAlign = 'right'; x.fillStyle = DIM; x.font = '600 30px ' + BODY;
+  x.fillText(new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }), W - P, y);
+  y += 90;
+  x.fillStyle = 'rgba(143,143,255,.16)'; rr(P, y, 120, 120, 34); x.fill();
+  icon(tripIconOf(t), P + 30, y + 30, 60, IND);
+  x.textAlign = 'left'; x.fillStyle = WH; x.font = '700 70px ' + DISP; x.fillText(fit(t.name, W - P * 2 - 160), P + 156, y + 66);
+  x.fillStyle = DIM; x.font = '600 32px ' + BODY;
+  x.fillText(t.members.length + ' ' + T('people') + ' · ' + (t.expenses || []).length + ' ' + T('bills'), P + 156, y + 112);
+  y += 250;
+  x.fillStyle = WH; x.font = '800 132px ' + DISP; x.fillText(shareAmt(I.total, t.currency), P, y);
+  y += 58; x.fillStyle = DIM; x.font = '600 34px ' + BODY;
+  x.fillText(shareAmt(t.members.length ? I.total / t.members.length : 0, t.currency) + ' ' + T('per_person'), P, y);
+  y += 96;
+  x.fillStyle = DIM; x.font = '800 26px ' + BODY; x.letterSpacing = '6px'; x.fillText(T('who_pays').toUpperCase(), P, y); x.letterSpacing = '0px';
+  y += 30;
+  if (flows.length) {
+    flows.forEach(f => {
+      x.strokeStyle = 'rgba(255,255,255,.10)'; x.lineWidth = 2; x.beginPath(); x.moveTo(P, y); x.lineTo(W - P, y); x.stroke();
+      const cy = y + 48, fn = nameOf(t, f.from), tn = nameOf(t, f.to);
+      avatar(fn, P + 30, cy, 30);
+      x.textAlign = 'left'; x.fillStyle = WH; x.font = '700 38px ' + BODY;
+      const n1 = fit(fn, 250); x.fillText(n1, P + 76, cy + 13);
+      let X = P + 76 + x.measureText(n1).width + 22;
+      x.strokeStyle = FAINT; x.lineWidth = 4; x.lineCap = 'round'; x.beginPath(); x.moveTo(X, cy); x.lineTo(X + 34, cy); x.moveTo(X + 22, cy - 11); x.lineTo(X + 34, cy); x.lineTo(X + 22, cy + 11); x.stroke();
+      X += 56; avatar(tn, X + 30, cy, 30);
+      x.textAlign = 'left'; x.fillStyle = WH; x.font = '700 38px ' + BODY; x.fillText(fit(tn, 230), X + 76, cy + 13);
+      x.textAlign = 'right'; x.fillStyle = GET; x.font = '800 40px ' + BODY; x.fillText(shareAmt(f.amount, t.currency), W - P, cy + 14);
+      y += 96;
+    });
+    if (c.flows.length > 6) { x.textAlign = 'left'; x.fillStyle = DIM; x.font = '600 30px ' + BODY; x.fillText('+ ' + (c.flows.length - 6) + ' ' + T('more_bills'), P, y + 44); y += 60; }
+  } else {
+    x.strokeStyle = 'rgba(255,255,255,.10)'; x.lineWidth = 2; x.beginPath(); x.moveTo(P, y); x.lineTo(W - P, y); x.stroke();
+    x.textAlign = 'left'; x.fillStyle = GET; x.font = '800 44px ' + DISP; x.fillText(T('everyone_square'), P, y + 64); y += 96;
+  }
+  if (payee) {
+    y += 30;
+    x.fillStyle = 'rgba(255,255,255,.07)'; rr(P, y, W - P * 2, 130, 32); x.fill();
+    x.fillStyle = 'rgba(143,143,255,.18)'; rr(P + 26, y + 29, 72, 72, 20); x.fill();
+    x.textAlign = 'center'; x.fillStyle = IND; x.font = '800 30px ' + BODY; x.fillText('UPI', P + 62, y + 76);
+    x.textAlign = 'left'; x.fillStyle = WH; x.font = '700 34px ' + BODY; x.fillText(fit(T('pay_on_upi', { name: nameOf(t, payee.id) }), W - P * 2 - 160), P + 124, y + 58);
+    x.fillStyle = DIM; x.font = '600 30px ' + BODY; x.fillText(fit(payee.upi.trim().toLowerCase(), W - P * 2 - 160), P + 124, y + 100);
+    y += 130;
+  }
+  x.textAlign = 'left'; x.fillStyle = FAINT; x.font = '600 28px ' + BODY;
+  x.fillText(APP.tagline + ' · billo.app', P, H - P + 10);
   return cv;
 }
 function scrShare() {
@@ -2741,7 +2846,7 @@ function scrShare() {
     try {
       if (document.fonts && document.fonts.load) {
         Promise.race([
-          Promise.all(['700 64px "Plex Mono"', '500 32px "Plex Mono"', '400 92px "Instrument Serif"'].map(f => document.fonts.load(f, '₹0A'))),
+          Promise.all(['800 52px "Bricolage Grotesque"', '700 70px "Bricolage Grotesque"', '700 38px "Manrope"', '600 30px "Manrope"'].map(f => document.fonts.load(f, '₹0A'))),
           new Promise(r => setTimeout(r, 1500))
         ]).then(draw, draw);
       } else setTimeout(draw, 0);
@@ -2771,11 +2876,11 @@ function scrSettings() {
   '<span class="lang-seg"><button class="chip' + (S.settings.lang === 'en' ? ' on' : '') + '" data-act="set-lang" data-arg="en">English</button>' +
   '<button class="chip' + (S.settings.lang === 'hi' ? ' on' : '') + '" data-act="set-lang" data-arg="hi">हिंदी</button></span></div>' +
   '<div class="set-row"><span class="k">' + T('theme') + '</span><span class="lang-seg">' +
-  ['dark', 'light'].map(k => '<button class="chip' + ((S.settings.theme === 'light' ? 'light' : 'dark') === k ? ' on' : '') + '" data-act="set-theme" data-arg="' + k + '">' + T('theme_' + k) + '</button>').join('') + '</span></div>' +
+  ['cream', 'dark', 'paper'].map(k => '<button class="chip' + ((S.settings.theme === 'dark' ? 'dark' : (S.settings.theme === 'paper' || S.settings.theme === 'light') ? 'paper' : 'cream') === k ? ' on' : '') + '" data-act="set-theme" data-arg="' + k + '">' + T('theme_' + k) + '</button>').join('') + '</span></div>' +
   '<div class="set-row"><span class="k">' + T('currency') + '</span>' +
   (S.pro
     ? '<select class="input" id="set_currency" style="width:130px;padding:9px 12px">' + CURRENCIES.map(c2 => '<option' + (S.settings.currency === c2 ? ' selected' : '') + '>' + c2 + '</option>').join('') + '</select>'
-    : '<span class="badge pro">🔒 ' + T('currency_locked') + '</span></div></div>') +
+    : '<span class="badge pro">' + T('currency_locked') + '</span></div></div>') +
   '<div class="card"><div class="set-row"><span class="k">' + ic('sparkle', 's') + ' ' + T('ai_title') + '</span>' +
   '<input type="checkbox" id="ai_enabled"' + (a.enabled ? ' checked' : '') + ' style="width:22px;height:22px;accent-color:var(--brand)"></div>' +
   (a.enabled ? '<div style="padding-top:6px"><div class="fld"><label>' + T('ai_base') + '</label><input class="input" id="ai_base" value="' + escapeHtml(a.baseUrl) + '"></div>' +
@@ -2810,7 +2915,7 @@ function scrPro() {
     '<div class="note">' + T('pro_play') + '</div>';
 }
 function scrNewTrip() {
-  const emojis = EMOJIS.map(e => '<button class="emo' + (ui.ntEmoji === e ? ' on' : '') + '" data-act="nt-emoji" data-arg="' + e + '">' + e + '</button>').join('');
+  const emojis = EMOJIS.map(e => '<button class="emo' + (ui.ntEmoji === e ? ' on' : '') + '" data-act="nt-emoji" data-arg="' + e + '" aria-label="' + tripIconOf({ emoji: e }) + '">' + ic(tripIconOf({ emoji: e })) + '</button>').join('');
   const members = (S.me.name ? ['__me__'] : []).concat(ui.ntMembers).map(m =>
     m === '__me__'
       ? '<span class="chip on">' + escapeHtml(S.me.name || T('you')) + ' (' + T('you') + ')</span>'
@@ -2818,7 +2923,7 @@ function scrNewTrip() {
   ).join('');
   return topBar(iconBtn('nt-back', 'back', T('back')), '<b class="tname">' + T('new_trip') + '</b>', '') +
     '<div class="fld"><label>' + T('new_trip') + '</label><input class="input" id="nt_name" placeholder="' + T('trip_name_ph') + '" value="' + escapeHtml(ui.ntName || '') + '" autocomplete="off"></div>' +
-    '<div class="fld"><label>Emoji</label><div class="emo-row">' + emojis + '</div></div>' +
+    '<div class="fld"><label>' + T('trip_icon') + '</label><div class="emo-row">' + emojis + '</div></div>' +
     '<div class="fld"><label>' + T('who_members') + '</label><div class="chips" style="margin-bottom:10px">' + members + '</div>' +
     '<div class="row"><input class="input grow" id="nt_member" placeholder="' + T('add_member_ph') + '" autocomplete="off">' +
     '<button class="btn btn-ghost" data-act="nt-add-member">＋</button></div></div>' +
@@ -3106,6 +3211,11 @@ const ACT = {
     if (ts.length === 1) { ACT['open-trip'](ts[0].id); return; }
     if (ts.length) toast(T('circle_in', { name: escapeHtml(name), trips: ts.map(t => t.name).join(', ') }));
   },
+  'cat-tap'() {
+    const c = $('.catperch'); if (!c) return;
+    c.classList.add('tapped'); clearTimeout(VOICE.catT);
+    VOICE.catT = setTimeout(() => { const d = $('.catperch'); if (d) d.classList.remove('tapped'); }, 2600);
+  },
   'voice-start'() {
     if (!S.trips.length) { toast(T('voice_need_trip')); ACT['new-trip'](); return; }
     const t = (ui.screen === 'trip' || ui.screen === 'add') && curTrip() ? curTrip() : defaultTrip();
@@ -3162,7 +3272,7 @@ const ACT = {
       else if (copyText(txt)) toast(T('copied'));
     }
   },
-  'set-theme'(k) { S.settings.theme = k === 'light' ? 'light' : ''; save(); render(); },
+  'set-theme'(k) { S.settings.theme = k === 'dark' ? 'dark' : k === 'paper' ? 'paper' : ''; save(); render(); },
   'insights-back'() { go('trip'); },
   'set-budget'() {
     const t = curTrip();
@@ -3262,7 +3372,7 @@ const ACT = {
         '</div>', null, false, () => {});
       return;
     }
-    const txt = '🧾 Join my "' + t.name + '" trip on ' + APP.name + '! Code: ' + t.code + '\n\n' + APP.tagline + ' — just send the receipts, it does the math.\nGet it: ' + APP.storeUrl;
+    const txt = 'Join my "' + t.name + '" trip on ' + APP.name + '! Code: ' + t.code + '\n\n' + APP.tagline + ' — just send the receipts, it does the math.\nGet it: ' + APP.storeUrl;
     if (!nativeShare(txt)) { copyText(txt); toast(T('copied')); }
   },
   'invite-wa'() {

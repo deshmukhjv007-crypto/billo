@@ -13,19 +13,31 @@
 </head>
 <body>
 <h1>Billo — Privacy Policy</h1>
-<p class="muted">Last updated: 16 September 2026<br>Effective date: 16 September 2026</p>
+<p class="muted">Last updated: 25 September 2026<br>Effective date: 25 September 2026</p>
 
 <div class="card">
-<b>Short version:</b> Billo is an on-device bill-splitting app. We do not operate a server, we do not collect your data, and we do not track you. Your trips, bills and balances live only in your phone's local storage.
+<b>Short version:</b> Billo is an on-device bill-splitting app. By default your trips, bills and balances live only on your phone. If you choose to <b>share a trip live</b> with friends, that trip's names, bills, payments and UPI IDs are stored on our server (Google Firebase) so everyone in the trip sees the same thing. Receipt photos never leave your phone. No accounts, no ads, no analytics, no tracking.
 </div>
 
 <h2>1. What the app does</h2>
-<p>Billo helps groups split expenses for trips, events and shared living. You create trips, add expenses (manually, from a text description, or from a photo of a bill), see who owes whom, and share a summary card. Everything happens on your device.</p>
+<p>Billo helps groups split expenses for trips, events and shared living. You create trips, add expenses (manually, from a text description, or from a photo of a bill), see who owes whom, and share a summary card. Everything happens on your device unless you turn on live sync for a trip (section 3).</p>
 
 <h2>2. Data we collect</h2>
-<p><b>None.</b> Billo v1 has no accounts, no analytics, no advertising SDK, and no crash reporting. We cannot see your trips, expenses, names, or balances — the data never leaves your device.</p>
+<p><b>For trips you keep on your phone: none.</b> Billo has no accounts, no analytics, no advertising SDK, and no crash reporting. Trips you don't share live never leave your device.</p>
 
-<h2>3. Bill photo reading</h2>
+<h2>3. Live sync (optional, per trip)</h2>
+<p>When you tap <b>Turn on live sync</b> on a trip, or join a trip with a code, Billo stores that trip on Google Firebase (Cloud Firestore, operated by Google on our behalf) so everyone in the trip can add bills from their own phone. For a shared trip we store:</p>
+<ul>
+  <li>the trip's name, emoji, currency, budget and join code;</li>
+  <li>the names people in the trip are listed under, and the UPI IDs they choose to add;</li>
+  <li>the bills (amount, description, category, date, who paid, who shared it, item lines, and the text you typed to add it) and the settle-up payments recorded;</li>
+  <li>a random anonymous ID for each phone in the trip (Firebase Anonymous Authentication) — no name, email, phone number or Google account is attached to it.</li>
+</ul>
+<p><b>Never uploaded:</b> receipt photos, your AI API key, trips you haven't shared, and the app's settings.</p>
+<p><b>Who can see it:</b> only phones that have joined that trip. Joining requires the trip's code, so share it only with people in the trip. Data is encrypted in transit (HTTPS) and at rest by Google. We don't sell it, share it or use it for anything other than showing the trip to its members.</p>
+<p><b>Leaving and deleting:</b> "Leave trip" removes the trip from your phone and stops your phone's access; the other members keep their copy. To have a shared trip deleted from our server, email us from section 11 with the trip code — we delete it within 30 days. Server data for trips nobody has opened in 24 months may be deleted.</p>
+
+<h2>4. Bill photo reading</h2>
 <p><b>By default, bill photos are processed entirely on your device.</b> Billo includes an on-device OCR engine; no photo is ever sent to anyone, and this works without an account or any API key.</p>
 <p>Optionally, you can enable cloud AI reading in Settings and enter your own API key (e.g. OpenAI or any OpenAI-compatible provider). Only in that case, and only for the duration of a read:</p>
 <ul>
@@ -35,28 +47,28 @@
   <li>You can turn the feature off at any time. Without it, no photo ever leaves your device (free-plan photos are processed and discarded; Pro stores them in your local receipt archive).</li>
 </ul>
 
-<h2>4. Google Play Billing</h2>
+<h2>5. Google Play Billing</h2>
 <p>If you purchase Billo Pro, the transaction is processed by Google Play. Google receives standard purchase data (your Google account, product, amount, receipt) under its own privacy policy. The app stores a local "pro_unlocked" flag and can restore it from Google Play's purchase history on launch.</p>
 
-<h2>5. Permissions</h2>
+<h2>6. Permissions</h2>
 <ul>
-  <li><b>Internet</b> — only used for the optional AI bill-reading endpoint you configure, and for Google Play Billing. Nothing else is transmitted.</li>
+  <li><b>Internet</b> — used for live sync of trips you choose to share, the optional AI bill-reading endpoint you configure, and Google Play Billing. Nothing else is transmitted.</li>
   <li><b>Camera / media</b> — only when you choose to add a bill photo. There is no background access.</li>
 </ul>
 
-<h2>6. Children's privacy</h2>
-<p>Billo is not directed at children under 13 (or the equivalent age in your country) and does not knowingly collect any data from children. In fact, it collects none at all.</p>
+<h2>7. Children's privacy</h2>
+<p>Billo is not directed at children under 13 (or the equivalent age in your country) and does not knowingly collect any data from children.</p>
 
-<h2>7. Data deletion</h2>
-<p>Delete your data anytime in-app (Settings → Data → Erase everything) or by uninstalling the app. Because there is no server, there is nothing for us to delete — it simply doesn't exist outside your device.</p>
+<h2>8. Data deletion</h2>
+<p>Delete everything on your phone anytime in-app (Settings → Erase everything) or by uninstalling the app. For shared trips stored on our server, use "Leave trip" and email us to delete the trip itself (section 3).</p>
 
-<h2>8. Sharing / selling data</h2>
-<p>Never. We don't have any.</p>
+<h2>9. Sharing / selling data</h2>
+<p>Never. Shared-trip data is processed by Google Firebase as our service provider, only to run live sync.</p>
 
-<h2>9. Changes to this policy</h2>
-<p>If we ever add cloud features, we will update this page, bump the app's privacy-policy date, and disclose the changes in the Play Store listing before they reach you.</p>
+<h2>10. Changes to this policy</h2>
+<p>If we change what we store or who can see it, we will update this page, its date, and the Play Store data-safety section before the change reaches you.</p>
 
-<h2>10. Contact</h2>
+<h2>11. Contact</h2>
 <p>Questions, concerns, or data requests: <b>hello@billo.app</b> (replace with your real address before submitting).<br>
 Grievance / data-protection officer (as required by India's DPDP Act, 2023): <b>hello@billo.app</b>, Pune, Maharashtra, India.</p>
 </body>

@@ -210,7 +210,8 @@ J('trip.expenses.push({id:"e9", desc:"Hotel", cat:"hotel", amount:4800, currency
 const txt = J('buildShareText(trip, computeTrip(trip))');
 assert(txt.includes('Manali'), 'has trip name');
 assert(txt.includes('₹4,800'), 'has total', txt.split('\n')[0]);
-assert(txt.includes('Settlements:'), 'has settlements header');
+assert(txt.includes('Who pays whom:'), 'has settlements header');
+assert(!/[\u{1F300}-\u{1FAFF}]/u.test(txt), 'no emoji in share text');
 assert(txt.includes('→'), 'has arrows');
 assert(txt.includes('billo.app'), 'has store CTA');
 
@@ -236,7 +237,9 @@ J('trip.members[0].upi = "jay@okicici";');
 const req = J('buildUpiRequest(trip, { from: "m2", to: "m1", amount: 1240 })');
 assert(req.includes('Hi Rahul') && req.includes('₹1,240') && req.includes('UPI: jay@okicici'), 'request text', req);
 const st2 = J('buildShareText(trip, { total: 100, receipts: 0, flows: [{ from: "m2", to: "m1", amount: 100 }] })');
-assert(st2.includes('(UPI: jay@okicici)'), 'share text carries payee UPI');
+assert(st2.includes('on UPI: jay@okicici'), 'share text carries payee UPI');
+const st3 = J('buildShareText(trip, { total: 3678, receipts: 0, flows: [{ from: "m2", to: "m1", amount: 1225.99 }] })');
+assert(st3.includes('₹1,226') && !st3.includes('1,225.99'), 'whole rupees in chat', st3);
 J('delete trip.members[0].upi;');
 
 console.log('\nsplitItems');

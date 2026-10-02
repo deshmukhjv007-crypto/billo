@@ -5,6 +5,16 @@ version. Bump the number with: `python3 scripts/bump_version.py X.Y.Z`
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-10-02
+- **New look: Cream + Ink.** Warm off-white, deep ink text, one indigo accent; Midnight and Paper (pure white) are in Settings → Look. New fonts (Bricolage Grotesque + Manrope, bundled, ₹ included).
+- **No more emoji in the interface:** line icons for trips and bills; the trip picker shows icons.
+- **Slide-to-pay / save:** white track, indigo knob.
+- **Meet Billo:** a tomcat who lives in the top bar and does cat things (licks his paw, looks around, yawns, grooms). Tap him and he looks at you. Still for phones set to reduce motion.
+- **Calm voice screen:** "Take your time. Say the whole bill." — the screen no longer redraws on every word; the card comes up when you stop talking. Android waits a little longer before deciding you've finished.
+- **Share card:** back to the dark card, with line icons, avatars, "Who pays whom", whole rupees (no more ₹1,225.99) and a "Pay … on UPI" box. The text message lists UPI IDs too.
+- **New app icon:** Billo's face on indigo (adaptive icon on Android 8+).
+- Android status bar follows the chosen look.
+
 ## [1.5.0] — 2026-10-02
 - **New look: Midnight.** Dark by default (Day theme in Settings), new fonts (Unbounded + Sora, bundled), clearer words instead of colour-only signals.
 - **Your circle** on Home: you in the middle, the people you share bills with around you, arrows and plain words ("Rahul pays you ₹1,600").

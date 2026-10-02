@@ -1,5 +1,5 @@
 /* Billo service worker — app-shell caching for offline use */
-const V = 'billo-v1.5.0';
+const V = 'billo-v1.6.0';
 const ASSETS = [
   './',
   './index.html',
@@ -15,18 +15,18 @@ const ASSETS = [
   './ocr/tesseract-core-simd-lstm.js',
   './ocr/tesseract-core-simd-lstm.wasm',
   './ocr/eng.traineddata',
-  './fonts/sora-400-ext.woff2',
-  './fonts/sora-400.woff2',
-  './fonts/sora-600-ext.woff2',
-  './fonts/sora-600.woff2',
-  './fonts/sora-700-ext.woff2',
-  './fonts/sora-700.woff2',
-  './fonts/unbounded-500-ext.woff2',
-  './fonts/unbounded-500.woff2',
-  './fonts/unbounded-700-ext.woff2',
-  './fonts/unbounded-700.woff2',
-  './fonts/unbounded-800-ext.woff2',
-  './fonts/unbounded-800.woff2'
+  './fonts/bricolage-700-ext.woff2',
+  './fonts/bricolage-700.woff2',
+  './fonts/bricolage-800-ext.woff2',
+  './fonts/bricolage-800.woff2',
+  './fonts/manrope-400-ext.woff2',
+  './fonts/manrope-400.woff2',
+  './fonts/manrope-600-ext.woff2',
+  './fonts/manrope-600.woff2',
+  './fonts/manrope-700-ext.woff2',
+  './fonts/manrope-700.woff2',
+  './fonts/manrope-800-ext.woff2',
+  './fonts/manrope-800.woff2'
 ];
 
 self.addEventListener('install', e => {
